@@ -88,21 +88,7 @@ export default function DashboardPage() {
 <span className="font-label-sm text-label-sm" suppressHydrationWarning>{currentTime}</span>
 </div>
 </div>
-{/*  Live Flight Pulse & Weather Banner  */}
-<div className="bg-surface-container-lowest rounded-xl p-space-sm shadow-sm flex items-center justify-between gap-space-sm">
-<div className="flex items-center gap-space-sm min-w-0">
-<div className="w-9 h-9 rounded-lg bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed shrink-0">
-<span className="material-symbols-outlined text-[20px]">cloud</span>
-</div>
-<div className="flex flex-col truncate">
-<span className="font-label-sm text-label-sm text-on-surface-variant uppercase">METAR Albrook (MPMG)</span>
-<span className="font-label-md text-label-md text-on-surface truncate">VMC 10KM FEW020 • Viento 360/08KT</span>
-</div>
-</div>
-<button onClick={handleRefresh} className={`p-2 rounded-lg text-primary hover:bg-surface-container active:scale-95 transition-all ${isSyncing ? "animate-spin" : ""}`}>
-<span className="material-symbols-outlined text-[18px]">sync</span>
-</button>
-</div><div className="grid grid-cols-2 gap-space-sm"><Link href="/dashboard/diario" className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm active:scale-95 transition-all hover:bg-primary/90"><span className="material-symbols-outlined text-[18px] text-emerald-400">upload_file</span><span className="">+ Subir Diarios</span></Link><Link href="/dashboard/mensual" className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-surface-container-lowest text-secondary font-label-md text-label-md font-bold ring-1 ring-secondary/30 shadow-sm active:scale-95 transition-all hover:bg-secondary-container/15"><span className="material-symbols-outlined text-[18px] text-secondary">event_note</span><span className="">+ Reg. Mensual</span></Link></div>
+<div className="grid grid-cols-2 gap-space-sm"><Link href="/dashboard/diario" className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm active:scale-95 transition-all hover:bg-primary/90"><span className="material-symbols-outlined text-[18px] text-emerald-400">upload_file</span><span className="">+ Subir Diarios</span></Link><Link href="/dashboard/mensual" className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-surface-container-lowest text-secondary font-label-md text-label-md font-bold ring-1 ring-secondary/30 shadow-sm active:scale-95 transition-all hover:bg-secondary-container/15"><span className="material-symbols-outlined text-[18px] text-secondary">event_note</span><span className="">+ Reg. Mensual</span></Link></div>
 {/*  Executive KPI Grid  */}
 <div className="grid grid-cols-2 gap-space-sm">
 {/*  Vuelos Activos  */}
