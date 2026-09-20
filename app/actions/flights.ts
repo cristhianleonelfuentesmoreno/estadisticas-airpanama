@@ -11,6 +11,8 @@ export interface FlightData {
   destinationName: string;
   departureTime: string; // ISO string so it's serializable to client
   arrivalTime: string;
+  departureTimeLocal: string;
+  arrivalTimeLocal: string;
   status: 'A TIEMPO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'LLEGÓ';
   gate: string;
   pilot: string;
@@ -121,6 +123,8 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
       destinationName: flight.desName,
       departureTime: depDate.toISOString(),
       arrivalTime: arrDate.toISOString(),
+      departureTimeLocal: flight.dep,
+      arrivalTimeLocal: flight.arr,
       status,
       gate: '1',
       pilot: flight.pilot,
@@ -172,8 +176,8 @@ export async function saveCompletedMalekFlights() {
       aerolinea: f.airline,
       numero_vuelo: f.flightNumber,
       origen: f.origin,
-      hora_itinerario: f.arrivalTime,
-      hora_llegada_real: f.arrivalTime,
+      hora_itinerario: `${today}T${f.arrivalTimeLocal}:00-05:00`,
+      hora_llegada_real: `${today}T${f.arrivalTimeLocal}:00-05:00`,
       estado_final: f.status,
       pasajeros_abordo: f.paxCount,
       capacidad_total: f.paxMax
@@ -251,8 +255,8 @@ export async function saveCompletedMalekDepartures() {
       aerolinea: f.airline,
       numero_vuelo: f.flightNumber,
       destino: f.destination,
-      hora_itinerario: f.departureTime,
-      hora_salida_real: f.departureTime,
+      hora_itinerario: `${today}T${f.departureTimeLocal}:00-05:00`,
+      hora_salida_real: `${today}T${f.departureTimeLocal}:00-05:00`,
       estado_final: f.status,
       pasajeros_abordo: f.paxCount,
       capacidad_total: f.paxMax
@@ -320,11 +324,28 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
   const supabase = getAdminSupabase();
   const table = type === 'llegadas' ? 'llegadas_malek_historico' : 'salidas_malek_historico';
   
-  const { error } = await supabase.from(table).insert(data);
+  const dates = [...new Set(data.map(d => d.fecha))];
+  const { data: existing, error: fetchError } = await supabase
+    .from(table)
+    .select('fecha, numero_vuelo')
+    .in('fecha', dates);
+
+  if (fetchError) {
+    return { success: false, error: fetchError.message };
+  }
+
+  const existingSet = new Set(existing?.map(r => `${r.fecha}_${r.numero_vuelo}`) || []);
+  const newData = data.filter(d => !existingSet.has(`${d.fecha}_${d.numero_vuelo}`));
+
+  if (newData.length === 0) {
+    return { success: true, inserted: 0, skipped: data.length, message: 'Todos los registros ya existían.' };
+  }
+  
+  const { error } = await supabase.from(table).insert(newData);
   if (error) {
     console.error("Error bulk inserting to", table, ":", error);
     return { success: false, error: error.message };
   }
   
-  return { success: true };
+  return { success: true, inserted: newData.length, skipped: data.length - newData.length };
 }

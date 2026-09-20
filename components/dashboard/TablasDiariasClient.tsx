@@ -20,6 +20,15 @@ interface MalekFlight {
   capacidad_total: number;
 }
 
+const AIRCRAFT_MODELS = [
+  { id: 'F50', label: 'F50 (Air Panama)', cap: 50 },
+  { id: 'DH8D', label: 'DH8D (Air Panama)', cap: 78 },
+  { id: 'B737', label: 'B737 (Copa)', cap: 124 },
+  { id: 'B738', label: 'B738 (Copa)', cap: 160 },
+  { id: 'B39M', label: 'B39M (Copa)', cap: 166 },
+  { id: 'OTRO', label: 'Otro', cap: 100 },
+];
+
 export default function TablasDiariasClient({
   initialData,
   currentDateStr
@@ -67,7 +76,8 @@ export default function TablasDiariasClient({
     hora_real: '',
     estado_final: 'LLEGÓ',
     pasajeros_abordo: 0,
-    capacidad_total: 78
+    capacidad_total: 78,
+    avion: 'DH8D'
   });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingFlight, setEditingFlight] = useState<MalekFlight | null>(null);
@@ -75,6 +85,7 @@ export default function TablasDiariasClient({
     fecha: "",
     aerolinea: "",
     numero_vuelo: "",
+    avion: "DH8D",
     origen: "",
     destino: "",
     hora_itinerario: "",
@@ -435,17 +446,26 @@ export default function TablasDiariasClient({
           }
         }
 
-        let total = 0;
+        let totalInserted = 0;
+        let totalSkipped = 0;
         if (llegadasToInsert.length > 0) {
           const res = await insertFlightRecords(llegadasToInsert, 'llegadas');
-          if (res.success) total += llegadasToInsert.length;
+          if (res.success) {
+            totalInserted += res.inserted || 0;
+            totalSkipped += res.skipped || 0;
+          }
         }
         if (salidasToInsert.length > 0) {
           const res = await insertFlightRecords(salidasToInsert, 'salidas');
-          if (res.success) total += salidasToInsert.length;
+          if (res.success) {
+            totalInserted += res.inserted || 0;
+            totalSkipped += res.skipped || 0;
+          }
         }
 
-        alert(`Importación completada: ${total} vuelos procesados e importados correctamente.`);
+        let msg = `Importación completada:\n- ${totalInserted} vuelos nuevos agregados.`;
+        if (totalSkipped > 0) msg += `\n- ${totalSkipped} vuelos omitidos (ya existían en el sistema).`;
+        alert(msg);
         window.location.reload();
       } catch (err: any) {
         console.error("Error importando Excel:", err);
@@ -903,6 +923,22 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Avión</label>
+                    <select 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      required value={editFormData.avion}
+                      onChange={(e) => {
+                        const avionStr = e.target.value;
+                        const defaultCap = AIRCRAFT_MODELS.find(m => m.id === avionStr)?.cap || 100;
+                        setEditFormData({...editFormData, avion: avionStr, capacidad_total: defaultCap});
+                      }}
+                    >
+                      {AIRCRAFT_MODELS.map(model => (
+                        <option key={model.id} value={model.id}>{model.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
@@ -1036,6 +1072,23 @@ export default function TablasDiariasClient({
                       value={addFormData.aerolinea} onChange={(e) => setAddFormData({...addFormData, aerolinea: e.target.value})} required>
                       <option value="Air Panama">Air Panama</option>
                       <option value="Copa Airlines">Copa Airlines</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Avión</label>
+                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.avion} 
+                      onChange={(e) => {
+                        const avionStr = e.target.value;
+                        const defaultCap = AIRCRAFT_MODELS.find(m => m.id === avionStr)?.cap || 100;
+                        setAddFormData({...addFormData, avion: avionStr, capacidad_total: defaultCap});
+                      }} required>
+                      {AIRCRAFT_MODELS.map(model => (
+                        <option key={model.id} value={model.id}>{model.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
