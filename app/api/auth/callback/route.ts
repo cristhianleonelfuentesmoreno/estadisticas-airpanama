@@ -20,32 +20,15 @@ export async function GET(request: Request) {
           .eq('id', userData.user.id)
           .single()
 
-        // Determinar si es un usuario recién creado (hace menos de 15 segundos)
-        const isNewUser = new Date(userData.user.created_at).getTime() > Date.now() - 15000;
-
-        if (action === 'login') {
-          if (isNewUser) {
-            // Trató de iniciar sesión con un Google account no registrado
-            await supabase.auth.signOut()
-            return NextResponse.redirect(`${origin}/login?error=not_registered`)
-          } else {
-            // Usuario existente
-            if (perfil?.status === 'pendiente') {
-              await supabase.auth.signOut()
-              return NextResponse.redirect(`${origin}/login?status=pending`)
-            } else if (perfil?.status === 'rechazado') {
-              await supabase.auth.signOut()
-              return NextResponse.redirect(`${origin}/login?error=true`)
-            }
-          }
-        } else if (action === 'register') {
-          if (isNewUser || perfil?.status === 'pendiente') {
-            // Usuario recién registrado, o que ya estaba pendiente
-            await supabase.auth.signOut()
+        if (perfil?.status !== 'aprobado') {
+          // No está aprobado (es nuevo, pendiente o rechazado)
+          await supabase.auth.signOut()
+          
+          if (action === 'register') {
             return NextResponse.redirect(`${origin}/login?status=registered_google`)
-          } else if (perfil?.status === 'rechazado') {
-            await supabase.auth.signOut()
-            return NextResponse.redirect(`${origin}/login?error=true`)
+          } else {
+            // action === 'login'
+            return NextResponse.redirect(`${origin}/login?error=not_registered`)
           }
         }
       }
