@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { actualizarActividad, cerrarSesion } from "@/app/actions/sessions";
+import { useEffect } from "react";
 
 interface DashboardLayoutShellProps {
   children: React.ReactNode;
@@ -26,7 +28,63 @@ export default function DashboardLayoutShell({
   const router = useRouter();
   const supabase = createClient();
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    const initSession = async () => {
+      let sessionId = localStorage.getItem('sessionId');
+      
+      if (!sessionId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const location = await new Promise<{lat: number | null, lon: number | null} | null>((resolve) => {
+          if (!navigator.geolocation) {
+             alert("Tu navegador no soporta geolocalización.");
+             resolve({ lat: null, lon: null });
+             return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+            (err) => {
+              alert("Permiso de ubicación denegado. Es obligatorio para acceder al sistema.");
+              supabase.auth.signOut().then(() => router.push("/login"));
+              resolve(null);
+            },
+            { timeout: 10000, maximumAge: 0 }
+          );
+        });
+
+        if (!location) return; // Bloqueado por falta de GPS
+
+        const res = await registrarSesion(user.id, location.lat, location.lon, navigator.userAgent);
+        if (res.success && res.sessionId) {
+          sessionId = res.sessionId;
+          localStorage.setItem('sessionId', sessionId);
+        }
+      }
+
+      if (sessionId) {
+        actualizarActividad(sessionId);
+        interval = setInterval(() => {
+          actualizarActividad(sessionId);
+        }, 60000);
+      }
+    };
+
+    initSession();
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [supabase.auth, router]);
+
   const handleLogout = async () => {
+    const sessionId = localStorage.getItem('sessionId');
+    if (sessionId) {
+      await cerrarSesion(sessionId);
+      localStorage.removeItem('sessionId');
+    }
     await supabase.auth.signOut();
     router.push("/login");
   };

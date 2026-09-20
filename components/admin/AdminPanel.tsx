@@ -5,6 +5,7 @@ import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction, up
 import { toast } from "sonner";
 
 import { SettingsWidget } from "./SettingsWidget";
+import { DispositivosPanel } from "./DispositivosPanel";
 
 export interface User {
   id: string;
@@ -111,6 +112,11 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       {/* WIDGET DE CONFIGURACIÓN                   */}
       {/* ========================================= */}
       <SettingsWidget />
+
+      {/* ========================================= */}
+      {/* PANEL DE DISPOSITIVOS ACTIVOS             */}
+      {/* ========================================= */}
+      <DispositivosPanel />
 
       {/* ========================================= */}
       {/* TARJETA DE RESUMEN E HISTÓRICO            */}
