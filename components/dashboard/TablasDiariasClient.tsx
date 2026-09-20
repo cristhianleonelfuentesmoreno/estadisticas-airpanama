@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { updateLlegadaMalek } from "@/app/actions/flights";
 
 interface MalekArrival {
   id: string;
@@ -10,6 +11,8 @@ interface MalekArrival {
   origen: string;
   hora_llegada_real: string;
   estado_final: string;
+  pasajeros_abordo: number;
+  capacidad_total: number;
 }
 
 export default function TablasDiariasClient({
@@ -20,6 +23,15 @@ export default function TablasDiariasClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Drawer state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingFlight, setEditingFlight] = useState<MalekArrival | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    hora_llegada_real: "",
+    pasajeros_abordo: 0,
+    estado_final: ""
+  });
 
   // Derive summary metrics from initialData
   const totalFlights = initialData.length;
@@ -40,7 +52,6 @@ export default function TablasDiariasClient({
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    // Para recargar data en el servidor, usamos window.location.reload()
     setTimeout(() => window.location.reload(), 600);
   };
 
@@ -59,8 +70,53 @@ export default function TablasDiariasClient({
     }
   };
 
+  const toTimeStringForInput = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      const h = date.getHours().toString().padStart(2, '0');
+      const m = date.getMinutes().toString().padStart(2, '0');
+      return `${h}:${m}`;
+    } catch {
+      return '00:00';
+    }
+  };
+
+  const openEditDrawer = (flight: MalekArrival) => {
+    setEditingFlight(flight);
+    setEditFormData({
+      hora_llegada_real: toTimeStringForInput(flight.hora_llegada_real),
+      pasajeros_abordo: flight.pasajeros_abordo || 0,
+      estado_final: flight.estado_final
+    });
+    setIsDrawerOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFlight) return;
+    
+    // Parse time to ISO
+    const [hours, minutes] = editFormData.hora_llegada_real.split(':').map(Number);
+    const newDate = new Date(editingFlight.hora_llegada_real);
+    newDate.setHours(hours, minutes, 0, 0);
+
+    const updates = {
+      hora_llegada_real: newDate.toISOString(),
+      pasajeros_abordo: editFormData.pasajeros_abordo,
+      estado_final: editFormData.estado_final
+    };
+
+    const res = await updateLlegadaMalek(editingFlight.id, updates);
+    if (res.success) {
+      setIsDrawerOpen(false);
+      window.location.reload(); // Recargar para ver los cambios
+    } else {
+      alert("Error al actualizar: " + res.error);
+    }
+  };
+
   return (
-    <div className="flex flex-col w-full min-h-[calc(100vh-8rem)]">
+    <div className="flex flex-col w-full min-h-[calc(100vh-8rem)] relative">
       {/* Header Panel */}
       <section className="bg-primary-container text-on-primary px-4 py-6 shadow-md flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
@@ -167,7 +223,7 @@ export default function TablasDiariasClient({
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <table className="w-full text-left text-sm border-collapse min-w-[500px]">
+            <table className="w-full text-left text-sm border-collapse min-w-[700px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="sticky left-0 z-20 bg-slate-50 px-4 py-3.5 shadow-[2px_0_5px_rgba(0,0,0,0.04)] min-w-[150px]">
@@ -188,53 +244,86 @@ export default function TablasDiariasClient({
                       <span>Hora Llegada</span>
                     </div>
                   </th>
+                  <th className="px-4 py-3.5 min-w-[120px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">group</span>
+                      <span>Ocupación</span>
+                    </div>
+                  </th>
                   <th className="px-4 py-3.5 min-w-[110px]">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">flag</span>
                       <span>Estado</span>
                     </div>
                   </th>
+                  <th className="px-4 py-3.5 min-w-[80px] text-center">
+                    <span>Acción</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredData.length > 0 ? (
-                  filteredData.map((flight) => (
-                    <tr key={flight.id} className="hover:bg-slate-50 transition-colors group">
-                      <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-4 py-3 shadow-[2px_0_5px_rgba(0,0,0,0.02)] border-r border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-9 h-9 rounded-lg ${getAirlineColor(flight.aerolinea)} flex items-center justify-center font-bold text-[11px] shrink-0 uppercase`}>
-                            {flight.numero_vuelo.split('-')[0]}
-                          </span>
-                          <div>
-                            <span className="font-bold text-primary block leading-tight text-[14px]">{flight.numero_vuelo}</span>
-                            <span className="text-[11px] text-slate-500 block truncate w-24">{flight.aerolinea}</span>
+                  filteredData.map((flight) => {
+                    const paxCount = flight.pasajeros_abordo || 0;
+                    const paxMax = flight.capacidad_total || 100;
+                    const paxPct = Math.round((paxCount / paxMax) * 100);
+
+                    return (
+                      <tr key={flight.id} className="hover:bg-slate-50 transition-colors group">
+                        <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-4 py-3 shadow-[2px_0_5px_rgba(0,0,0,0.02)] border-r border-slate-100">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-9 h-9 rounded-lg ${getAirlineColor(flight.aerolinea)} flex items-center justify-center font-bold text-[11px] shrink-0 uppercase`}>
+                              {flight.numero_vuelo.split('-')[0]}
+                            </span>
+                            <div>
+                              <span className="font-bold text-primary block leading-tight text-[14px]">{flight.numero_vuelo}</span>
+                              <span className="text-[11px] text-slate-500 block truncate w-24">{flight.aerolinea}</span>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5 font-bold text-[13px]">
-                          <span className="text-primary">{flight.origen}</span>
-                          <span className="material-symbols-outlined text-[14px] text-slate-400">arrow_forward</span>
-                          <span className="text-primary">DAV</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-[13px]">
-                          <span className="font-bold text-slate-800">{formatTime(flight.hora_llegada_real)}</span>
-                        </div>
-                        <span className="text-[11px] text-emerald-600 font-medium">{new Date(flight.hora_llegada_real).toLocaleDateString('es-PA')}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800">
-                          <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                          {flight.estado_final}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 font-bold text-[13px]">
+                            <span className="text-primary">{flight.origen}</span>
+                            <span className="material-symbols-outlined text-[14px] text-slate-400">arrow_forward</span>
+                            <span className="text-primary">DAV</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-[13px]">
+                            <span className="font-bold text-slate-800">{formatTime(flight.hora_llegada_real)}</span>
+                          </div>
+                          <span className="text-[11px] text-emerald-600 font-medium">{new Date(flight.hora_llegada_real).toLocaleDateString('es-PA')}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-[12px] mb-1">
+                            <span className="font-bold text-slate-700">{paxCount}/{paxMax}</span>
+                            <span className="text-[10px] text-slate-400 font-semibold">({paxPct}%)</span>
+                          </div>
+                          <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${paxPct}%` }}></div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800">
+                            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                            {flight.estado_final}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button 
+                            onClick={() => openEditDrawer(flight)}
+                            className="p-1.5 rounded-lg bg-slate-100 text-primary hover:bg-primary hover:text-white active:scale-95 transition-all shadow-sm"
+                            title="Editar Fila"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-500 text-sm">
+                    <td colSpan={6} className="py-12 text-center text-slate-500 text-sm">
                       <span className="material-symbols-outlined text-4xl text-slate-300 block mb-2">flight_takeoff</span>
                       No se encontraron llegadas para estos filtros.
                     </td>
@@ -264,6 +353,92 @@ export default function TablasDiariasClient({
         </button>
       </div>
 
+      {/* Edit Drawer Modal */}
+      {isDrawerOpen && editingFlight && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4">
+          <div 
+            className="absolute inset-0 bg-[#0A192F]/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsDrawerOpen(false)}
+          ></div>
+          <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl z-10 transform transition-transform animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in-0 duration-300 flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-primary">
+                  <span className="material-symbols-outlined text-[20px]">edit_document</span>
+                </div>
+                <div>
+                  <h2 className="font-headline-sm text-[16px] font-bold text-primary">{editingFlight.numero_vuelo}</h2>
+                  <p className="font-body-sm text-[12px] text-slate-500">{editingFlight.origen} ➔ DAV</p>
+                </div>
+              </div>
+              <button 
+                className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100" 
+                onClick={() => setIsDrawerOpen(false)}
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form className="flex flex-col gap-4 pt-1" onSubmit={handleSaveEdit}>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Llegada Real</label>
+                <input 
+                  className="h-12 px-4 bg-slate-50 text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none" 
+                  type="time" 
+                  required
+                  value={editFormData.hora_llegada_real}
+                  onChange={(e) => setEditFormData({...editFormData, hora_llegada_real: e.target.value})}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Pax Abordo</label>
+                  <input 
+                    className="h-12 px-4 bg-slate-50 text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none" 
+                    type="number" 
+                    min="0"
+                    max={editingFlight.capacidad_total || 160}
+                    required
+                    value={editFormData.pasajeros_abordo}
+                    onChange={(e) => setEditFormData({...editFormData, pasajeros_abordo: parseInt(e.target.value) || 0})}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado</label>
+                  <select 
+                    className="h-12 px-4 bg-slate-50 text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none" 
+                    value={editFormData.estado_final}
+                    onChange={(e) => setEditFormData({...editFormData, estado_final: e.target.value})}
+                  >
+                    <option value="LLEGÓ">Llegó</option>
+                    <option value="CUMPLIDO">Cumplido</option>
+                    <option value="DEMORADO">Demorado</option>
+                    <option value="DESVIADO">Desviado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                <button 
+                  className="flex-1 h-12 rounded-xl bg-slate-100 text-slate-600 font-semibold active:scale-95 transition-transform" 
+                  onClick={() => setIsDrawerOpen(false)} 
+                  type="button"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className="flex-1 h-12 rounded-xl bg-primary text-white font-bold shadow-md hover:bg-primary/90 active:scale-95 transition-transform flex items-center justify-center gap-2" 
+                  type="submit"
+                >
+                  <span className="material-symbols-outlined text-[18px]">save</span>
+                  <span>Guardar</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
