@@ -1,14 +1,22 @@
-export default function ReportesMensualesPage() {
+import { getReporteMensual } from "@/app/actions/flights";
+import MensualClient from "@/components/dashboard/MensualClient";
+
+export default async function ReportesMensualesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; year?: string }>;
+}) {
+  const params = await searchParams;
+  
+  const today = new Date();
+  const year = params.year ? parseInt(params.year) : today.getFullYear();
+  const month = params.month ? parseInt(params.month) : today.getMonth() + 1;
+
+  const data = await getReporteMensual(year, month);
+
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold text-airblue">Reportes Mensuales</h1>
-        <p className="text-gray-500 mt-2">Aquí se visualizarán los datos del registro general mensual.</p>
-      </div>
-      
-      <div className="flex-1 min-h-[400px] border-2 border-dashed border-gray-200 rounded-2xl flex items-center justify-center text-gray-400">
-        Próximamente: Visualización de Reportes Mensuales
-      </div>
+    <div className="w-full h-full flex flex-col">
+      <MensualClient initialData={data} initialYear={year} initialMonth={month} />
     </div>
   );
 }
