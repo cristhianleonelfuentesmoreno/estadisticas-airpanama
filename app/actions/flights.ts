@@ -42,8 +42,8 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
     { num: '973', dep: '14:45', arr: '16:00', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'IRIS PEREIRA/ YASLIN SANTAMARIA', pax: 70, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
     { num: '982', dep: '16:00', arr: '17:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'BOC', desName: 'Bocas del Toro', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 30, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
     { num: '983', dep: '17:15', arr: '18:45', ori: 'BOC', oriName: 'Bocas del Toro', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'JAVIER SANCHEZ/ KRYSTEL CEDEÑO', pax: 70, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    { num: '970', dep: '18:45', arr: '19:45', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 11, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    { num: '971', dep: '19:45', arr: '20:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'JAVIER SANCHEZ/ KRYSTEL CEDEÑO', pax: 28, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+    // { num: '970', dep: '18:45', arr: '19:45', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 11, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+    // { num: '971', dep: '19:45', arr: '20:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'JAVIER SANCHEZ/ KRYSTEL CEDEÑO', pax: 28, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
 
     // --- AIR PANAMA: AVION FK50 HP-1891 ---
     { num: '680', dep: '06:45', arr: '08:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'BOC', desName: 'Bocas del Toro', pilot: 'ALEX CASTRO/ PEDRO RODRIGUEZ', pax: 4, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
@@ -65,9 +65,9 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
 
     // --- COPA AIRLINES (Simulados para David) ---
     { num: '011', dep: '07:45', arr: '08:50', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA 1', pax: 145, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
-    { num: '013', dep: '15:15', arr: '16:20', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA 2', pax: 130, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
     { num: '012', dep: '09:20', arr: '10:25', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA 1', pax: 155, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
-    { num: '014', dep: '17:00', arr: '18:05', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA 2', pax: 120, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
+    // { num: '013', dep: '15:15', arr: '16:20', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA 2', pax: 130, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
+    // { num: '014', dep: '17:00', arr: '18:05', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA 2', pax: 120, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
   ];
 
   const flights: FlightData[] = itinerary.map((flight) => {

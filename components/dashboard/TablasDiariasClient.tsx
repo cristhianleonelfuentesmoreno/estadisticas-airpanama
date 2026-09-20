@@ -596,52 +596,49 @@ export default function TablasDiariasClient({
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4"></div>
 
-        <div className="flex items-center justify-between gap-2 relative z-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-              <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Registro Histórico</span>
+              <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">AODB Base</span>
             </div>
             <h1 className="font-headline-md text-2xl md:text-3xl text-white font-black tracking-tight drop-shadow-sm">
-              Información del Aeropuerto Internacional Enrique Malek (David - Chiriquí)
+              Registro Histórico
             </h1>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2">
-              <button onClick={() => setIsAddModalOpen(true)} className="bg-emerald-500 hover:bg-emerald-400 px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-emerald-400/50">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-                <span className="text-[12px]">Agregar Vuelo</span>
-              </button>
-              <button onClick={() => setIsImportModalOpen(true)} className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
-                <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                <span className="text-[12px]">Importar</span>
-              </button>
-
-            </div>
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <button onClick={() => setIsAddModalOpen(true)} className="flex-1 md:flex-none justify-center bg-emerald-500 hover:bg-emerald-400 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-emerald-400/50">
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              <span className="text-[13px]">Agregar Vuelo</span>
+            </button>
+            <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none justify-center bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
+              <span className="material-symbols-outlined text-[18px]">upload_file</span>
+              <span className="text-[13px]">Importar</span>
+            </button>
           </div>
         </div>
 
         {/* Llegadas / Salidas Toggle */}
-        <div className="flex items-center gap-2 mt-1 bg-white/10 p-1.5 rounded-2xl w-fit border border-white/10 shadow-inner relative z-10 backdrop-blur-md">
+        <div className="flex items-center gap-1 md:gap-2 mt-2 bg-white/10 p-1.5 rounded-xl w-full md:w-fit border border-white/10 shadow-inner relative z-10 backdrop-blur-md overflow-x-auto hide-scrollbar">
           <button 
             onClick={() => setViewType('todos')}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'todos' ? 'bg-white text-primary shadow-md scale-[1.02]' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            className={`flex-1 md:flex-none justify-center px-3 md:px-5 py-2 rounded-lg text-[13px] md:text-sm font-bold transition-all flex items-center gap-1.5 ${viewType === 'todos' ? 'bg-white text-primary shadow-md' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
-            <span className="material-symbols-outlined text-[18px]">swap_vert</span>
+            <span className="material-symbols-outlined text-[16px] md:text-[18px]">swap_vert</span>
             Todos
           </button>
           <button 
             onClick={() => setViewType('llegadas')}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'llegadas' ? 'bg-white text-primary shadow-md scale-[1.02]' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            className={`flex-1 md:flex-none justify-center px-3 md:px-5 py-2 rounded-lg text-[13px] md:text-sm font-bold transition-all flex items-center gap-1.5 ${viewType === 'llegadas' ? 'bg-white text-primary shadow-md' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
-            <span className="material-symbols-outlined text-[18px]">flight_land</span>
+            <span className="material-symbols-outlined text-[16px] md:text-[18px]">flight_land</span>
             Llegadas
           </button>
           <button 
             onClick={() => setViewType('salidas')}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'salidas' ? 'bg-white text-primary shadow-md scale-[1.02]' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            className={`flex-1 md:flex-none justify-center px-3 md:px-5 py-2 rounded-lg text-[13px] md:text-sm font-bold transition-all flex items-center gap-1.5 ${viewType === 'salidas' ? 'bg-white text-primary shadow-md' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
-            <span className="material-symbols-outlined text-[18px]">flight_takeoff</span>
+            <span className="material-symbols-outlined text-[16px] md:text-[18px]">flight_takeoff</span>
             Salidas
           </button>
         </div>
