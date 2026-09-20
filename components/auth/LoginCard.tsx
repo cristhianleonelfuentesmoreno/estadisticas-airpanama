@@ -84,20 +84,64 @@ export const LoginCard = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    
     if (params.get("error") === "true") {
-      toast.error("Error al autenticar o solicitud rechazada.");
+      toast.custom((t) => (
+        <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+          <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-xl">error</span>
+          </div>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">Error de autenticación</h3>
+            <p className="font-body-sm text-xs text-on-surface-variant mt-1">Error al autenticar o solicitud rechazada.</p>
+          </div>
+        </div>
+      ), { duration: 6000 });
       window.history.replaceState(null, "", window.location.pathname);
     }
+    
     if (params.get("status") === "pending") {
-      toast.warning("Tu solicitud está pendiente de aprobación por el administrador.", { duration: 6000 });
+      toast.custom((t) => (
+        <div className="bg-surface-container-lowest border-l-4 border-amber-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+          <div className="bg-amber-100 text-amber-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-xl">pending_actions</span>
+          </div>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">Acceso Pendiente</h3>
+            <p className="font-body-sm text-xs text-on-surface-variant mt-1">Su cuenta está pendiente de aprobación por el administrador.</p>
+          </div>
+        </div>
+      ), { duration: 6000 });
       window.history.replaceState(null, "", window.location.pathname);
     }
+    
     if (params.get("error") === "not_registered") {
-      toast.error("No está registrado o el usuario o contraseña no están bien escritas. Debe tocar Registrarse.", { duration: 6000 });
+      toast.custom((t) => (
+        <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+          <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-xl">error</span>
+          </div>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">Error de autenticación</h3>
+            <p className="font-body-sm text-xs text-on-surface-variant mt-1">El usuario o la contraseña son incorrectos.</p>
+          </div>
+        </div>
+      ), { duration: 6000 });
       window.history.replaceState(null, "", window.location.pathname);
     }
+    
     if (params.get("status") === "registered_google") {
-      toast.success("¡Tu solicitud para ingresar al programa ha sido enviada! El administrador autorizará tu acceso pronto.", { duration: 8000 });
+      toast.custom((t) => (
+        <div className="bg-surface-container-lowest border-l-4 border-emerald-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+          <div className="bg-emerald-100 text-emerald-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-xl">check_circle</span>
+          </div>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">¡Solicitud Enviada!</h3>
+            <p className="font-body-sm text-xs text-on-surface-variant mt-1">Su cuenta está pendiente de aprobación por el administrador.</p>
+          </div>
+        </div>
+      ), { duration: 8000 });
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, []);
@@ -146,7 +190,9 @@ export const LoginCard = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!logEmail || !logPassword) return toast.error("Ingresa correo y contraseña.");
+    if (!logEmail || !logPassword) {
+      return toast.error("Ingresa correo y contraseña.");
+    }
     
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -156,10 +202,19 @@ export const LoginCard = () => {
 
     if (error) {
       setLoading(false);
-      return toast.error("No está registrado o el usuario o contraseña no están bien escritas. Debe tocar Registrarse.", { duration: 6000 });
+      return toast.custom((t) => (
+        <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+          <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-xl">error</span>
+          </div>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">Error de autenticación</h3>
+            <p className="font-body-sm text-xs text-on-surface-variant mt-1">El usuario o la contraseña son incorrectos.</p>
+          </div>
+        </div>
+      ), { duration: 6000 });
     }
 
-    // Verificar el rol y estado en la tabla perfiles
     if (data?.user) {
       const { data: perfil } = await supabase
         .from('perfiles')
@@ -167,15 +222,38 @@ export const LoginCard = () => {
         .eq('id', data.user.id)
         .single();
 
-      if (perfil?.status === 'pendiente') {
+      // Validación de seguridad estricta
+      if (!perfil || perfil.status !== 'aprobado') {
         await supabase.auth.signOut();
         setLoading(false);
-        toast.warning("Tu solicitud de acceso aún está pendiente de aprobación.");
-      } else if (perfil?.status === 'rechazado') {
-        await supabase.auth.signOut();
-        setLoading(false);
-        toast.error("Tu acceso ha sido denegado por un administrador.");
+        
+        if (!perfil || perfil.status === 'pendiente') {
+          return toast.custom((t) => (
+            <div className="bg-surface-container-lowest border-l-4 border-amber-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+              <div className="bg-amber-100 text-amber-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+                <span className="material-symbols-outlined text-xl">pending_actions</span>
+              </div>
+              <div>
+                <h3 className="font-headline-sm text-sm font-bold text-on-surface">Acceso Pendiente</h3>
+                <p className="font-body-sm text-xs text-on-surface-variant mt-1">Su cuenta está pendiente de aprobación por el administrador.</p>
+              </div>
+            </div>
+          ), { duration: 6000 });
+        } else if (perfil.status === 'rechazado') {
+          return toast.custom((t) => (
+            <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+              <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+                <span className="material-symbols-outlined text-xl">block</span>
+              </div>
+              <div>
+                <h3 className="font-headline-sm text-sm font-bold text-on-surface">Acceso Denegado</h3>
+                <p className="font-body-sm text-xs text-on-surface-variant mt-1">Su cuenta ha sido denegada por un administrador.</p>
+              </div>
+            </div>
+          ), { duration: 6000 });
+        }
       } else {
+        // Credenciales correctas y estatus 'aprobado'
         window.location.href = "/dashboard?login=success";
       }
     }
