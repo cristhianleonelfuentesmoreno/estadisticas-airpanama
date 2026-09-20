@@ -4,18 +4,31 @@ import { getLlegadasMalek, saveCompletedMalekFlights, getSalidasMalek, saveCompl
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function TablasDiariasPage() {
+export default async function TablasDiariasPage({
+  searchParams
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const params = await searchParams;
+  const dateParam = typeof params.date === 'string' ? params.date : undefined;
+
   // Tratar de guardar cualquier vuelo completado recientemente de forma automatica
   await saveCompletedMalekFlights();
   await saveCompletedMalekDepartures();
 
   // Traer los datos historicos
-  const llegadas = await getLlegadasMalek();
-  const salidas = await getSalidasMalek();
+  const llegadas = await getLlegadasMalek(dateParam);
+  const salidas = await getSalidasMalek(dateParam);
+
+  // Determinar la fecha actual que se esta visualizando
+  const currentDateStr = dateParam || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 
   return (
     <div className="w-full h-full bg-[#f7f9fb]">
-      <TablasDiariasClient initialData={{ llegadas: llegadas || [], salidas: salidas || [] }} />
+      <TablasDiariasClient 
+        initialData={{ llegadas: llegadas || [], salidas: salidas || [] }} 
+        currentDateStr={currentDateStr}
+      />
     </div>
   );
 }

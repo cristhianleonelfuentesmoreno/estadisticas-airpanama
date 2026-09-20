@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { updateLlegadaMalek } from "@/app/actions/flights";
 
 interface MalekFlight {
@@ -18,14 +19,19 @@ interface MalekFlight {
 }
 
 export default function TablasDiariasClient({
-  initialData
+  initialData,
+  currentDateStr
 }: {
   initialData: { llegadas: MalekFlight[], salidas: MalekFlight[] };
+  currentDateStr: string;
 }) {
-  const [viewType, setViewType] = useState<'llegadas' | 'salidas'>('llegadas');
+  const [viewType, setViewType] = useState<'llegadas' | 'salidas' | 'todos'>('llegadas');
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  const router = useRouter();
+  const dateInputRef = useRef<HTMLInputElement>(null);
   
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -36,7 +42,46 @@ export default function TablasDiariasClient({
     estado_final: ""
   });
 
-  const activeDataList = viewType === 'llegadas' ? initialData.llegadas : initialData.salidas;
+  const handlePrevDay = () => {
+    const d = new Date(currentDateStr + "T12:00:00");
+    d.setDate(d.getDate() - 1);
+    const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    router.push(`?date=${dateStr}`);
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(currentDateStr + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    router.push(`?date=${dateStr}`);
+  };
+
+  const handleToday = () => {
+    const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    router.push(`?date=${dateStr}`);
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.value) {
+      router.push(`?date=${e.target.value}`);
+    }
+  };
+
+  const isToday = currentDateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+
+
+  const activeDataList = useMemo(() => {
+    if (viewType === 'llegadas') return initialData.llegadas;
+    if (viewType === 'salidas') return initialData.salidas;
+    
+    // Para 'todos', combinamos y ordenamos por la hora (ya sea de llegada o salida)
+    const combined = [...initialData.llegadas, ...initialData.salidas];
+    return combined.sort((a, b) => {
+      const timeA = new Date(a.hora_llegada_real || a.hora_salida_real || 0).getTime();
+      const timeB = new Date(b.hora_llegada_real || b.hora_salida_real || 0).getTime();
+      return timeB - timeA; // Descendente (más recientes primero)
+    });
+  }, [initialData, viewType]);
 
   // Derive summary metrics
   const totalFlights = activeDataList.length;
@@ -44,7 +89,7 @@ export default function TablasDiariasClient({
 
   const filteredData = useMemo(() => {
     return activeDataList.filter(flight => {
-      const location = viewType === 'llegadas' ? flight.origen : flight.destino;
+      const location = flight.hora_llegada_real ? flight.origen : flight.destino;
       const matchSearch = 
         flight.numero_vuelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (location && location.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -54,7 +99,7 @@ export default function TablasDiariasClient({
 
       return matchSearch && matchFilter;
     });
-  }, [activeDataList, searchQuery, activeFilter, viewType]);
+  }, [activeDataList, searchQuery, activeFilter]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -91,7 +136,7 @@ export default function TablasDiariasClient({
 
   const openEditDrawer = (flight: MalekFlight) => {
     setEditingFlight(flight);
-    const timeValue = viewType === 'llegadas' ? flight.hora_llegada_real : flight.hora_salida_real;
+    const timeValue = flight.hora_llegada_real ? flight.hora_llegada_real : flight.hora_salida_real;
     setEditFormData({
       hora_real: toTimeStringForInput(timeValue),
       pasajeros_abordo: flight.pasajeros_abordo || 0,
@@ -106,18 +151,19 @@ export default function TablasDiariasClient({
     
     // Parse time to ISO
     const [hours, minutes] = editFormData.hora_real.split(':').map(Number);
-    const timeToUpdate = viewType === 'llegadas' ? editingFlight.hora_llegada_real : editingFlight.hora_salida_real;
+    const isLlegada = !!editingFlight.hora_llegada_real;
+    const timeToUpdate = isLlegada ? editingFlight.hora_llegada_real : editingFlight.hora_salida_real;
     const newDate = new Date(timeToUpdate || new Date().toISOString());
     newDate.setHours(hours, minutes, 0, 0);
 
     const updates = {
-      [viewType === 'llegadas' ? 'hora_llegada_real' : 'hora_salida_real']: newDate.toISOString(),
+      [isLlegada ? 'hora_llegada_real' : 'hora_salida_real']: newDate.toISOString(),
       pasajeros_abordo: editFormData.pasajeros_abordo,
       estado_final: editFormData.estado_final
     };
 
     let res;
-    if (viewType === 'llegadas') {
+    if (isLlegada) {
       res = await updateLlegadaMalek(editingFlight.id, updates);
     } else {
       const { updateSalidaMalek } = await import('@/app/actions/flights');
@@ -143,7 +189,7 @@ export default function TablasDiariasClient({
               <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold">Registro Histórico</span>
             </div>
             <h1 className="font-headline-md text-2xl text-white font-bold tracking-tight">
-              {viewType === 'llegadas' ? 'Llegadas a Malek' : 'Salidas de Malek'}
+              Información del Aeropuerto Internacional Enrique Malek (David - Chiriquí)
             </h1>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -156,6 +202,13 @@ export default function TablasDiariasClient({
 
         {/* Llegadas / Salidas Toggle */}
         <div className="flex items-center gap-2 mt-2 bg-white/10 p-1 rounded-xl w-fit border border-white/10">
+          <button 
+            onClick={() => setViewType('todos')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1.5 ${viewType === 'todos' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">swap_vert</span>
+            Todos
+          </button>
           <button 
             onClick={() => setViewType('llegadas')}
             className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1.5 ${viewType === 'llegadas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
@@ -175,17 +228,34 @@ export default function TablasDiariasClient({
         <div className="bg-white/5 backdrop-blur-md rounded-xl p-3 flex flex-col gap-3 border border-white/10 mt-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <button className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all">
+              <button onClick={handlePrevDay} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all">
                 <span className="material-symbols-outlined text-[18px]">chevron_left</span>
               </button>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg text-white">
-                <span className="material-symbols-outlined text-white text-[16px]">calendar_today</span>
-                <span className="font-label-md text-[13px] font-bold tracking-wide">
-                  {new Date().toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
+              
+              <div 
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg text-white relative cursor-pointer hover:bg-white/20 transition-all"
+                onClick={() => dateInputRef.current?.showPicker && dateInputRef.current.showPicker()}
+              >
+                <input 
+                  type="date"
+                  ref={dateInputRef}
+                  value={currentDateStr}
+                  onChange={handleDateChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <span className="material-symbols-outlined text-white text-[16px] pointer-events-none">calendar_today</span>
+                <span className="font-label-md text-[13px] font-bold tracking-wide pointer-events-none">
+                  {new Date(currentDateStr + "T12:00:00").toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
                 </span>
-                <span className="text-[10px] bg-secondary px-1.5 rounded font-bold uppercase ml-1">Hoy</span>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleToday(); }} 
+                  className={`text-[10px] px-1.5 rounded font-bold uppercase ml-1 transition-all z-10 relative ${isToday ? 'bg-secondary text-white' : 'bg-white/20 hover:bg-secondary'}`}
+                >
+                  Hoy
+                </button>
               </div>
-              <button className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all">
+
+              <button onClick={handleNextDay} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all">
                 <span className="material-symbols-outlined text-[18px]">chevron_right</span>
               </button>
             </div>
@@ -193,7 +263,9 @@ export default function TablasDiariasClient({
 
           <div className="grid grid-cols-2 gap-2 pt-1 text-center">
             <div className="bg-white/5 rounded-lg py-2 flex flex-col">
-              <span className="text-[10px] text-white/70">Total {viewType === 'llegadas' ? 'Llegadas' : 'Salidas'}</span>
+              <span className="text-[10px] text-white/70">
+                {viewType === 'todos' ? 'Total Vuelos' : `Total ${viewType === 'llegadas' ? 'Llegadas' : 'Salidas'}`}
+              </span>
               <span className="font-label-md text-xl font-bold text-white">{totalFlights}</span>
             </div>
             <div className="bg-emerald-500/20 rounded-lg py-2 flex flex-col border border-emerald-500/30">
@@ -280,7 +352,7 @@ export default function TablasDiariasClient({
                   <th className="px-4 py-3.5 min-w-[120px]">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">schedule</span>
-                      <span>{viewType === 'llegadas' ? 'Hora Llegada' : 'Hora Salida'}</span>
+                      <span>{viewType === 'todos' ? 'Hora' : (viewType === 'llegadas' ? 'Hora Llegada' : 'Hora Salida')}</span>
                     </div>
                   </th>
                   <th className="px-4 py-3.5 min-w-[120px]">
@@ -306,6 +378,7 @@ export default function TablasDiariasClient({
                     const paxCount = flight.pasajeros_abordo || 0;
                     const paxMax = flight.capacidad_total || 100;
                     const paxPct = Math.round((paxCount / paxMax) * 100);
+                    const isLlegada = !!flight.hora_llegada_real;
 
                     return (
                       <tr key={flight.id} className="hover:bg-slate-50 transition-colors group">
@@ -316,25 +389,27 @@ export default function TablasDiariasClient({
                             </span>
                             <div>
                               <span className="font-bold text-primary block leading-tight text-[14px]">{flight.numero_vuelo}</span>
-                              <span className="text-[11px] text-slate-500 block truncate w-24">{flight.aerolinea}</span>
+                              <span className="text-[11px] text-slate-500 block truncate w-24">
+                                {flight.aerolinea} {viewType === 'todos' && <span className="font-bold text-[9px] uppercase ml-1 opacity-60">({isLlegada ? 'Llegada' : 'Salida'})</span>}
+                              </span>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5 font-bold text-[13px]">
-                            <span className="text-primary">{viewType === 'llegadas' ? flight.origen : 'DAV'}</span>
+                            <span className="text-primary">{isLlegada ? flight.origen : 'DAV'}</span>
                             <span className="material-symbols-outlined text-[14px] text-slate-400">arrow_forward</span>
-                            <span className="text-primary">{viewType === 'llegadas' ? 'DAV' : flight.destino}</span>
+                            <span className="text-primary">{isLlegada ? 'DAV' : flight.destino}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-[13px]">
                             <span className="font-bold text-slate-800">
-                              {formatTime(viewType === 'llegadas' ? flight.hora_llegada_real : flight.hora_salida_real)}
+                              {formatTime(isLlegada ? flight.hora_llegada_real : flight.hora_salida_real)}
                             </span>
                           </div>
                           <span className="text-[11px] text-emerald-600 font-medium">
-                            {new Date(viewType === 'llegadas' ? (flight.hora_llegada_real || '') : (flight.hora_salida_real || '')).toLocaleDateString('es-PA')}
+                            {new Date(isLlegada ? (flight.hora_llegada_real || '') : (flight.hora_salida_real || '')).toLocaleDateString('es-PA')}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -368,7 +443,7 @@ export default function TablasDiariasClient({
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-500 text-sm">
                       <span className="material-symbols-outlined text-4xl text-slate-300 block mb-2">flight_takeoff</span>
-                      No se encontraron llegadas para estos filtros.
+                      No se encontraron vuelos para estos filtros.
                     </td>
                   </tr>
                 )}
@@ -424,13 +499,13 @@ export default function TablasDiariasClient({
 
             <form className="flex flex-col gap-4 pt-1" onSubmit={handleSaveEdit}>
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Llegada Real</label>
+                <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real</label>
                 <input 
                   className="h-12 px-4 bg-slate-50 text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none" 
                   type="time" 
                   required
-                  value={editFormData.hora_llegada_real}
-                  onChange={(e) => setEditFormData({...editFormData, hora_llegada_real: e.target.value})}
+                  value={editFormData.hora_real}
+                  onChange={(e) => setEditFormData({...editFormData, hora_real: e.target.value})}
                 />
               </div>
 

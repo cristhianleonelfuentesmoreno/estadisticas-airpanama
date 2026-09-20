@@ -137,31 +137,50 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
 }
 
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+
+// Usar el cliente administrador (bypassa RLS) para tareas automáticas en background
+const getAdminSupabase = () => {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!
+  );
+};
 
 export async function saveCompletedMalekFlights() {
-  const supabase = await createClient();
-  const flights = await getUpcomingFlights();
+  const supabase = getAdminSupabase();
 
-  // Filtrar solo los vuelos hacia David (DAV) que ya LLEGARON
+  const flights = await getUpcomingFlights();
   const arrivedMalekFlights = flights.filter(f => f.destination === 'DAV' && f.status === 'LLEGÓ');
 
-  if (arrivedMalekFlights.length === 0) {
-    return { success: true, message: "No hay nuevos vuelos completados para guardar en este momento." };
-  }
+  if (arrivedMalekFlights.length === 0) return { success: true, count: 0 };
 
-  // Mapear al esquema de la tabla llegadas_malek_historico
-  const flightsToInsert = arrivedMalekFlights.map(f => ({
-    aerolinea: f.airline,
-    numero_vuelo: f.flightNumber,
-    origen: f.origin,
-    hora_llegada_real: f.arrivalTime,
-    estado_final: f.status,
-    pasajeros_abordo: f.paxCount,
-    capacidad_total: f.paxMax
-    // la fecha y el id se generan solos en Supabase
-  }));
+  // Usar la fecha local de Panama
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); // YYYY-MM-DD
+  
+  const { data: existingFlights } = await supabase
+    .from('llegadas_malek_historico')
+    .select('numero_vuelo')
+    .eq('fecha', today);
 
-  const { data, error } = await supabase
+  const existingFlightNumbers = new Set(existingFlights?.map(f => f.numero_vuelo) || []);
+
+  const flightsToInsert = arrivedMalekFlights
+    .filter(f => !existingFlightNumbers.has(f.flightNumber))
+    .map(f => ({
+      fecha: today,
+      aerolinea: f.airline,
+      numero_vuelo: f.flightNumber,
+      origen: f.origin,
+      hora_llegada_real: f.arrivalTime,
+      estado_final: f.status,
+      pasajeros_abordo: f.paxCount,
+      capacidad_total: f.paxMax
+    }));
+
+  if (flightsToInsert.length === 0) return { success: true, count: 0 };
+
+  const { error } = await supabase
     .from('llegadas_malek_historico')
     .insert(flightsToInsert);
 
@@ -170,16 +189,17 @@ export async function saveCompletedMalekFlights() {
     return { success: false, error: error.message };
   }
 
-  return { success: true, count: flightsToInsert.length, message: "Llegadas registradas exitosamente." };
+  return { success: true, count: flightsToInsert.length };
 }
 
-export async function getLlegadasMalek() {
+export async function getLlegadasMalek(dateStr?: string) {
   const supabase = await createClient();
+  const today = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   
-  // Tratar de obtener de la base de datos
   const { data, error } = await supabase
     .from('llegadas_malek_historico')
     .select('*')
+    .eq('fecha', today)
     .order('hora_llegada_real', { ascending: false });
 
   if (error) {
@@ -187,7 +207,6 @@ export async function getLlegadasMalek() {
     return [];
   }
 
-  // Retornamos la data real (aunque esté vacía)
   return data || [];
 }
 
@@ -208,25 +227,26 @@ export async function updateLlegadaMalek(id: string, updates: { hora_llegada_rea
 }
 
 export async function saveCompletedMalekDepartures() {
-  const supabase = await createClient();
+  const supabase = getAdminSupabase();
 
   const flights = await getUpcomingFlights();
   const departedMalekFlights = flights.filter(f => f.origin === 'DAV' && f.status === 'LLEGÓ');
 
   if (departedMalekFlights.length === 0) return { success: true, count: 0 };
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); // YYYY-MM-DD
+  
   const { data: existingFlights } = await supabase
     .from('salidas_malek_historico')
     .select('numero_vuelo')
-    .gte('hora_salida_real', `${today}T00:00:00Z`)
-    .lte('hora_salida_real', `${today}T23:59:59Z`);
+    .eq('fecha', today);
 
   const existingFlightNumbers = new Set(existingFlights?.map(f => f.numero_vuelo) || []);
 
   const flightsToInsert = departedMalekFlights
     .filter(f => !existingFlightNumbers.has(f.flightNumber))
     .map(f => ({
+      fecha: today,
       aerolinea: f.airline,
       numero_vuelo: f.flightNumber,
       destino: f.destination,
@@ -250,11 +270,14 @@ export async function saveCompletedMalekDepartures() {
   return { success: true, count: flightsToInsert.length };
 }
 
-export async function getSalidasMalek() {
+export async function getSalidasMalek(dateStr?: string) {
   const supabase = await createClient();
+  const today = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+  
   const { data, error } = await supabase
     .from('salidas_malek_historico')
     .select('*')
+    .eq('fecha', today)
     .order('hora_salida_real', { ascending: false });
 
   if (error) {
