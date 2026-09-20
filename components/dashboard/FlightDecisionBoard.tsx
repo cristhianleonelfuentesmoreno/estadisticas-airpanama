@@ -81,12 +81,21 @@ export function FlightDecisionBoard() {
   return (
     <div className="flex flex-col gap-space-sm font-sans">
       {/* HEADER & FILTERS */}
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-error animate-pulse"></div>
-          <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">TAF Operacional a 8 Horas • Act. hace 4 min</span>
+      <div className="flex flex-col gap-2 px-1 pb-1">
+        <div className="flex items-center justify-between">
+          <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Pronóstico del Clima</h2>
+          <a href="https://aviationweather.gov/" target="_blank" rel="noreferrer" className="text-secondary hover:underline font-label-sm text-label-sm flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+            Fuente: NOAA
+          </a>
         </div>
-        <span className="font-label-sm text-label-sm text-on-surface-variant font-medium opacity-50">CIC-AERO</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-error animate-pulse"></div>
+            <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">TAF Operacional a 8 Horas • Act. hace 4 min</span>
+          </div>
+          <span className="font-label-sm text-label-sm text-on-surface-variant font-medium opacity-50 hidden sm:block">CIC-AERO</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
@@ -221,9 +230,12 @@ function DecisionCard({ decision, isExpanded, onToggleExpand }: { decision: Flig
                        decision.icao === 'MPDA' ? ['PST-405'] : [];
 
   return (
-    <div className={`bg-surface-container-lowest rounded-xl border ${borderColor} border-t-4 ${topBorderColor} shadow-sm overflow-hidden flex flex-col`}>
-      {/* Header */}
-      <div className="p-space-sm flex items-start justify-between">
+    <div className={`bg-surface-container-lowest rounded-xl border ${borderColor} border-t-4 ${topBorderColor} shadow-sm overflow-hidden flex flex-col transition-all`}>
+      {/* Header - Clickable to expand */}
+      <button 
+        onClick={onToggleExpand}
+        className="p-space-sm flex items-start justify-between text-left hover:bg-surface-container-low transition-colors w-full"
+      >
         <div className="flex items-center gap-space-sm">
           <span className="font-display-sm text-display-sm font-bold text-secondary shrink-0">{decision.icao}</span>
           <div className="flex flex-col">
@@ -231,87 +243,88 @@ function DecisionCard({ decision, isExpanded, onToggleExpand }: { decision: Flig
             <span className="font-label-sm text-label-sm text-on-surface-variant">{decision.fullName}</span>
           </div>
         </div>
-        <div className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-label-sm text-label-sm font-bold uppercase ${badgeColor}`}>
-          <span className="material-symbols-outlined text-[16px]">{badgeIcon}</span>
-          {decision.shortAlert}
-        </div>
-      </div>
-
-      {/* Evolución 8H */}
-      <div className="px-space-sm pb-space-sm flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="font-label-sm text-label-sm text-on-surface-variant">Evolución Ventana 8H</span>
-          {decision.criticalWindow && (
-            <span className="font-label-sm text-label-sm text-error font-bold">Ventana Crítica: {decision.criticalWindow}</span>
-          )}
-          {!decision.criticalWindow && decision.statusColor === 'green' && (
-            <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">Pista: Seca • VFR</span>
-          )}
-        </div>
-
-        <div className="flex gap-space-xs overflow-x-auto pb-1 no-scrollbar">
-          {decision.forecasts.map((f, i) => {
-            let blockBg = "bg-surface-container";
-            let dotColor = "bg-primary";
-            let textColor = "text-on-surface";
-            
-            if (f.color === 'red') {
-              blockBg = "bg-error/10";
-              dotColor = "bg-error";
-              textColor = "text-error";
-            } else if (f.color === 'yellow') {
-              blockBg = "bg-surface-container-high";
-              dotColor = "bg-tertiary";
-            }
-
-            return (
-              <div key={i} className={`flex flex-col gap-1 p-2 rounded-lg ${blockBg} min-w-[140px] flex-1 shrink-0 border border-white/5`}>
-                <div className="flex items-center gap-1.5 font-label-sm text-label-sm font-bold text-on-surface">
-                  <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></div>
-                  {f.shortPeriod}
-                </div>
-                <span className={`font-body-sm text-body-sm leading-tight ${textColor}`}>{f.text}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Footer / Flights & TAF Toggle */}
-      <div className="px-space-sm py-3 border-t border-white/5 flex items-center justify-between bg-surface-container-lowest">
-        <div className="flex items-center gap-2">
-          {mockedFlights.length > 0 ? (
-            <>
-              <span className="material-symbols-outlined text-[18px] text-on-surface-variant">flight_takeoff</span>
-              <span className="font-label-sm text-label-sm text-on-surface-variant">Vuelos afectados:</span>
-              <div className="flex gap-1.5">
-                {mockedFlights.map(fl => (
-                  <span key={fl} className="bg-surface-container px-2 py-0.5 rounded text-on-surface font-label-sm text-label-sm font-bold">
-                    {fl}
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="flex items-center gap-1.5 text-primary">
-              <span className="material-symbols-outlined text-[16px]">check_circle</span>
-              <span className="font-label-sm text-label-sm font-medium">Operación dentro de mínimos VFR</span>
-            </div>
-          )}
-        </div>
-        
-        <button onClick={onToggleExpand} className="flex items-center gap-1 font-label-md text-label-md text-secondary font-bold hover:opacity-80 transition-opacity">
-          TAF Crudo
-          <span className="material-symbols-outlined text-[20px] transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+        <div className="flex flex-col items-end gap-1">
+          <div className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-label-sm text-label-sm font-bold uppercase ${badgeColor}`}>
+            <span className="material-symbols-outlined text-[16px]">{badgeIcon}</span>
+            {decision.shortAlert}
+          </div>
+          <span className="material-symbols-outlined text-on-surface-variant text-[20px] transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
             expand_more
           </span>
-        </button>
-      </div>
+        </div>
+      </button>
 
-      {/* Expanded TAF */}
+      {/* Collapsible Content */}
       {isExpanded && (
-        <div className="p-space-sm bg-surface-container border-t border-white/5 font-mono text-[11px] text-on-surface-variant leading-relaxed break-words whitespace-pre-wrap">
-          {decision.rawTAF}
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+          {/* Evolución 8H */}
+          <div className="px-space-sm pb-space-sm flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="font-label-sm text-label-sm text-on-surface-variant">Evolución Ventana 8H</span>
+              {decision.criticalWindow && (
+                <span className="font-label-sm text-label-sm text-error font-bold">Ventana Crítica: {decision.criticalWindow}</span>
+              )}
+              {!decision.criticalWindow && decision.statusColor === 'green' && (
+                <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">Pista: Seca • VFR</span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-space-xs">
+              {decision.forecasts.map((f, i) => {
+                let blockBg = "bg-surface-container";
+                let dotColor = "bg-primary";
+                let textColor = "text-on-surface";
+                
+                if (f.color === 'red') {
+                  blockBg = "bg-error/10";
+                  dotColor = "bg-error";
+                  textColor = "text-error";
+                } else if (f.color === 'yellow') {
+                  blockBg = "bg-surface-container-high";
+                  dotColor = "bg-tertiary";
+                }
+
+                return (
+                  <div key={i} className={`flex flex-col gap-1 p-2 rounded-lg ${blockBg} border border-white/5`}>
+                    <div className="flex items-center gap-1.5 font-label-sm text-label-sm font-bold text-on-surface">
+                      <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></div>
+                      {f.shortPeriod}
+                    </div>
+                    <span className={`font-body-sm text-body-sm leading-tight ${textColor}`}>{f.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Footer / Flights & TAF Toggle */}
+          <div className="px-space-sm py-3 border-t border-white/5 flex flex-col gap-3 bg-surface-container-lowest">
+            <div className="flex flex-wrap items-center gap-2">
+              {mockedFlights.length > 0 ? (
+                <>
+                  <span className="material-symbols-outlined text-[18px] text-on-surface-variant">flight_takeoff</span>
+                  <span className="font-label-sm text-label-sm text-on-surface-variant">Vuelos afectados:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {mockedFlights.map(fl => (
+                      <span key={fl} className="bg-surface-container px-2 py-0.5 rounded text-on-surface font-label-sm text-label-sm font-bold">
+                        {fl}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-1.5 text-primary">
+                  <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                  <span className="font-label-sm text-label-sm font-medium">Operación dentro de mínimos VFR</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-2 bg-surface-container rounded border border-white/5 font-mono text-[11px] text-on-surface-variant leading-relaxed break-words whitespace-pre-wrap mt-1">
+              <span className="font-bold text-on-surface block mb-1">TAF Crudo:</span>
+              {decision.rawTAF}
+            </div>
+          </div>
         </div>
       )}
     </div>
