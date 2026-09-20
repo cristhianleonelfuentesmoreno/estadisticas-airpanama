@@ -11,6 +11,11 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "Air Panama - Ops Dashboard",
   description: "Plataforma operativa y estadística de Air Panama",
+  icons: {
+    icon: "/icon.jpeg",
+    shortcut: "/icon.jpeg",
+    apple: "/icon.jpeg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
