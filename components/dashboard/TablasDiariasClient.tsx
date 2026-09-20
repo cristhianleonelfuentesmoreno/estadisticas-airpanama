@@ -1,0 +1,269 @@
+"use client";
+
+import { useState, useMemo } from "react";
+
+interface MalekArrival {
+  id: string;
+  fecha: string;
+  aerolinea: string;
+  numero_vuelo: string;
+  origen: string;
+  hora_llegada_real: string;
+  estado_final: string;
+}
+
+export default function TablasDiariasClient({
+  initialData
+}: {
+  initialData: MalekArrival[];
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Derive summary metrics from initialData
+  const totalFlights = initialData.length;
+  const aTiempo = initialData.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
+
+  const filteredData = useMemo(() => {
+    return initialData.filter(flight => {
+      const matchSearch = 
+        flight.numero_vuelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        flight.origen.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        flight.aerolinea.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchFilter = activeFilter === "all" || flight.aerolinea === activeFilter;
+
+      return matchSearch && matchFilter;
+    });
+  }, [initialData, searchQuery, activeFilter]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    // Para recargar data en el servidor, usamos window.location.reload()
+    setTimeout(() => window.location.reload(), 600);
+  };
+
+  const getAirlineColor = (airline: string) => {
+    if (airline === 'Air Panama') return 'bg-primary-container text-white';
+    if (airline === 'Copa Airlines') return 'bg-sky-700 text-white';
+    return 'bg-gray-700 text-white';
+  };
+
+  const formatTime = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '--:--';
+    }
+  };
+
+  return (
+    <div className="flex flex-col w-full min-h-[calc(100vh-8rem)]">
+      {/* Header Panel */}
+      <section className="bg-primary-container text-on-primary px-4 py-6 shadow-md flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold">Registro Histórico</span>
+            </div>
+            <h1 className="font-headline-md text-2xl text-white font-bold tracking-tight">Llegadas a Malek</h1>
+          </div>
+          <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/10">
+            <span className="material-symbols-outlined text-[15px] text-white">table_view</span>
+            <span className="font-label-sm text-[11px] text-white font-semibold tracking-wide">Modo Airtable</span>
+          </div>
+        </div>
+
+        <div className="bg-white/5 backdrop-blur-md rounded-xl p-3 flex flex-col gap-3 border border-white/10 mt-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <button className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all">
+                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              </button>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg text-white">
+                <span className="material-symbols-outlined text-white text-[16px]">calendar_today</span>
+                <span className="font-label-md text-[13px] font-bold tracking-wide">
+                  {new Date().toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
+                </span>
+                <span className="text-[10px] bg-secondary px-1.5 rounded font-bold uppercase ml-1">Hoy</span>
+              </div>
+              <button className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all">
+                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1 text-center">
+            <div className="bg-white/5 rounded-lg py-2 flex flex-col">
+              <span className="text-[10px] text-white/70">Total Llegadas</span>
+              <span className="font-label-md text-xl font-bold text-white">{totalFlights}</span>
+            </div>
+            <div className="bg-emerald-500/20 rounded-lg py-2 flex flex-col border border-emerald-500/30">
+              <span className="text-[10px] text-emerald-200 font-medium">Completados</span>
+              <span className="font-label-md text-xl font-bold text-emerald-300">{aTiempo}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Filters & Search */}
+      <section className="px-4 pt-4 pb-2 flex flex-col gap-3">
+        <div className="relative w-full">
+          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+            <span className="material-symbols-outlined text-[20px]">search</span>
+          </div>
+          <input 
+            className="w-full h-12 pl-10 pr-10 bg-white text-slate-800 text-sm rounded-xl shadow-sm border border-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Buscar por vuelo, origen o aerolínea..." 
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button 
+              className="absolute inset-y-0 right-2 w-8 h-8 my-auto flex items-center justify-center text-slate-400 hover:text-slate-600"
+              onClick={() => setSearchQuery("")}
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 no-scrollbar">
+          <button 
+            onClick={() => setActiveFilter("all")}
+            className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold shadow-sm transition-all ${activeFilter === 'all' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+          >
+            Todas ({totalFlights})
+          </button>
+          <button 
+            onClick={() => setActiveFilter("Air Panama")}
+            className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold shadow-sm transition-all ${activeFilter === 'Air Panama' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+          >
+            Air Panama
+          </button>
+          <button 
+            onClick={() => setActiveFilter("Copa Airlines")}
+            className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold shadow-sm transition-all ${activeFilter === 'Copa Airlines' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+          >
+            Copa Airlines
+          </button>
+        </div>
+      </section>
+
+      {/* Airtable Grid */}
+      <section className="px-4 flex flex-col gap-2 flex-1 pb-6 mt-2">
+        <div className="flex items-center justify-between px-1 text-slate-500 text-xs mb-1">
+          <span className="flex items-center gap-1 font-semibold text-slate-700">
+            <span className="material-symbols-outlined text-[16px] text-primary">grid_on</span>Vista Cuadrícula
+          </span>
+          <span className="flex items-center gap-1 font-medium text-slate-400">
+            <span className="material-symbols-outlined text-[15px]">swipe</span>Desliza horizontal
+          </span>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <table className="w-full text-left text-sm border-collapse min-w-[500px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="sticky left-0 z-20 bg-slate-50 px-4 py-3.5 shadow-[2px_0_5px_rgba(0,0,0,0.04)] min-w-[150px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">flight</span>
+                      <span>Vuelo / Línea</span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-3.5 min-w-[120px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">near_me</span>
+                      <span>Ruta</span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-3.5 min-w-[120px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">schedule</span>
+                      <span>Hora Llegada</span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-3.5 min-w-[110px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">flag</span>
+                      <span>Estado</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredData.length > 0 ? (
+                  filteredData.map((flight) => (
+                    <tr key={flight.id} className="hover:bg-slate-50 transition-colors group">
+                      <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-4 py-3 shadow-[2px_0_5px_rgba(0,0,0,0.02)] border-r border-slate-100">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-9 h-9 rounded-lg ${getAirlineColor(flight.aerolinea)} flex items-center justify-center font-bold text-[11px] shrink-0 uppercase`}>
+                            {flight.numero_vuelo.split('-')[0]}
+                          </span>
+                          <div>
+                            <span className="font-bold text-primary block leading-tight text-[14px]">{flight.numero_vuelo}</span>
+                            <span className="text-[11px] text-slate-500 block truncate w-24">{flight.aerolinea}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 font-bold text-[13px]">
+                          <span className="text-primary">{flight.origen}</span>
+                          <span className="material-symbols-outlined text-[14px] text-slate-400">arrow_forward</span>
+                          <span className="text-primary">DAV</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-[13px]">
+                          <span className="font-bold text-slate-800">{formatTime(flight.hora_llegada_real)}</span>
+                        </div>
+                        <span className="text-[11px] text-emerald-600 font-medium">{new Date(flight.hora_llegada_real).toLocaleDateString('es-PA')}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800">
+                          <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                          {flight.estado_final}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="py-12 text-center text-slate-500 text-sm">
+                      <span className="material-symbols-outlined text-4xl text-slate-300 block mb-2">flight_takeoff</span>
+                      No se encontraron llegadas para estos filtros.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer Sync bar */}
+      <div className="mx-4 mb-4 p-3 bg-white rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+          <div className="flex flex-col">
+            <span className="text-[13px] font-bold text-primary">Histórico AODB</span>
+            <span className="text-[11px] text-slate-500">Última actualización: Hoy</span>
+          </div>
+        </div>
+        <button 
+          onClick={handleRefresh}
+          className="p-2 text-primary hover:bg-slate-50 rounded-lg active:scale-95 transition-transform flex items-center gap-1.5 text-[12px] font-semibold border border-slate-200"
+        >
+          <span className={`material-symbols-outlined text-[18px] ${isRefreshing ? 'animate-spin' : ''}`}>sync</span>
+          <span>Sync</span>
+        </button>
+      </div>
+
+    </div>
+  );
+}

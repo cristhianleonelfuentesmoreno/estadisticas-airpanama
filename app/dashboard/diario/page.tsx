@@ -1,14 +1,19 @@
-export default function TablasDiariasPage() {
+import TablasDiariasClient from "@/components/dashboard/TablasDiariasClient";
+import { getLlegadasMalek, saveCompletedMalekFlights } from "@/app/actions/flights";
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export default async function TablasDiariasPage() {
+  // Tratar de guardar cualquier vuelo completado recientemente de forma automatica
+  await saveCompletedMalekFlights();
+
+  // Traer los datos historicos
+  const llegadas = await getLlegadasMalek();
+
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold text-airblue">Tablas Diarias</h1>
-        <p className="text-gray-500 mt-2">Aquí se visualizarán los datos del registro diario de Air Panama.</p>
-      </div>
-      
-      <div className="flex-1 min-h-[400px] border-2 border-dashed border-gray-200 rounded-2xl flex items-center justify-center text-gray-400">
-        Próximamente: Visualización de Tablas Diarias
-      </div>
+    <div className="w-full h-full bg-[#f7f9fb]">
+      <TablasDiariasClient initialData={llegadas || []} />
     </div>
   );
 }
