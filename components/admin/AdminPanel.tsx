@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { SettingsWidget } from "./SettingsWidget";
 import { DispositivosPanel } from "./DispositivosPanel";
+import { AuditoriaPanel } from "./AuditoriaPanel";
 
 export interface User {
   id: string;
@@ -268,6 +269,11 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       {/* PANEL DE DISPOSITIVOS ACTIVOS             */}
       {/* ========================================= */}
       <DispositivosPanel />
+
+      {/* ========================================= */}
+      {/* REGISTRO DE AUDITORIA Y FALLAS            */}
+      {/* ========================================= */}
+      <AuditoriaPanel />
 
       {/* ========================================= */}
       {/* MODAL DE EDICIÓN                          */}

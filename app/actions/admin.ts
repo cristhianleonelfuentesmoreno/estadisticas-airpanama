@@ -2,6 +2,22 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "./audit";
+
+async function logAdminAction(adminId: string, targetId: string, actionDesc: string, eventType: 'edicion' | 'eliminacion' = 'edicion', extra = {}) {
+  const supabase = await createClient();
+  const { data: admin } = await supabase.from('perfiles').select('nombre, email').eq('id', adminId).single();
+  const { data: target } = await supabase.from('perfiles').select('nombre, email').eq('id', targetId).single();
+  const adminName = admin ? (admin.nombre || admin.email) : 'Administrador';
+  const targetName = target ? (target.nombre || target.email) : targetId;
+  await logAudit({
+    tipo_evento: eventType,
+    usuario_id: adminId,
+    nombre_referencia: targetName,
+    descripcion: `${adminName} ${actionDesc}`,
+    detalles_extra: extra
+  });
+}
 
 export async function fetchAllUsers() {
   const supabase = await createClient();
@@ -40,6 +56,9 @@ export async function updateUserStatus(userId: string, status: "aprobado" | "pen
     .eq("id", userId);
 
   if (error) return { error: error.message };
+  
+  await logAdminAction(authData.user.id, userId, `cambió el estado a "${status}"`);
+  
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -57,6 +76,9 @@ export async function updateUserRole(userId: string, role: "administrador" | "us
     .eq("id", userId);
 
   if (error) return { error: error.message };
+  
+  await logAdminAction(authData.user.id, userId, `modificó el rol a "${role}"`);
+  
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -74,6 +96,9 @@ export async function updateUserCargo(userId: string, cargo: string | null) {
     .eq("id", userId);
 
   if (error) return { error: error.message };
+  
+  await logAdminAction(authData.user.id, userId, `actualizó el cargo a "${cargo || 'Vacío'}"`);
+  
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -91,6 +116,9 @@ export async function updateUserName(userId: string, nombre: string | null) {
     .eq("id", userId);
 
   if (error) return { error: error.message };
+  
+  await logAdminAction(authData.user.id, userId, `modificó el nombre a "${nombre || 'Vacío'}"`);
+  
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -116,6 +144,9 @@ export async function deleteUserAction(userId: string) {
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
   if (error) return { error: error.message };
+  
+  await logAdminAction(authData.user.id, userId, `eliminó permanentemente la cuenta del sistema`, 'eliminacion');
+  
   revalidatePath("/dashboard");
   return { success: true };
 }

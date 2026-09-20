@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { logFailedLogin } from "@/app/actions/sessions";
 
 interface LoginCardProps {
   settings?: {
@@ -232,6 +233,10 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
 
     if (error) {
       setLoading(false);
+      
+      // Registrar auditoría de fallo
+      logFailedLogin(logEmail).catch(console.error);
+
       return toast.custom((t) => (
         <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
           <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">

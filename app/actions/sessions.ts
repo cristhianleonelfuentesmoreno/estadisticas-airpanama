@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { UAParser } from "ua-parser-js";
+import { logAudit } from "./audit";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY!; // Service Role Key
@@ -71,6 +72,16 @@ export async function registrarSesion(userId: string, lat: number | null, lon: n
     return { success: false, error };
   }
   
+  // Auditar inicio de sesión
+  const { data: perfil } = await supabaseAdmin.from('perfiles').select('nombre, email').eq('id', userId).single();
+  const userName = perfil ? (perfil.nombre || perfil.email) : 'Usuario';
+  await logAudit({
+    tipo_evento: 'inicio_sesion',
+    usuario_id: userId,
+    nombre_referencia: userName,
+    descripcion: 'Acceso concedido vía autenticación.',
+  });
+
   return { success: true, sessionId: data.id };
 }
 
@@ -86,6 +97,10 @@ export async function actualizarActividad(sessionId: string) {
 
 export async function cerrarSesion(sessionId: string) {
   if (!sessionId) return { success: false };
+  
+  // Obtener info para auditoria antes de actualizar
+  const { data: sessionData } = await supabaseAdmin.from('sesiones').select('user_id').eq('id', sessionId).single();
+
   const { error } = await supabaseAdmin
     .from('sesiones')
     .update({ 
@@ -94,8 +109,27 @@ export async function cerrarSesion(sessionId: string) {
       ultima_actividad: new Date().toISOString()
     })
     .eq('id', sessionId);
+
+  if (!error && sessionData) {
+    const { data: perfil } = await supabaseAdmin.from('perfiles').select('nombre, email').eq('id', sessionData.user_id).single();
+    const userName = perfil ? (perfil.nombre || perfil.email) : 'Usuario';
+    await logAudit({
+      tipo_evento: 'cierre_sesion',
+      usuario_id: sessionData.user_id,
+      nombre_referencia: userName,
+      descripcion: 'Cierre formal y seguro de sesión.',
+    });
+  }
     
   return { success: !error };
+}
+
+export async function logFailedLogin(email: string) {
+  await logAudit({
+    tipo_evento: 'acceso_fallido',
+    nombre_referencia: email || 'Intento Anónimo',
+    descripcion: 'Credenciales inválidas o acceso bloqueado por política de firewall.',
+  });
 }
 
 export async function getSesionesActivas() {
