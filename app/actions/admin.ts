@@ -155,6 +155,8 @@ export async function updateAppSettings(formData: FormData) {
     bgUrl: bgUrl,
     bgSize: formData.get("bgSize") as string,
     bgPosition: formData.get("bgPosition") as string,
+    bgSizeMobile: formData.get("bgSizeMobile") as string,
+    bgPositionMobile: formData.get("bgPositionMobile") as string,
   };
   
   const { error } = await supabase.storage.from('assets').upload('settings.json', JSON.stringify(newSettings), { contentType: 'application/json', upsert: true });

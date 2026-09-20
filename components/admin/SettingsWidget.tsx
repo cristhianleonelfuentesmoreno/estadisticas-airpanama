@@ -12,10 +12,16 @@ export function SettingsWidget() {
   const [loginText, setLoginText] = useState("");
   const [registerTitle, setRegisterTitle] = useState("");
   const [registerText, setRegisterText] = useState("");
+  
   const [bgPosition, setBgPosition] = useState("center");
   const [bgSize, setBgSize] = useState("cover");
+  const [bgPositionMobile, setBgPositionMobile] = useState("center");
+  const [bgSizeMobile, setBgSizeMobile] = useState("cover");
+  
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [bgUrlPreview, setBgUrlPreview] = useState("/bg-plane.png");
+  
+  const [activeTab, setActiveTab] = useState<'desktop' | 'mobile'>('desktop');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,6 +35,8 @@ export function SettingsWidget() {
         setRegisterText(s.registerText || "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información.");
         setBgPosition(s.bgPosition || "center");
         setBgSize(s.bgSize || "cover");
+        setBgPositionMobile(s.bgPositionMobile || s.bgPosition || "center");
+        setBgSizeMobile(s.bgSizeMobile || s.bgSize || "cover");
         setBgUrlPreview(s.bgUrl || "/bg-plane.png");
       }
     } catch (e) {
@@ -60,6 +68,8 @@ export function SettingsWidget() {
       formData.append("registerText", registerText);
       formData.append("bgPosition", bgPosition);
       formData.append("bgSize", bgSize);
+      formData.append("bgPositionMobile", bgPositionMobile);
+      formData.append("bgSizeMobile", bgSizeMobile);
       formData.append("bgUrl", bgUrlPreview);
       
       if (imageFile) {
@@ -89,6 +99,11 @@ export function SettingsWidget() {
       setLoading(false);
     }
   };
+
+  const currentSize = activeTab === 'desktop' ? bgSize : bgSizeMobile;
+  const setSize = activeTab === 'desktop' ? setBgSize : setBgSizeMobile;
+  const currentPosition = activeTab === 'desktop' ? bgPosition : bgPositionMobile;
+  const setPosition = activeTab === 'desktop' ? setBgPosition : setBgPositionMobile;
 
   return (
     <>
@@ -158,21 +173,39 @@ export function SettingsWidget() {
 
               {/* Sección de Imagen */}
               <div className="flex flex-col gap-6">
-                <h3 className="font-label-lg font-bold text-on-surface flex items-center gap-2">
-                  <span className="material-symbols-outlined">image</span> Imagen de Fondo
-                </h3>
+                <div className="flex justify-between items-center">
+                  <h3 className="font-label-lg font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined">image</span> Imagen de Fondo
+                  </h3>
+                  
+                  {/* Tabs Computadora / Celular */}
+                  <div className="flex bg-surface-container rounded-lg p-1">
+                    <button 
+                      onClick={() => setActiveTab('desktop')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${activeTab === 'desktop' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+                    >
+                      Computadora
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab('mobile')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${activeTab === 'mobile' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+                    >
+                      Celular
+                    </button>
+                  </div>
+                </div>
 
                 <div className="flex flex-col md:flex-row gap-6">
                   {/* Vista Previa */}
                   <div className="w-full md:w-1/2 flex flex-col gap-3">
-                    <span className="font-label-md font-bold text-on-surface text-xs">Vista Previa</span>
-                    <div className="w-full h-48 bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 shadow-inner relative">
+                    <span className="font-label-md font-bold text-on-surface text-xs">Vista Previa ({activeTab === 'desktop' ? 'Computadora' : 'Celular'})</span>
+                    <div className={`w-full bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 shadow-inner relative transition-all ${activeTab === 'desktop' ? 'h-48' : 'h-[280px] w-[200px] mx-auto'}`}>
                       <div 
                         className="absolute inset-0"
                         style={{
                           backgroundImage: `url(${bgUrlPreview})`,
-                          backgroundSize: bgSize,
-                          backgroundPosition: bgPosition,
+                          backgroundSize: currentSize,
+                          backgroundPosition: currentPosition,
                           backgroundRepeat: 'no-repeat'
                         }}
                       />
@@ -189,7 +222,7 @@ export function SettingsWidget() {
                       className="mt-2 w-full py-2 bg-surface-variant text-on-surface-variant rounded-xl font-label-md font-bold flex items-center justify-center gap-2 hover:bg-surface-variant/80 transition-colors"
                     >
                       <span className="material-symbols-outlined">upload</span>
-                      Subir nueva imagen
+                      Cambiar imagen
                     </button>
                   </div>
 
@@ -198,8 +231,8 @@ export function SettingsWidget() {
                     <div className="flex flex-col gap-2">
                       <label className="font-label-md font-bold text-on-surface text-xs">Tamaño de la imagen (Zoom)</label>
                       <select 
-                        value={bgSize} 
-                        onChange={e => setBgSize(e.target.value)}
+                        value={currentSize} 
+                        onChange={e => setSize(e.target.value)}
                         className="h-10 px-3 rounded-lg bg-surface-container text-sm focus:outline-none focus:ring-2 ring-primary/20"
                       >
                         <option value="cover">Llenar todo (Recomendado)</option>
@@ -207,6 +240,7 @@ export function SettingsWidget() {
                         <option value="100%">100% (Original)</option>
                         <option value="120%">120% (Zoom in)</option>
                         <option value="150%">150% (Zoom in max)</option>
+                        <option value="200%">200% (Ultra Zoom)</option>
                       </select>
                     </div>
 
@@ -216,8 +250,8 @@ export function SettingsWidget() {
                         {['top left', 'top center', 'top right', 'center left', 'center', 'center right', 'bottom left', 'bottom center', 'bottom right'].map(pos => (
                           <button
                             key={pos}
-                            onClick={() => setBgPosition(pos)}
-                            className={`py-2 rounded-lg text-xs font-bold transition-colors ${bgPosition === pos ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+                            onClick={() => setPosition(pos)}
+                            className={`py-2 rounded-lg text-xs font-bold transition-colors ${currentPosition === pos ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
                           >
                             {pos.replace('top', '↑').replace('bottom', '↓').replace('left', '←').replace('right', '→').replace('center', '•')}
                           </button>

@@ -16,6 +16,8 @@ interface LoginCardProps {
     bgUrl?: string;
     bgSize?: string;
     bgPosition?: string;
+    bgSizeMobile?: string;
+    bgPositionMobile?: string;
   };
 }
 
@@ -292,10 +294,12 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         <CardBackground 
           activeView={activeView} 
           bgStyle={{
-            backgroundImage: `url(${settings?.bgUrl || "/bg-plane.png"})`,
-            backgroundSize: settings?.bgSize || "cover",
-            backgroundPosition: settings?.bgPosition || "center"
-          }}
+            '--bg-image-desktop': `url(${settings?.bgUrl || "/bg-plane.png"})`,
+            '--bg-size-desktop': settings?.bgSize || "cover",
+            '--bg-position-desktop': settings?.bgPosition || "center",
+            '--bg-size-mobile': settings?.bgSizeMobile || settings?.bgSize || "cover",
+            '--bg-position-mobile': settings?.bgPositionMobile || settings?.bgPosition || "center"
+          } as React.CSSProperties}
         />
         
         <HeroPanel
