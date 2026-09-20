@@ -3,13 +3,15 @@
 import { useState, useMemo } from "react";
 import { updateLlegadaMalek } from "@/app/actions/flights";
 
-interface MalekArrival {
+interface MalekFlight {
   id: string;
   fecha: string;
   aerolinea: string;
   numero_vuelo: string;
-  origen: string;
-  hora_llegada_real: string;
+  origen?: string;
+  destino?: string;
+  hora_llegada_real?: string;
+  hora_salida_real?: string;
   estado_final: string;
   pasajeros_abordo: number;
   capacidad_total: number;
@@ -18,37 +20,41 @@ interface MalekArrival {
 export default function TablasDiariasClient({
   initialData
 }: {
-  initialData: MalekArrival[];
+  initialData: { llegadas: MalekFlight[], salidas: MalekFlight[] };
 }) {
+  const [viewType, setViewType] = useState<'llegadas' | 'salidas'>('llegadas');
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [editingFlight, setEditingFlight] = useState<MalekArrival | null>(null);
+  const [editingFlight, setEditingFlight] = useState<MalekFlight | null>(null);
   const [editFormData, setEditFormData] = useState({
-    hora_llegada_real: "",
+    hora_real: "",
     pasajeros_abordo: 0,
     estado_final: ""
   });
 
-  // Derive summary metrics from initialData
-  const totalFlights = initialData.length;
-  const aTiempo = initialData.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
+  const activeDataList = viewType === 'llegadas' ? initialData.llegadas : initialData.salidas;
+
+  // Derive summary metrics
+  const totalFlights = activeDataList.length;
+  const aTiempo = activeDataList.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
 
   const filteredData = useMemo(() => {
-    return initialData.filter(flight => {
+    return activeDataList.filter(flight => {
+      const location = viewType === 'llegadas' ? flight.origen : flight.destino;
       const matchSearch = 
         flight.numero_vuelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        flight.origen.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (location && location.toLowerCase().includes(searchQuery.toLowerCase())) ||
         flight.aerolinea.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchFilter = activeFilter === "all" || flight.aerolinea === activeFilter;
 
       return matchSearch && matchFilter;
     });
-  }, [initialData, searchQuery, activeFilter]);
+  }, [activeDataList, searchQuery, activeFilter, viewType]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -61,7 +67,8 @@ export default function TablasDiariasClient({
     return 'bg-gray-700 text-white';
   };
 
-  const formatTime = (isoString: string) => {
+  const formatTime = (isoString?: string) => {
+    if (!isoString) return '--:--';
     try {
       const date = new Date(isoString);
       return date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
@@ -70,7 +77,8 @@ export default function TablasDiariasClient({
     }
   };
 
-  const toTimeStringForInput = (isoString: string) => {
+  const toTimeStringForInput = (isoString?: string) => {
+    if (!isoString) return '00:00';
     try {
       const date = new Date(isoString);
       const h = date.getHours().toString().padStart(2, '0');
@@ -81,10 +89,11 @@ export default function TablasDiariasClient({
     }
   };
 
-  const openEditDrawer = (flight: MalekArrival) => {
+  const openEditDrawer = (flight: MalekFlight) => {
     setEditingFlight(flight);
+    const timeValue = viewType === 'llegadas' ? flight.hora_llegada_real : flight.hora_salida_real;
     setEditFormData({
-      hora_llegada_real: toTimeStringForInput(flight.hora_llegada_real),
+      hora_real: toTimeStringForInput(timeValue),
       pasajeros_abordo: flight.pasajeros_abordo || 0,
       estado_final: flight.estado_final
     });
@@ -96,17 +105,25 @@ export default function TablasDiariasClient({
     if (!editingFlight) return;
     
     // Parse time to ISO
-    const [hours, minutes] = editFormData.hora_llegada_real.split(':').map(Number);
-    const newDate = new Date(editingFlight.hora_llegada_real);
+    const [hours, minutes] = editFormData.hora_real.split(':').map(Number);
+    const timeToUpdate = viewType === 'llegadas' ? editingFlight.hora_llegada_real : editingFlight.hora_salida_real;
+    const newDate = new Date(timeToUpdate || new Date().toISOString());
     newDate.setHours(hours, minutes, 0, 0);
 
     const updates = {
-      hora_llegada_real: newDate.toISOString(),
+      [viewType === 'llegadas' ? 'hora_llegada_real' : 'hora_salida_real']: newDate.toISOString(),
       pasajeros_abordo: editFormData.pasajeros_abordo,
       estado_final: editFormData.estado_final
     };
 
-    const res = await updateLlegadaMalek(editingFlight.id, updates);
+    let res;
+    if (viewType === 'llegadas') {
+      res = await updateLlegadaMalek(editingFlight.id, updates);
+    } else {
+      const { updateSalidaMalek } = await import('@/app/actions/flights');
+      res = await updateSalidaMalek(editingFlight.id, updates);
+    }
+
     if (res.success) {
       setIsDrawerOpen(false);
       window.location.reload(); // Recargar para ver los cambios
@@ -125,12 +142,34 @@ export default function TablasDiariasClient({
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
               <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold">Registro Histórico</span>
             </div>
-            <h1 className="font-headline-md text-2xl text-white font-bold tracking-tight">Llegadas a Malek</h1>
+            <h1 className="font-headline-md text-2xl text-white font-bold tracking-tight">
+              {viewType === 'llegadas' ? 'Llegadas a Malek' : 'Salidas de Malek'}
+            </h1>
           </div>
-          <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/10">
-            <span className="material-symbols-outlined text-[15px] text-white">table_view</span>
-            <span className="font-label-sm text-[11px] text-white font-semibold tracking-wide">Modo Airtable</span>
+          <div className="flex flex-col items-end gap-2">
+            <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/10">
+              <span className="material-symbols-outlined text-[15px] text-white">table_view</span>
+              <span className="font-label-sm text-[11px] text-white font-semibold tracking-wide">Modo Airtable</span>
+            </div>
           </div>
+        </div>
+
+        {/* Llegadas / Salidas Toggle */}
+        <div className="flex items-center gap-2 mt-2 bg-white/10 p-1 rounded-xl w-fit border border-white/10">
+          <button 
+            onClick={() => setViewType('llegadas')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1.5 ${viewType === 'llegadas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">flight_land</span>
+            Llegadas
+          </button>
+          <button 
+            onClick={() => setViewType('salidas')}
+            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1.5 ${viewType === 'salidas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+            Salidas
+          </button>
         </div>
 
         <div className="bg-white/5 backdrop-blur-md rounded-xl p-3 flex flex-col gap-3 border border-white/10 mt-2">
@@ -154,7 +193,7 @@ export default function TablasDiariasClient({
 
           <div className="grid grid-cols-2 gap-2 pt-1 text-center">
             <div className="bg-white/5 rounded-lg py-2 flex flex-col">
-              <span className="text-[10px] text-white/70">Total Llegadas</span>
+              <span className="text-[10px] text-white/70">Total {viewType === 'llegadas' ? 'Llegadas' : 'Salidas'}</span>
               <span className="font-label-md text-xl font-bold text-white">{totalFlights}</span>
             </div>
             <div className="bg-emerald-500/20 rounded-lg py-2 flex flex-col border border-emerald-500/30">
@@ -241,7 +280,7 @@ export default function TablasDiariasClient({
                   <th className="px-4 py-3.5 min-w-[120px]">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">schedule</span>
-                      <span>Hora Llegada</span>
+                      <span>{viewType === 'llegadas' ? 'Hora Llegada' : 'Hora Salida'}</span>
                     </div>
                   </th>
                   <th className="px-4 py-3.5 min-w-[120px]">
@@ -283,16 +322,20 @@ export default function TablasDiariasClient({
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5 font-bold text-[13px]">
-                            <span className="text-primary">{flight.origen}</span>
+                            <span className="text-primary">{viewType === 'llegadas' ? flight.origen : 'DAV'}</span>
                             <span className="material-symbols-outlined text-[14px] text-slate-400">arrow_forward</span>
-                            <span className="text-primary">DAV</span>
+                            <span className="text-primary">{viewType === 'llegadas' ? 'DAV' : flight.destino}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-[13px]">
-                            <span className="font-bold text-slate-800">{formatTime(flight.hora_llegada_real)}</span>
+                            <span className="font-bold text-slate-800">
+                              {formatTime(viewType === 'llegadas' ? flight.hora_llegada_real : flight.hora_salida_real)}
+                            </span>
                           </div>
-                          <span className="text-[11px] text-emerald-600 font-medium">{new Date(flight.hora_llegada_real).toLocaleDateString('es-PA')}</span>
+                          <span className="text-[11px] text-emerald-600 font-medium">
+                            {new Date(viewType === 'llegadas' ? (flight.hora_llegada_real || '') : (flight.hora_salida_real || '')).toLocaleDateString('es-PA')}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5 text-[12px] mb-1">

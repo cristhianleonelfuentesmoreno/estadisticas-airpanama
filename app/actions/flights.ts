@@ -182,59 +182,98 @@ export async function getLlegadasMalek() {
     .select('*')
     .order('hora_llegada_real', { ascending: false });
 
-  if (error || !data || data.length === 0) {
-    console.log("No data or error in Supabase, returning mock data for Malek arrivals.", error?.message);
-    
-    // Fallback Mock Data: ajustado al itinerario real de llegadas a David en la tarde
-    const now = new Date();
-    
-    const mockArr1 = new Date(now);
-    mockArr1.setHours(14, 45, 0, 0); // Air Panama 7P-972 llega 14:45
-
-    const mockArr2 = new Date(now);
-    mockArr2.setHours(16, 20, 0, 0); // Copa Airlines CM-013 llega 16:20
-    
-    return [
-      {
-        id: 'mock-1',
-        fecha: now.toISOString().split('T')[0],
-        aerolinea: 'Air Panama',
-        numero_vuelo: '7P-972',
-        origen: 'PAC',
-        hora_llegada_real: mockArr1.toISOString(),
-        estado_final: 'LLEGÓ',
-        pasajeros_abordo: 21,
-        capacidad_total: 78
-      },
-      {
-        id: 'mock-2',
-        fecha: now.toISOString().split('T')[0],
-        aerolinea: 'Copa Airlines',
-        numero_vuelo: 'CM-013',
-        origen: 'PTY',
-        hora_llegada_real: mockArr2.toISOString(),
-        estado_final: 'LLEGÓ',
-        pasajeros_abordo: 130,
-        capacidad_total: 160
-      }
-    ];
+  if (error) {
+    console.log("Error in Supabase for Malek arrivals.", error?.message);
+    return [];
   }
 
-  return data;
+  // Retornamos la data real (aunque esté vacía)
+  return data || [];
 }
 
 export async function updateLlegadaMalek(id: string, updates: { hora_llegada_real?: string, pasajeros_abordo?: number, estado_final?: string }) {
   const supabase = await createClient();
   
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('llegadas_malek_historico')
     .update(updates)
     .eq('id', id);
 
   if (error) {
-    console.error("Error actualizando registro histórico:", error);
+    console.log("Error updating llegada Malek:", error?.message || error);
     return { success: false, error: error.message };
   }
 
+  return { success: true };
+}
+
+export async function saveCompletedMalekDepartures() {
+  const supabase = await createClient();
+
+  const flights = await getUpcomingFlights();
+  const departedMalekFlights = flights.filter(f => f.origin === 'DAV' && f.status === 'LLEGÓ');
+
+  if (departedMalekFlights.length === 0) return { success: true, count: 0 };
+
+  const today = new Date().toISOString().split('T')[0];
+  const { data: existingFlights } = await supabase
+    .from('salidas_malek_historico')
+    .select('numero_vuelo')
+    .gte('hora_salida_real', `${today}T00:00:00Z`)
+    .lte('hora_salida_real', `${today}T23:59:59Z`);
+
+  const existingFlightNumbers = new Set(existingFlights?.map(f => f.numero_vuelo) || []);
+
+  const flightsToInsert = departedMalekFlights
+    .filter(f => !existingFlightNumbers.has(f.flightNumber))
+    .map(f => ({
+      aerolinea: f.airline,
+      numero_vuelo: f.flightNumber,
+      destino: f.destination,
+      hora_salida_real: f.departureTime,
+      estado_final: f.status,
+      pasajeros_abordo: f.paxCount,
+      capacidad_total: f.paxMax
+    }));
+
+  if (flightsToInsert.length === 0) return { success: true, count: 0 };
+
+  const { error } = await supabase
+    .from('salidas_malek_historico')
+    .insert(flightsToInsert);
+
+  if (error) {
+    console.log("Error guardando salidas Malek:", error?.message || error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, count: flightsToInsert.length };
+}
+
+export async function getSalidasMalek() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('salidas_malek_historico')
+    .select('*')
+    .order('hora_salida_real', { ascending: false });
+
+  if (error) {
+    console.log("Error in Supabase for Malek departures.", error?.message);
+    return [];
+  }
+  return data || [];
+}
+
+export async function updateSalidaMalek(id: string, updates: { hora_salida_real?: string, pasajeros_abordo?: number, estado_final?: string }) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('salidas_malek_historico')
+    .update(updates)
+    .eq('id', id);
+
+  if (error) {
+    console.log("Error updating salida Malek:", error?.message || error);
+    return { success: false, error: error.message };
+  }
   return { success: true, message: "Registro actualizado exitosamente." };
 }
