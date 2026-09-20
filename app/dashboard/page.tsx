@@ -82,7 +82,7 @@ export default function DashboardPage() {
 <div className="mt-space-md pt-space-sm border-t border-white/10 flex items-center justify-between text-on-primary-container">
 <span className="font-label-sm text-label-sm flex items-center gap-1">
 <span className="material-symbols-outlined text-[15px] text-emerald-400">check_circle</span>
-          Sistema EFB Sincronizado • Estación AirPanama Enrique Malek
+          Estación AirPanama Enrique Malek
         </span>
 <span className="font-label-sm text-label-sm" suppressHydrationWarning>{currentTime}</span>
 </div>
