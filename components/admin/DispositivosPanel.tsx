@@ -7,10 +7,10 @@ import { HistorialSesionesModal } from "./HistorialSesionesModal";
 export function DispositivosPanel() {
   const [sesiones, setSesiones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [showAll, setShowAll] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   
-  const ITEMS_PER_PAGE = 10;
+  const ITEMS_PER_PAGE = 5;
 
   useEffect(() => {
     const fetchSesiones = async () => {
@@ -23,8 +23,7 @@ export function DispositivosPanel() {
     return () => clearInterval(interval);
   }, []);
 
-  const totalPages = Math.ceil(sesiones.length / ITEMS_PER_PAGE);
-  const paginatedSesiones = sesiones.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const paginatedSesiones = showAll ? sesiones : sesiones.slice(0, ITEMS_PER_PAGE);
 
   if (loading) {
     return <div className="p-8 text-center text-on-surface-variant animate-pulse">Cargando dispositivos...</div>;
@@ -117,22 +116,16 @@ export function DispositivosPanel() {
         )}
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 mt-6">
+      {sesiones.length > ITEMS_PER_PAGE && (
+        <div className="flex justify-center mt-2 mb-6">
           <button 
-            disabled={page === 1}
-            onClick={() => setPage(p => p - 1)}
-            className="p-2 bg-surface-container hover:bg-surface-container-high rounded-full disabled:opacity-50 transition-colors"
+            onClick={() => setShowAll(!showAll)}
+            className="px-6 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md font-bold rounded-full transition-colors flex items-center gap-2 shadow-sm"
           >
-            <span className="material-symbols-outlined">chevron_left</span>
-          </button>
-          <span className="font-label-md text-on-surface">Página {page} de {totalPages}</span>
-          <button 
-            disabled={page === totalPages}
-            onClick={() => setPage(p => p + 1)}
-            className="p-2 bg-surface-container hover:bg-surface-container-high rounded-full disabled:opacity-50 transition-colors"
-          >
-            <span className="material-symbols-outlined">chevron_right</span>
+            <span className="material-symbols-outlined text-[20px]">
+              {showAll ? 'expand_less' : 'expand_more'}
+            </span>
+            {showAll ? 'Ver menos' : `Mostrar todos (${sesiones.length})`}
           </button>
         </div>
       )}
