@@ -200,11 +200,11 @@ export function SettingsWidget() {
                   <div className="w-full md:w-1/2 flex flex-col gap-3">
                     <span className="font-label-md font-bold text-on-surface text-xs">Vista Previa ({activeTab === 'desktop' ? 'Computadora' : 'Celular'})</span>
                     <div 
-                      className="w-full bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 shadow-inner relative transition-all mx-auto"
+                      className="w-full bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 shadow-inner relative transition-all mx-auto flex items-center justify-center text-center text-white"
                       style={{ aspectRatio: activeTab === 'desktop' ? '550 / 500' : '390 / 220', maxWidth: activeTab === 'desktop' ? '280px' : '100%' }}
                     >
                       <div 
-                        className="absolute inset-0"
+                        className="absolute inset-0 z-0"
                         style={{
                           backgroundImage: `url(${bgUrlPreview})`,
                           backgroundSize: currentSize,
@@ -212,6 +212,21 @@ export function SettingsWidget() {
                           backgroundRepeat: 'no-repeat'
                         }}
                       />
+                      <div className="absolute inset-0 bg-black/30 z-10" />
+                      
+                      <div className="relative z-20 flex flex-col items-center justify-center p-4 w-full">
+                        <h2 className="font-bold drop-shadow-md" style={{ fontSize: activeTab === 'desktop' ? '1.1rem' : '1.4rem', margin: '0 0 4px 0' }}>
+                          {loginTitle || "¡Hola!"}
+                        </h2>
+                        {loginText && (
+                          <p className="drop-shadow-md" style={{ fontSize: activeTab === 'desktop' ? '0.65rem' : '0.8rem', margin: 0, opacity: 0.9, maxWidth: '85%', lineHeight: 1.2 }}>
+                            {loginText}
+                          </p>
+                        )}
+                        <div style={{ marginTop: '12px', padding: '4px 16px', border: '1px solid white', borderRadius: '20px', fontSize: '0.55rem', letterSpacing: '1px', background: 'transparent' }}>
+                          REGISTRARSE
+                        </div>
+                      </div>
                     </div>
                     <input 
                       type="file" 
