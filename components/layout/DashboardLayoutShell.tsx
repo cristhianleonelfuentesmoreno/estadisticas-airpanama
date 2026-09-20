@@ -191,6 +191,17 @@ export default function DashboardLayoutShell({
                 </div>
               )}
             </div>
+            
+            <div className="w-px h-6 bg-outline-variant/30 hidden md:block mx-1"></div>
+            
+            <button 
+              onClick={handleLogout}
+              aria-label="Cerrar sesión" 
+              title="Cerrar sesión"
+              className="w-10 h-10 flex items-center justify-center rounded-full text-on-primary/70 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+            >
+              <span className="material-symbols-outlined text-[20px]">logout</span>
+            </button>
           </div>
         </div>
       </header>
