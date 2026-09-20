@@ -99,9 +99,13 @@ export async function cerrarSesion(sessionId: string) {
 }
 
 export async function getSesionesActivas() {
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60000).toISOString();
+
   const { data: sesiones, error } = await supabaseAdmin
     .from('sesiones')
     .select('*')
+    .eq('estado', 'en_linea')
+    .gte('ultima_actividad', tenMinutesAgo)
     .order('ultima_actividad', { ascending: false });
 
   if (error || !sesiones) return [];
