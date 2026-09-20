@@ -1,13 +1,50 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [userName, setUserName] = useState("Cargando...");
+  const [userCargo, setUserCargo] = useState("...");
+  const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    // Reloj en vivo
+    const updateTime = () => {
+      const now = new Date();
+      let hours = now.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const seconds = now.getSeconds().toString().padStart(2, '0');
+      setCurrentTime(`${hours}:${minutes}:${seconds} ${ampm} Local`);
+    };
+    
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+
+    // Obtener datos del usuario
+    const fetchUser = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: perfil } = await supabase.from('perfiles').select('nombre, cargo').eq('id', user.id).single();
+        if (perfil) {
+          setUserName(perfil.nombre || user.email?.split('@')[0] || "Usuario");
+          setUserCargo(perfil.cargo || "Sin cargo asignado");
+        }
+      }
+    };
+    fetchUser();
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleRefresh = () => {
     setIsSyncing(true);
@@ -33,10 +70,10 @@ export default function DashboardPage() {
 <div className="flex flex-col">
 <div className="flex items-center gap-space-xs">
 <span className="inline-flex w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-<span className="font-label-sm text-label-sm text-on-primary-container tracking-wider uppercase">Turno Activo • Hub PAC</span>
+<span className="font-label-sm text-label-sm text-on-primary-container tracking-wider uppercase">Turno Activo</span>
 </div>
-<h1 className="font-headline-md text-headline-md font-extrabold tracking-tight mt-0.5">Cap. Valeria Gómez</h1>
-<p className="font-body-sm text-body-sm text-on-primary-container">Jefatura de Operaciones • Flota Nacional</p>
+<h1 className="font-headline-md text-headline-md font-extrabold tracking-tight mt-0.5 capitalize">{userName}</h1>
+<p className="font-body-sm text-body-sm text-on-primary-container capitalize">{userCargo}</p>
 </div>
 <div className="w-12 h-12 rounded-xl bg-surface-container-highest/20 flex items-center justify-center text-secondary-fixed">
 <span className="material-symbols-outlined text-[28px]">flight</span>
@@ -45,9 +82,9 @@ export default function DashboardPage() {
 <div className="mt-space-md pt-space-sm border-t border-white/10 flex items-center justify-between text-on-primary-container">
 <span className="font-label-sm text-label-sm flex items-center gap-1">
 <span className="material-symbols-outlined text-[15px] text-emerald-400">check_circle</span>
-          Sistema EFB Sincronizado
+          Sistema EFB Sincronizado • Estación AirPanama Enrique Malek
         </span>
-<span className="font-label-sm text-label-sm">08:42 AM Local</span>
+<span className="font-label-sm text-label-sm" suppressHydrationWarning>{currentTime}</span>
 </div>
 </div>
 {/*  Live Flight Pulse & Weather Banner  */}
