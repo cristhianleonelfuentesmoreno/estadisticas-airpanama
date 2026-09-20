@@ -350,75 +350,40 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
   return { success: true, inserted: newData.length, skipped: data.length - newData.length };
 }
 
-export async function getReporteMensual(year: number, month: number) {
+export async function getReporteMensual(year: number, month: number, range: 'month' | 'year' | '6m' = 'month') {
   const supabase = await createClient();
-  const monthStr = String(month).padStart(2, '0');
-  const datePrefix = `${year}-${monthStr}`;
+  let startDate = '';
+  let endDate = '';
+
+  if (range === 'month') {
+    const monthStr = String(month).padStart(2, '0');
+    const lastDay = new Date(year, month, 0).getDate();
+    startDate = `${year}-${monthStr}-01`;
+    endDate = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+  } else if (range === 'year') {
+    startDate = `${year}-01-01`;
+    endDate = `${year}-12-31`;
+  } else if (range === '6m') {
+    const d = new Date(year, month - 1, 1);
+    d.setMonth(d.getMonth() - 5);
+    const mStr = String(d.getMonth() + 1).padStart(2, '0');
+    startDate = `${d.getFullYear()}-${mStr}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const currentMStr = String(month).padStart(2, '0');
+    endDate = `${year}-${currentMStr}-${String(lastDay).padStart(2, '0')}`;
+  }
 
   const { data: llegadas } = await supabase
     .from('llegadas_malek_historico')
     .select('*')
-    .like('fecha', `${datePrefix}%`);
+    .gte('fecha', startDate)
+    .lte('fecha', endDate);
 
   const { data: salidas } = await supabase
     .from('salidas_malek_historico')
     .select('*')
-    .like('fecha', `${datePrefix}%`);
+    .gte('fecha', startDate)
+    .lte('fecha', endDate);
 
-  const allFlights = [...(llegadas || []), ...(salidas || [])];
-
-  const total = allFlights.length;
-  let apCount = 0;
-  let cmCount = 0;
-  let onTimeCount = 0;
-  let totalPax = 0;
-  let totalCap = 0;
-
-  // Mapa para los vuelos diarios: "01" -> { day: "01", cm: 0, p7: 0 }
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const dailyDataMap: Record<string, { day: string, cm: number, p7: number }> = {};
-  
-  for (let i = 1; i <= daysInMonth; i++) {
-    const dStr = String(i).padStart(2, '0');
-    dailyDataMap[dStr] = { day: dStr, cm: 0, p7: 0 };
-  }
-
-  allFlights.forEach(f => {
-    // Aerolinea
-    if (f.aerolinea === 'Air Panama' || f.numero_vuelo?.startsWith('7P')) {
-      apCount++;
-      const day = f.fecha.split('-')[2];
-      if (dailyDataMap[day]) dailyDataMap[day].p7++;
-    } else {
-      cmCount++;
-      const day = f.fecha.split('-')[2];
-      if (dailyDataMap[day]) dailyDataMap[day].cm++;
-    }
-
-    // OTP (Asumimos que si no dice DEMORADO o CANCELADO está a tiempo)
-    const estado = f.estado_final?.toUpperCase() || '';
-    if (estado !== 'DEMORADO' && estado !== 'RETRASADO' && estado !== 'CANCELADO') {
-      onTimeCount++;
-    }
-
-    // Load Factor
-    if (f.capacidad_total > 0) {
-      totalPax += (f.pasajeros_abordo || 0);
-      totalCap += f.capacidad_total;
-    }
-  });
-
-  const otp = total > 0 ? (onTimeCount / total) * 100 : 0;
-  const loadFactor = totalCap > 0 ? (totalPax / totalCap) * 100 : 0;
-  
-  const dailyChart = Object.values(dailyDataMap);
-
-  return {
-    total,
-    apCount,
-    cmCount,
-    otp,
-    loadFactor,
-    dailyChart
-  };
+  return [...(llegadas || []), ...(salidas || [])];
 }

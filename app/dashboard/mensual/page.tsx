@@ -4,7 +4,7 @@ import MensualClient from "@/components/dashboard/MensualClient";
 export default async function ReportesMensualesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string }>;
+  searchParams: Promise<{ month?: string; year?: string; range?: string }>;
 }) {
   const params = await searchParams;
   
@@ -12,11 +12,13 @@ export default async function ReportesMensualesPage({
   const year = params.year ? parseInt(params.year) : today.getFullYear();
   const month = params.month ? parseInt(params.month) : today.getMonth() + 1;
 
-  const data = await getReporteMensual(year, month);
+  const range = (params.range as 'month' | 'year' | '6m') || 'month';
+
+  const rawFlights = await getReporteMensual(year, month, range);
 
   return (
     <div className="w-full h-full flex flex-col">
-      <MensualClient initialData={data} initialYear={year} initialMonth={month} />
+      <MensualClient rawFlights={rawFlights} initialYear={year} initialMonth={month} initialRange={range} />
     </div>
   );
 }
