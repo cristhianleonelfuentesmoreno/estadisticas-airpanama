@@ -114,11 +114,6 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       <SettingsWidget />
 
       {/* ========================================= */}
-      {/* PANEL DE DISPOSITIVOS ACTIVOS             */}
-      {/* ========================================= */}
-      <DispositivosPanel />
-
-      {/* ========================================= */}
       {/* TARJETA DE RESUMEN E HISTÓRICO            */}
       {/* ========================================= */}
       <div className="bg-surface-container-lowest rounded-3xl p-6 md:p-8 shadow-sm border border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -268,6 +263,11 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
           </button>
         </div>
       )}
+
+      {/* ========================================= */}
+      {/* PANEL DE DISPOSITIVOS ACTIVOS             */}
+      {/* ========================================= */}
+      <DispositivosPanel />
 
       {/* ========================================= */}
       {/* MODAL DE EDICIÓN                          */}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { actualizarActividad, cerrarSesion } from "@/app/actions/sessions";
+import { actualizarActividad, cerrarSesion, registrarSesion } from "@/app/actions/sessions";
 import { useEffect } from "react";
 
 interface DashboardLayoutShellProps {
