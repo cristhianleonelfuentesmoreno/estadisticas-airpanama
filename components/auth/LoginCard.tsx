@@ -7,8 +7,20 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-const CardBackground = ({ activeView }: { activeView: string }) => (
-  <div className={`card-bg ${activeView === "login" ? "login" : ""}`} />
+interface LoginCardProps {
+  settings?: {
+    loginTitle?: string;
+    loginText?: string;
+    registerTitle?: string;
+    registerText?: string;
+    bgUrl?: string;
+    bgSize?: string;
+    bgPosition?: string;
+  };
+}
+
+const CardBackground = ({ activeView, bgStyle }: { activeView: string, bgStyle: any }) => (
+  <div className={`card-bg ${activeView === "login" ? "login" : ""}`} style={bgStyle} />
 );
 
 const GoogleButton = ({ text, onClick, loading }: { text: string, onClick: () => void, loading: boolean }) => {
@@ -47,7 +59,7 @@ const HeroPanel = ({ type, activeView, title, buttonText, onToggle }: any) => (
   </div>
 );
 
-export const LoginCard = () => {
+export const LoginCard = ({ settings }: LoginCardProps = {}) => {
   const [activeView, setActiveView] = useState("login");
   const [loading, setLoading] = useState(false);
   const [regName, setRegName] = useState("");
@@ -277,13 +289,20 @@ export const LoginCard = () => {
   return (
     <div className="card-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f0f2f5' }}>
       <div className="card">
-        <CardBackground activeView={activeView} />
+        <CardBackground 
+          activeView={activeView} 
+          bgStyle={{
+            backgroundImage: `url(${settings?.bgUrl || "/bg-plane.png"})`,
+            backgroundSize: settings?.bgSize || "cover",
+            backgroundPosition: settings?.bgPosition || "center"
+          }}
+        />
         
         <HeroPanel
           type="register"
           activeView={activeView}
-          title="¡Bienvenido de vuelta!"
-          text="Para mantenerte conectado con nosotros, por favor inicia sesión con tu información."
+          title={settings?.registerTitle || "¡Bienvenido de vuelta!"}
+          text={settings?.registerText || "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información."}
           buttonText="INICIAR SESIÓN"
           onToggle={toggleView}
         />
@@ -305,8 +324,8 @@ export const LoginCard = () => {
         <HeroPanel
           type="login"
           activeView={activeView}
-          title="¡Hola!"
-          text="Ingresa tus datos personales y empieza el viaje con nosotros."
+          title={settings?.loginTitle || "¡Hola!"}
+          text={settings?.loginText || "Ingresa tus datos personales y empieza el viaje con nosotros."}
           buttonText="REGISTRARSE"
           onToggle={toggleView}
         />

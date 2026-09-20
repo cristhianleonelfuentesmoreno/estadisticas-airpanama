@@ -18,12 +18,10 @@
   left: 0;
   bottom: 0;
   width: 50%;
-  background: url("/bg-plane.png"); 
-  background-size: cover;
-  background-position: center;
   border-radius: 18px;
   translate: 0 0;
   transition: 0.65s ease-in-out;
+  background-repeat: no-repeat;
 }
 
 /* Overlays a dark tint to make text readable */

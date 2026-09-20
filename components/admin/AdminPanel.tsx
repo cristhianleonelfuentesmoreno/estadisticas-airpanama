@@ -4,6 +4,8 @@ import { useState } from "react";
 import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction, updateUserName } from "@/app/actions/admin";
 import { toast } from "sonner";
 
+import { SettingsWidget } from "./SettingsWidget";
+
 export interface User {
   id: string;
   email: string;
@@ -104,6 +106,11 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
+      {/* ========================================= */}
+      {/* WIDGET DE CONFIGURACIÓN                   */}
+      {/* ========================================= */}
+      <SettingsWidget />
+
       {/* ========================================= */}
       {/* TARJETA DE RESUMEN E HISTÓRICO            */}
       {/* ========================================= */}

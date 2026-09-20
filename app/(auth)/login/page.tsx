@@ -1,9 +1,11 @@
 import { LoginCard } from "@/components/auth/LoginCard";
+import { getAppSettings } from "@/app/actions/admin";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const settings = await getAppSettings();
   return (
     <main>
-      <LoginCard />
+      <LoginCard settings={settings || undefined} />
     </main>
   );
 }

@@ -119,3 +119,48 @@ export async function deleteUserAction(userId: string) {
   revalidatePath("/dashboard");
   return { success: true };
 }
+
+export async function getAppSettings() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage.from('assets').download('settings.json');
+  if (error) return null;
+  const text = await data.text();
+  return JSON.parse(text);
+}
+
+export async function updateAppSettings(formData: FormData) {
+  const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getUser();
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (perfil?.role !== "administrador") return { error: "No autorizado" };
+
+  let bgUrl = formData.get("bgUrl") as string;
+  const imageFile = formData.get("imageFile") as File | null;
+
+  if (imageFile && imageFile.size > 0) {
+    const ext = imageFile.name.split('.').pop();
+    const fileName = `bg-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('assets').upload(fileName, imageFile, { upsert: true });
+    if (uploadError) return { error: uploadError.message };
+    
+    const { data: urlData } = supabase.storage.from('assets').getPublicUrl(fileName);
+    bgUrl = urlData.publicUrl;
+  }
+
+  const newSettings = {
+    loginTitle: formData.get("loginTitle") as string,
+    loginText: formData.get("loginText") as string,
+    registerTitle: formData.get("registerTitle") as string,
+    registerText: formData.get("registerText") as string,
+    bgUrl: bgUrl,
+    bgSize: formData.get("bgSize") as string,
+    bgPosition: formData.get("bgPosition") as string,
+  };
+  
+  const { error } = await supabase.storage.from('assets').upload('settings.json', JSON.stringify(newSettings), { contentType: 'application/json', upsert: true });
+  if (error) return { error: error.message };
+  
+  revalidatePath("/login");
+  revalidatePath("/register");
+  return { success: true, settings: newSettings };
+}
