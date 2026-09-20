@@ -21,6 +21,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showAllUsers, setShowAllUsers] = useState(false);
 
   // Estados temporales para el modal
   const [tempStatus, setTempStatus] = useState<User['status']>('pendiente');
@@ -157,7 +158,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/20">
-              {users.map(user => (
+              {(showAllUsers ? users : users.slice(0, 5)).map(user => (
                 <tr key={user.id} className="hover:bg-surface-container-lowest/50 transition-colors group">
                   <td className="p-5">
                     <div className="flex items-center gap-4">
@@ -205,7 +206,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       {/* VISTA MÓVIL (Tarjetas)                    */}
       {/* ========================================= */}
       <div className="md:hidden flex flex-col gap-4">
-        {users.map(user => (
+        {(showAllUsers ? users : users.slice(0, 5)).map(user => (
           <div key={user.id} className="bg-surface-container-lowest rounded-3xl p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-4 relative">
             <div className="flex items-center gap-4 pr-10">
               <div className="w-12 h-12 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
@@ -247,6 +248,20 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
           </div>
         ))}
       </div>
+
+      {users.length > 5 && (
+        <div className="flex justify-center mt-2 mb-6">
+          <button 
+            onClick={() => setShowAllUsers(!showAllUsers)}
+            className="px-6 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md font-bold rounded-full transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[20px]">
+              {showAllUsers ? 'expand_less' : 'expand_more'}
+            </span>
+            {showAllUsers ? 'Ver menos' : `Mostrar todos (${users.length})`}
+          </button>
+        </div>
+      )}
 
       {/* ========================================= */}
       {/* MODAL DE EDICIÓN                          */}
