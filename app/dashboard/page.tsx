@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,6 +5,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { FlightDecisionBoard } from "@/components/dashboard/FlightDecisionBoard";
+import { FlightListBoard } from "@/components/dashboard/FlightListBoard";
 
 export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -151,158 +151,8 @@ export default function DashboardPage() {
 </div>
 
 {/*  Scheduled Flight Feed  */}
-<div className="flex flex-col gap-space-sm pt-space-xs pb-space-lg">
-<div className="flex items-center justify-between px-1">
-<div className="flex items-center gap-space-xs">
-<h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Próximos Vuelos</h2>
-<span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm">Hoy</span>
-</div>
-<Link className="font-label-md text-label-md text-secondary hover:underline flex items-center gap-0.5" href="/dashboard/diario">
-          Ver todos
-          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-</Link>
-</div>
-{/*  Flight 1: PAC - DAV  */}
-<div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm relative">
-<div className="flex items-center justify-between">
-<div className="flex items-center gap-space-xs">
-<span className="font-headline-sm text-headline-sm font-extrabold text-primary">7P-702</span>
-<span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">Fokker 50 (HP-1890)</span>
-</div>
-<span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-label-sm text-label-sm uppercase flex items-center gap-1">
-<span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-            A Tiempo
-          </span>
-</div>
-<div className="flex items-center justify-between my-1">
-<div className="flex flex-col">
-<span className="font-label-code text-label-code text-primary">PAC</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Panamá (Albrook)</span>
-<span className="font-label-md text-label-md text-on-surface font-bold mt-0.5">09:15</span>
-</div>
-<div className="flex flex-col items-center flex-1 px-space-md">
-<span className="font-label-sm text-label-sm text-on-surface-variant">50 min</span>
-<div className="w-full flex items-center gap-1 my-1">
-<span className="h-0.5 w-full bg-surface-container-high rounded-full"></span>
-<span className="material-symbols-outlined text-secondary text-[18px] transform rotate-90">flight</span>
-<span className="h-0.5 w-full bg-surface-container-high rounded-full"></span>
-</div>
-<span className="font-label-sm text-label-sm text-primary font-semibold">Directo</span>
-</div>
-<div className="flex flex-col items-end text-right">
-<span className="font-label-code text-label-code text-primary">DAV</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">David (Malek)</span>
-<span className="font-label-md text-label-md text-on-surface font-bold mt-0.5">10:05</span>
-</div>
-</div>
-<div className="pt-space-xs border-t border-surface-container-high flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm">
-<span className="flex items-center gap-1">
-<span className="material-symbols-outlined text-[16px] text-primary">gate</span>
-            Puerta 03
-          </span>
-<span className="flex items-center gap-1">
-<span className="material-symbols-outlined text-[16px] text-primary">person</span>
-            Cap. A. Castillo
-          </span>
-<span className="flex items-center gap-1 font-label-md text-label-md text-primary">
-            46/48 Pax
-          </span>
-</div>
-</div>
-{/*  Flight 2: PAC - BOC  */}
-<div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm relative">
-<div className="flex items-center justify-between">
-<div className="flex items-center gap-space-xs">
-<span className="font-headline-sm text-headline-sm font-extrabold text-primary">7P-814</span>
-<span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">Fokker 50 (HP-1721)</span>
-</div>
-<span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-label-sm text-label-sm uppercase flex items-center gap-1">
-<span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-            A Tiempo
-          </span>
-</div>
-<div className="flex items-center justify-between my-1">
-<div className="flex flex-col">
-<span className="font-label-code text-label-code text-primary">PAC</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Panamá (Albrook)</span>
-<span className="font-label-md text-label-md text-on-surface font-bold mt-0.5">10:30</span>
-</div>
-<div className="flex flex-col items-center flex-1 px-space-md">
-<span className="font-label-sm text-label-sm text-on-surface-variant">1h 00m</span>
-<div className="w-full flex items-center gap-1 my-1">
-<span className="h-0.5 w-full bg-surface-container-high rounded-full"></span>
-<span className="material-symbols-outlined text-secondary text-[18px] transform rotate-90">flight</span>
-<span className="h-0.5 w-full bg-surface-container-high rounded-full"></span>
-</div>
-<span className="font-label-sm text-label-sm text-primary font-semibold">Directo</span>
-</div>
-<div className="flex flex-col items-end text-right">
-<span className="font-label-code text-label-code text-primary">BOC</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Bocas del Toro</span>
-<span className="font-label-md text-label-md text-on-surface font-bold mt-0.5">11:30</span>
-</div>
-</div>
-<div className="pt-space-xs border-t border-surface-container-high flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm">
-<span className="flex items-center gap-1">
-<span className="material-symbols-outlined text-[16px] text-primary">gate</span>
-            Puerta 01
-          </span>
-<span className="flex items-center gap-1">
-<span className="material-symbols-outlined text-[16px] text-secondary">airline_stops</span>
-            Tráfico Activo
-          </span>
-<span className="flex items-center gap-1 font-label-md text-label-md text-primary">
-            48/48 Pax (Lleno)
-          </span>
-</div>
-</div>
-{/*  Flight 3: PAC - BLB (Boeing 737 Charter)  */}
-<div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm relative">
-<div className="flex items-center justify-between">
-<div className="flex items-center gap-space-xs">
-<span className="font-headline-sm text-headline-sm font-extrabold text-primary">7P-901</span>
-<span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">Boeing 737-400 (HP-1922)</span>
-</div>
-<span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 font-label-sm text-label-sm uppercase flex items-center gap-1">
-<span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-            Abordando
-          </span>
-</div>
-<div className="flex items-center justify-between my-1">
-<div className="flex flex-col">
-<span className="font-label-code text-label-code text-primary">PAC</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">Panamá (Albrook)</span>
-<span className="font-label-md text-label-md text-on-surface font-bold mt-0.5">11:45</span>
-</div>
-<div className="flex flex-col items-center flex-1 px-space-md">
-<span className="font-label-sm text-label-sm text-on-surface-variant">1h 15m</span>
-<div className="w-full flex items-center gap-1 my-1">
-<span className="h-0.5 w-full bg-surface-container-high rounded-full"></span>
-<span className="material-symbols-outlined text-secondary text-[18px] transform rotate-90">flight</span>
-<span className="h-0.5 w-full bg-surface-container-high rounded-full"></span>
-</div>
-<span className="font-label-sm text-label-sm text-primary font-semibold">Chárter Especial</span>
-</div>
-<div className="flex flex-col items-end text-right">
-<span className="font-label-code text-label-code text-primary">SJO</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant">San José (CR)</span>
-<span className="font-label-md text-label-md text-on-surface font-bold mt-0.5">12:00</span>
-</div>
-</div>
-<div className="pt-space-xs border-t border-surface-container-high flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm">
-<span className="flex items-center gap-1">
-<span className="material-symbols-outlined text-[16px] text-primary">gate</span>
-            Puerta Int-05
-          </span>
-<span className="flex items-center gap-1 text-secondary font-semibold">
-<span className="material-symbols-outlined text-[16px]">how_to_reg</span>
-            82 abordados
-          </span>
-<span className="flex items-center gap-1 font-label-md text-label-md text-primary">
-            134/144 Pax
-          </span>
-</div>
-</div>
+<div className="pt-space-xs pb-space-lg">
+<FlightListBoard />
 </div>
 </div>
 {/*  Interactive Modal Drawer for Quick Flight Log (Micro-Interaction)  */}
