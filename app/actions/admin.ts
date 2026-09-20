@@ -46,7 +46,8 @@ export async function updateUserStatus(userId: string, status: "aprobado" | "pen
   const supabase = await createClient();
   
   const { data: authData } = await supabase.auth.getUser();
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (!authData.user) return { error: "No autorizado" };
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
@@ -67,7 +68,8 @@ export async function updateUserRole(userId: string, role: "administrador" | "us
   const supabase = await createClient();
   
   const { data: authData } = await supabase.auth.getUser();
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (!authData.user) return { error: "No autorizado" };
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
   const { error } = await supabase
@@ -87,7 +89,8 @@ export async function updateUserCargo(userId: string, cargo: string | null) {
   const supabase = await createClient();
   
   const { data: authData } = await supabase.auth.getUser();
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (!authData.user) return { error: "No autorizado" };
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
   const { error } = await supabase
@@ -107,7 +110,8 @@ export async function updateUserName(userId: string, nombre: string | null) {
   const supabase = await createClient();
   
   const { data: authData } = await supabase.auth.getUser();
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (!authData.user) return { error: "No autorizado" };
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
   const { error } = await supabase
@@ -129,7 +133,8 @@ export async function deleteUserAction(userId: string) {
   const supabase = await createClient();
   
   const { data: authData } = await supabase.auth.getUser();
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (!authData.user) return { error: "No autorizado" };
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
   const supabaseAdmin = createSupabaseClient(
