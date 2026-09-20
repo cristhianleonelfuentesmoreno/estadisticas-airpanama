@@ -5,7 +5,7 @@ dotenv.config({ path: '.env.local' });
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
 
 async function run() {
-  const { data: salidas, error } = await supabase.from('salidas_malek_historico').select('*').limit(1);
-  console.log("Salidas columns:", salidas ? Object.keys(salidas[0]) : error);
+  const { data, error } = await supabase.from('salidas_malek_historico').select('id, fecha, numero_vuelo, creado_en').eq('fecha', '2026-09-20');
+  console.log("Salidas 2026-09-20:", data);
 }
 run();

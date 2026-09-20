@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar, YAxis, Legend } from 'recharts';
 
 interface Props {
   rawFlights: any[];
@@ -29,8 +29,14 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
     let onTimeCount = 0;
     let totalPax = 0;
     let totalCap = 0;
+    
+    let totalPaxAP = 0;
+    let totalPaxCM = 0;
 
     const dailyDataMap: Record<string, { day: string, cm: number, p7: number }> = {};
+    const routeDataMap: Record<string, { route: string, airline: string, pax: number, cap: number, flights: number }> = {};
+    const hourlyDataMap: Record<number, number> = {};
+    for (let i = 0; i < 24; i++) hourlyDataMap[i] = 0;
     
     // Preparar mapa de días (simplificado para el chart)
     const daysInMonth = new Date(initialYear, initialMonth, 0).getDate();
@@ -54,7 +60,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
         else dailyDataMap[dayStr].cm += pax;
       }
 
-      // Si hay filtro de aerolínea, saltar los cálculos de OTP/LoadFactor de la aerolínea excluida
+      // Si hay filtro de aerolínea, saltar los cálculos posteriores si no aplica
       if (activeAirline === '7p' && !isAP) return;
       if (activeAirline === 'cm' && isAP) return;
 
@@ -65,15 +71,55 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
         onTimeCount++;
       }
 
+      const pax = f.pasajeros_abordo || 0;
       if (f.capacidad_total > 0) {
-        totalPax += (f.pasajeros_abordo || 0);
+        totalPax += pax;
         totalCap += f.capacidad_total;
+        if (isAP) totalPaxAP += pax;
+        else totalPaxCM += pax;
+      }
+
+      // Agrupar por ruta
+      const isLlegada = f.origen && !f.origen.toLowerCase().includes('dav'); // Si el origen NO es David, es llegada
+      const remoteNode = isLlegada ? f.origen : f.destino;
+      if (remoteNode) {
+        const routeKey = `DAV ⇄ ${remoteNode}`;
+        if (!routeDataMap[routeKey]) routeDataMap[routeKey] = { route: routeKey, airline: isAP ? 'Air Panama' : 'Copa', pax: 0, cap: 0, flights: 0 };
+        routeDataMap[routeKey].pax += pax;
+        routeDataMap[routeKey].cap += f.capacidad_total;
+        routeDataMap[routeKey].flights += 1;
+      }
+
+      // Heatmap (Franja horaria real o itinerario)
+      const timeStr = f.hora_llegada_real || f.hora_salida_real || f.hora_itinerario;
+      if (timeStr) {
+        const hour = parseInt(timeStr.split(':')[0], 10);
+        if (!isNaN(hour) && hour >= 0 && hour <= 23) {
+          hourlyDataMap[hour] += pax; // Volumen de tráfico por pasajeros
+        }
       }
     });
 
     const otp = filteredTotal > 0 ? (onTimeCount / filteredTotal) * 100 : 0;
     const loadFactor = totalCap > 0 ? (totalPax / totalCap) * 100 : 0;
     const dailyChart = Object.values(dailyDataMap).sort((a, b) => parseInt(a.day) - parseInt(b.day));
+    
+    // Procesar rutas para gráfico
+    const routesChart = Object.values(routeDataMap).map(r => ({
+      route: r.route,
+      airline: r.airline,
+      lf: r.cap > 0 ? (r.pax / r.cap) * 100 : 0,
+      pax: r.pax,
+      flights: r.flights
+    })).sort((a, b) => b.lf - a.lf);
+
+    // Heatmap array
+    const maxHourPax = Math.max(1, ...Object.values(hourlyDataMap));
+    const heatmapChart = Object.entries(hourlyDataMap).map(([hour, pax]) => ({
+      hour: `${hour.padStart(2, '0')}:00`,
+      pax,
+      intensity: pax / maxHourPax
+    }));
 
     return {
       total: rawFlights.length,
@@ -82,7 +128,13 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
       cmCount,
       otp,
       loadFactor,
-      dailyChart
+      dailyChart,
+      totalPaxAP,
+      totalPaxCM,
+      totalCap,
+      totalPax,
+      routesChart,
+      heatmapChart
     };
   }, [rawFlights, activeAirline, initialYear, initialMonth]);
 
@@ -358,6 +410,167 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
           </ResponsiveContainer>
         </div>
       </section>
+
+      {/* --- NUEVAS VISUALIZACIONES BI --- */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-space-sm">
+        
+        {/* 1. Market Share (Donut) */}
+        <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm border border-black/5 flex flex-col items-center">
+          <div className="w-full flex items-start justify-between mb-4">
+            <div>
+              <h3 className="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">Cuota de Mercado</h3>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Total pax transportados</p>
+            </div>
+            <span className="material-symbols-outlined text-on-surface-variant">pie_chart</span>
+          </div>
+          
+          <div className="w-full h-48 relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Air Panama', value: metrics.totalPaxAP, fill: '#bb001d' },
+                    { name: 'Copa Airlines', value: metrics.totalPaxCM, fill: '#0a2540' }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  stroke="none"
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  <Cell key="cell-ap" fill="#bb001d" />
+                  <Cell key="cell-cm" fill="#0a2540" />
+                </Pie>
+                <Tooltip 
+                  formatter={(value: any) => [`${Number(value).toLocaleString()} pax`, 'Total']} 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="font-headline-md text-headline-md font-bold text-on-surface">
+                {metrics.totalPax.toLocaleString()}
+              </span>
+              <span className="font-label-sm text-[10px] text-on-surface-variant uppercase tracking-wider">Pax Totales</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Capacidad vs Pax Real (Stacked Bar) */}
+        <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm border border-black/5 flex flex-col">
+          <div className="w-full flex items-start justify-between mb-4">
+            <div>
+              <h3 className="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">Capacidad vs Realidad</h3>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Asientos ofertados vs ocupados</p>
+            </div>
+            <span className="material-symbols-outlined text-on-surface-variant">stacked_bar_chart</span>
+          </div>
+
+          <div className="w-full h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                layout="vertical"
+                data={[
+                  { 
+                    name: 'Air Panama', 
+                    pax: metrics.totalPaxAP, 
+                    empty: Math.max(0, (metrics.totalCap * (metrics.apCount / metrics.total)) - metrics.totalPaxAP), // Approx max cap per airline
+                    fill: '#bb001d'
+                  },
+                  { 
+                    name: 'Copa', 
+                    pax: metrics.totalPaxCM, 
+                    empty: Math.max(0, (metrics.totalCap * (metrics.cmCount / metrics.total)) - metrics.totalPaxCM), 
+                    fill: '#0a2540'
+                  }
+                ]}
+                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e0e3e5" />
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#444' }} width={80} />
+                <Tooltip cursor={{ fill: '#f1f3f4' }} formatter={(val: any) => Math.round(Number(val)).toLocaleString()} />
+                <Bar dataKey="pax" stackId="a" fill="#0a2540" name="Ocupados" radius={[0, 0, 0, 0]}>
+                  { [0, 1].map((_, i) => <Cell key={`cell-${i}`} fill={i === 0 ? '#bb001d' : '#0a2540'} />) }
+                </Bar>
+                <Bar dataKey="empty" stackId="a" fill="#e0e3e5" name="Vacíos" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* 3. Load Factor por Ruta (Horizontal Bar) */}
+        <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm border border-black/5 flex flex-col lg:col-span-2">
+          <div className="w-full flex items-start justify-between mb-4">
+            <div>
+              <h3 className="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">Rendimiento por Corredor Aéreo</h3>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Factor de ocupación por ruta</p>
+            </div>
+            <span className="material-symbols-outlined text-on-surface-variant">grid_view</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-space-sm">
+            {metrics.routesChart.map((r, i) => (
+              <div key={i} className="flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-black/5">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-white text-xs ${r.airline === 'Air Panama' ? 'bg-secondary' : 'bg-primary-container'}`}>
+                    {r.airline === 'Air Panama' ? '7P' : 'CM'}
+                  </div>
+                  <div>
+                    <p className="font-label-md text-label-md font-bold text-on-surface">{r.route}</p>
+                    <p className="font-label-sm text-[11px] text-on-surface-variant">{r.flights} Vuelos • {r.pax.toLocaleString()} pax</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <p className="font-label-md text-label-md font-bold text-emerald-700">{r.lf.toFixed(1)}% LF</p>
+                  </div>
+                  <div className="w-1.5 h-8 bg-surface-container rounded-full overflow-hidden">
+                    <div className="w-full bg-emerald-500 rounded-full" style={{ height: `${r.lf}%`, marginTop: `${100 - r.lf}%` }}></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {metrics.routesChart.length === 0 && (
+              <p className="text-sm text-on-surface-variant py-4 col-span-2">No hay datos de rutas suficientes en este rango.</p>
+            )}
+          </div>
+        </div>
+
+        {/* 4. Heatmap de Tráfico */}
+        <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm border border-black/5 flex flex-col lg:col-span-2">
+          <div className="w-full flex items-start justify-between mb-4">
+            <div>
+              <h3 className="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">Densidad de Tráfico (Heatmap)</h3>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">Volumen de pasajeros por hora del día</p>
+            </div>
+            <span className="material-symbols-outlined text-on-surface-variant">view_comfy_alt</span>
+          </div>
+
+          <div className="w-full overflow-x-auto scrollbar-none pb-2">
+            <div className="flex gap-1 min-w-max">
+              {metrics.heatmapChart.map((h, i) => (
+                <div key={i} className="flex flex-col items-center gap-1 group">
+                  <div 
+                    className="w-8 h-12 rounded-md transition-all group-hover:scale-110 flex items-center justify-center cursor-pointer"
+                    style={{ 
+                      backgroundColor: h.pax > 0 ? `rgba(10, 37, 64, ${Math.max(0.1, h.intensity)})` : '#f1f3f4',
+                      border: h.pax > 0 ? '1px solid rgba(10, 37, 64, 0.2)' : 'none'
+                    }}
+                    title={`${h.hour} - ${h.pax} pasajeros`}
+                  >
+                  </div>
+                  <span className="font-label-sm text-[9px] text-on-surface-variant">{h.hour.split(':')[0]}h</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+      </section>
+
     </div>
   );
 }

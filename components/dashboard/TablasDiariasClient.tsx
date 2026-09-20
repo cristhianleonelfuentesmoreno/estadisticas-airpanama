@@ -18,6 +18,7 @@ interface MalekFlight {
   estado_final: string;
   pasajeros_abordo: number;
   capacidad_total: number;
+  avion?: string;
 }
 
 const AIRCRAFT_MODELS = [
@@ -63,6 +64,9 @@ export default function TablasDiariasClient({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [flightToDelete, setFlightToDelete] = useState<MalekFlight | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   
   // Add Flight Form State
   const [addFormData, setAddFormData] = useState({
@@ -122,21 +126,18 @@ export default function TablasDiariasClient({
 
   const isToday = currentDateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 
-
   const activeDataList = useMemo(() => {
     if (viewType === 'llegadas') return initialData.llegadas;
     if (viewType === 'salidas') return initialData.salidas;
     
-    // Para 'todos', combinamos y ordenamos por la hora (ya sea de llegada o salida)
     const combined = [...initialData.llegadas, ...initialData.salidas];
     return combined.sort((a, b) => {
       const timeA = new Date(a.hora_llegada_real || a.hora_salida_real || 0).getTime();
       const timeB = new Date(b.hora_llegada_real || b.hora_salida_real || 0).getTime();
-      return timeB - timeA; // Descendente (más recientes primero)
+      return timeB - timeA;
     });
   }, [initialData, viewType]);
 
-  // Derive summary metrics
   const totalFlights = activeDataList.length;
   const aTiempo = activeDataList.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
 
@@ -219,6 +220,7 @@ export default function TablasDiariasClient({
       hora_real: toTimeStringForInput(timeValue),
       pasajeros_abordo: flight.pasajeros_abordo || 0,
       capacidad_total: flight.capacidad_total || 78,
+      avion: flight.avion || "DH8D",
       estado_final: flight.estado_final
     });
     setIsDrawerOpen(true);
@@ -261,32 +263,43 @@ export default function TablasDiariasClient({
 
     if (res.success) {
       setIsDrawerOpen(false);
-      window.location.reload(); // Recargar para ver los cambios
+      window.location.reload();
     } else {
       alert("Error al actualizar: " + res.error);
     }
   };
-
-  const handleDelete = async (flight: MalekFlight) => {
-    if (!confirm(`¿Estás seguro de que deseas ELIMINAR el vuelo ${flight.numero_vuelo}? Esta acción no se puede deshacer y borrará el registro histórico.`)) {
-      return;
-    }
-    
-    const isLlegada = !!flight.hora_llegada_real;
-    let res;
-    if (isLlegada) {
-      res = await deleteLlegadaMalek(flight.id);
-    } else {
-      res = await deleteSalidaMalek(flight.id);
-    }
-    
-    if (res.success) {
-      window.location.reload();
-    } else {
-      alert("Error al eliminar el vuelo: " + res.error);
-    }
+  const handleDeleteClick = (flight: MalekFlight) => {
+    setFlightToDelete(flight);
+    setIsDeleteModalOpen(true);
   };
 
+  const executeDelete = async () => {
+    if (!flightToDelete) return;
+
+    setDeletingId(flightToDelete.id);
+    setIsDeleteModalOpen(false);
+
+    try {
+      const isLlegada = !!flightToDelete.origen;
+      let res;
+      if (isLlegada) {
+        res = await deleteLlegadaMalek(flightToDelete.id);
+      } else {
+        res = await deleteSalidaMalek(flightToDelete.id);
+      }
+
+      if (res.success) {
+        window.location.reload();
+      } else {
+        alert("Error al eliminar: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Error inesperado: " + err.message);
+    } finally {
+      setDeletingId(null);
+      setFlightToDelete(null);
+    }
+  };
   const handleAddFlightSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const isLlegada = addFormData.type === 'llegadas';
@@ -828,7 +841,7 @@ export default function TablasDiariasClient({
                               <span className="material-symbols-outlined text-[16px]">edit</span>
                             </button>
                             <button 
-                              onClick={() => handleDelete(flight)}
+                              onClick={() => handleDeleteClick(flight)}
                               className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white active:scale-95 transition-all shadow-sm"
                               title="Eliminar Vuelo Incorrecto"
                             >
@@ -1209,6 +1222,37 @@ export default function TablasDiariasClient({
           </div>
         </div>
       )}
+      {/* MODAL: Confirmar Eliminación */}
+      {isDeleteModalOpen && flightToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-surface-container-lowest rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-black/10 animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <span className="material-symbols-outlined text-red-600 text-2xl">warning</span>
+              </div>
+              <h3 className="text-center font-headline-sm text-headline-sm font-bold text-on-surface mb-2">Eliminar Vuelo</h3>
+              <p className="text-center font-body-md text-body-md text-on-surface-variant">
+                ¿Estás seguro de que deseas eliminar el vuelo <strong className="text-on-surface">{flightToDelete.numero_vuelo}</strong>? Esta acción no se puede deshacer y borrará el registro histórico.
+              </p>
+            </div>
+            <div className="flex bg-surface-container-low border-t border-black/5 p-4 gap-3">
+              <button 
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={executeDelete}
+                className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
+              >
+                Sí, Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
