@@ -142,6 +142,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
   const cmPercent = metrics.total > 0 ? Math.round((metrics.cmCount / metrics.total) * 100) : 0;
 
   const handleDateChange = (year: number, month: number, range: string) => {
+    window.dispatchEvent(new CustomEvent("start-navigation"));
     router.push(`/dashboard/mensual?year=${year}&month=${month}&range=${range}`);
   };
 

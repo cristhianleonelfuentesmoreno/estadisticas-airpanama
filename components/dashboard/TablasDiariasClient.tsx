@@ -66,6 +66,7 @@ export default function TablasDiariasClient({
   const [importing, setImporting] = useState(false);
   const [importWorkbook, setImportWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
+  const [importResult, setImportResult] = useState<{show: boolean, type: 'success' | 'error', message: string}>({show: false, type: 'success', message: ''});
   const [flightToDelete, setFlightToDelete] = useState<MalekFlight | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -105,6 +106,7 @@ export default function TablasDiariasClient({
     const d = new Date(currentDateStr + "T12:00:00");
     d.setDate(d.getDate() - 1);
     const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    window.dispatchEvent(new CustomEvent("start-navigation"));
     router.push(`?date=${dateStr}`);
   };
 
@@ -112,16 +114,19 @@ export default function TablasDiariasClient({
     const d = new Date(currentDateStr + "T12:00:00");
     d.setDate(d.getDate() + 1);
     const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    window.dispatchEvent(new CustomEvent("start-navigation"));
     router.push(`?date=${dateStr}`);
   };
 
   const handleToday = () => {
     const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    window.dispatchEvent(new CustomEvent("start-navigation"));
     router.push(`?date=${dateStr}`);
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) {
+      window.dispatchEvent(new CustomEvent("start-navigation"));
       router.push(`?date=${e.target.value}`);
     }
   };
@@ -342,7 +347,41 @@ export default function TablasDiariasClient({
 
     try {
       const ws = wb.Sheets[sheetName];
-      const data: any[] = XLSX.utils.sheet_to_json(ws, { raw: false });
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as any[][];
+      
+      // Encontrar la fila de encabezados (buscamos 'Leg' o 'Tipo', 'Airline' o 'Aerolínea')
+      let headerRowIndex = -1;
+      let headers: string[] = [];
+      for (let i = 0; i < Math.min(20, rawData.length); i++) {
+        const row = rawData[i];
+        if (!row) continue;
+        const stringRow = row.map(cell => cell ? cell.toString().toLowerCase().trim() : '');
+        if (stringRow.includes('leg') || stringRow.includes('tipo') || stringRow.includes('airline') || stringRow.includes('aerolínea') || stringRow.includes('flight') || stringRow.includes('vuelo')) {
+          headerRowIndex = i;
+          headers = row.map(cell => cell ? cell.toString().trim() : '');
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+         throw new Error("No se encontraron encabezados válidos (Leg, Airline, Flight, etc.) en esta pestaña.");
+      }
+
+      // Reconstruir los datos como objetos
+      const data = [];
+      for (let i = headerRowIndex + 1; i < rawData.length; i++) {
+        const row = rawData[i];
+        if (!row || row.length === 0) continue;
+        const obj: any = {};
+        let hasAnyData = false;
+        for (let j = 0; j < headers.length; j++) {
+           if (headers[j] && row[j] !== undefined && row[j] !== null && row[j] !== '') {
+             obj[headers[j]] = row[j];
+             hasAnyData = true;
+           }
+        }
+        if (hasAnyData) data.push(obj);
+      }
       
       const llegadasToInsert = [];
       const salidasToInsert = [];
@@ -473,13 +512,15 @@ export default function TablasDiariasClient({
         }
       }
 
-      let msg = `Importación completada:\n- ${totalInserted} vuelos nuevos agregados.`;
-      if (totalSkipped > 0) msg += `\n- ${totalSkipped} vuelos omitidos (ya existían en el sistema).`;
-      alert(msg);
-      window.location.reload();
+      let msg = `Importación completada: ${totalInserted} vuelos nuevos agregados.`;
+      if (totalSkipped > 0) msg += ` ${totalSkipped} vuelos omitidos (ya existían).`;
+      
+      setImportResult({ show: true, type: 'success', message: msg });
+      setImporting(false);
     } catch (err: any) {
       console.error("Error importando Excel:", err);
-      alert("Error procesando archivo. Verifica el formato. Detalles: " + err.message);
+      setImportResult({ show: true, type: 'error', message: "Error procesando archivo. Verifica el formato. Detalles: " + err.message });
+      setImporting(false);
     } finally {
       setImporting(false);
       setImportWorkbook(null);
@@ -1318,6 +1359,55 @@ export default function TablasDiariasClient({
                 className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors"
               >
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN CUBE LOADER DURANTE LA IMPORTACIÓN */}
+      {importing && (
+        <div className="fixed inset-0 z-[10000] bg-[#0A192F]/80 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-200">
+          <div className="spinner mb-8">
+            <div></div><div></div><div></div><div></div><div></div><div></div>
+          </div>
+          <h2 className="text-white font-headline-md font-bold tracking-widest uppercase flex items-center gap-2">
+            <span className="material-symbols-outlined text-[24px] text-red-600">flight_takeoff</span>
+            Air Panama
+          </h2>
+          <p className="text-white/60 font-body-sm mt-2 animate-pulse">Su solicitud está en proceso...</p>
+        </div>
+      )}
+
+      {/* MODAL DE RESULTADO DE IMPORTACIÓN */}
+      {importResult.show && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden transform transition-all animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center flex flex-col items-center">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${importResult.type === 'success' ? 'bg-green-100' : 'bg-red-100'}`}>
+                <span className={`material-symbols-outlined text-4xl ${importResult.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                  {importResult.type === 'success' ? 'check_circle' : 'error'}
+                </span>
+              </div>
+              <h3 className="text-xl font-title-lg font-bold text-on-surface mb-2">
+                {importResult.type === 'success' ? '¡Importación Exitosa!' : 'Atención'}
+              </h3>
+              <p className="text-sm font-body-sm text-on-surface-variant">
+                {importResult.message}
+              </p>
+            </div>
+            
+            <div className="flex bg-surface-container-low border-t border-black/5 p-4 gap-3">
+              <button 
+                onClick={() => {
+                  setImportResult({ show: false, type: 'success', message: '' });
+                  if (importResult.type === 'success') {
+                    window.location.reload();
+                  }
+                }}
+                className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                Aceptar
               </button>
             </div>
           </div>
