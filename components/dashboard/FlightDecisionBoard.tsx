@@ -1,186 +1,317 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getFlightDecisions, FlightDecision, StatusColor } from "@/app/actions/weather";
+import { useEffect, useState, useMemo } from "react";
+import { getFlightDecisions, FlightDecision } from "@/app/actions/weather";
 
-function StatusIcon({ color }: { color: StatusColor }) {
-  const colorMap = {
-    green: "text-emerald-600 bg-emerald-100",
-    yellow: "text-amber-600 bg-amber-100",
-    red: "text-rose-600 bg-rose-100"
-  };
+type FilterType = 'all' | 'red' | 'yellow' | 'green';
 
-  const iconMap = {
-    green: "check_circle",
-    yellow: "warning",
-    red: "error"
-  };
+export function FlightDecisionBoard() {
+  const [decisions, setDecisions] = useState<FlightDecision[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [expandedTaf, setExpandedTaf] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getFlightDecisions();
+        setDecisions(data);
+      } catch (err) {
+        console.error("Error loading flight decisions:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+    const interval = setInterval(loadData, 300000); // 5 min
+    return () => clearInterval(interval);
+  }, []);
+
+  const { counts, filteredDecisions, globalAlert } = useMemo(() => {
+    const counts = {
+      all: decisions.length,
+      red: decisions.filter(d => d.statusColor === 'red').length,
+      yellow: decisions.filter(d => d.statusColor === 'yellow').length,
+      green: decisions.filter(d => d.statusColor === 'green').length,
+    };
+
+    const filteredDecisions = decisions.filter(d => {
+      if (filter === 'all') return true;
+      return d.statusColor === filter;
+    });
+
+    // Determine global alert
+    let globalAlert = null;
+    if (counts.red > 0) {
+      const redStations = decisions.filter(d => d.statusColor === 'red');
+      const worstAlert = redStations[0]?.shortAlert || "ALERTA TSRA";
+      globalAlert = {
+        title: worstAlert === 'ALERTA TSRA' ? "Alerta de Convección Severa" : "Alerta Meteorológica Severa",
+        subtitle: `Múltiples Estaciones • Próximas 8 Horas`,
+        level: "DEFCON OPS-2",
+        redCount: counts.red,
+        yellowCount: counts.yellow,
+        greenCount: counts.green,
+        redDesc: worstAlert,
+      };
+    } else if (counts.yellow > 0) {
+      globalAlert = {
+        title: "Vigilancia Meteorológica Activa",
+        subtitle: `Condiciones marginales en progreso`,
+        level: "DEFCON OPS-3",
+        redCount: counts.red,
+        yellowCount: counts.yellow,
+        greenCount: counts.green,
+        redDesc: "Riesgo Medio",
+      };
+    }
+
+    return { counts, filteredDecisions, globalAlert };
+  }, [decisions, filter]);
+
+  if (loading) {
+    return (
+      <div className="bg-surface-container-lowest rounded-2xl p-space-md border border-white/5 shadow-sm animate-pulse flex flex-col gap-4">
+        <div className="h-6 bg-surface-container-low rounded w-1/4"></div>
+        <div className="h-32 bg-surface-container-low rounded-xl"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${colorMap[color]}`}>
-      <span className="material-symbols-outlined text-[28px]">{iconMap[color]}</span>
+    <div className="flex flex-col gap-space-sm font-sans">
+      {/* HEADER & FILTERS */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-error animate-pulse"></div>
+          <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">TAF Operacional a 8 Horas • Act. hace 4 min</span>
+        </div>
+        <span className="font-label-sm text-label-sm text-on-surface-variant font-medium opacity-50">CIC-AERO</span>
+      </div>
+
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <FilterBadge 
+          label="Todas" count={counts.all} active={filter === 'all'} 
+          onClick={() => setFilter('all')} color="default"
+        />
+        <FilterBadge 
+          label="Con Alerta" count={counts.red} active={filter === 'red'} 
+          onClick={() => setFilter('red')} color="red"
+        />
+        <FilterBadge 
+          label="Vigilancia" count={counts.yellow} active={filter === 'yellow'} 
+          onClick={() => setFilter('yellow')} color="yellow"
+        />
+        <FilterBadge 
+          label="VFR Óptimo" count={counts.green} active={filter === 'green'} 
+          onClick={() => setFilter('green')} color="green"
+        />
+      </div>
+
+      {/* GLOBAL ALERT BANNER */}
+      {globalAlert && filter === 'all' && (
+        <div className="bg-surface-container-lowest rounded-xl p-space-md border border-error/20 flex flex-col gap-space-md shadow-sm">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-space-sm">
+              <div className="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center text-error">
+                <span className="material-symbols-outlined text-[24px]">thunderstorm</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-headline-sm text-headline-sm font-bold text-on-surface">{globalAlert.title}</span>
+                <span className="font-label-md text-label-md text-on-surface-variant">{globalAlert.subtitle}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 text-error rounded-full font-label-sm text-label-sm font-bold">
+              <div className="w-2 h-2 rounded-full bg-error"></div>
+              {globalAlert.level}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-space-sm">
+            <div className="bg-error/5 border border-error/10 rounded-lg p-space-sm flex flex-col items-center justify-center text-center">
+              <span className="font-label-sm text-label-sm font-bold text-error uppercase">{globalAlert.redCount} ESTACION{globalAlert.redCount !== 1 ? 'ES' : ''}</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant leading-tight mt-1">Riesgo Alto<br/>{globalAlert.redDesc}</span>
+            </div>
+            <div className="bg-surface-container rounded-lg p-space-sm flex flex-col items-center justify-center text-center">
+              <span className="font-label-sm text-label-sm font-bold text-error uppercase">{globalAlert.yellowCount} ESTACION{globalAlert.yellowCount !== 1 ? 'ES' : ''}</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant leading-tight mt-1">Monitoreo<br/>Bruma/Lluvia</span>
+            </div>
+            <div className="bg-surface-container-low rounded-lg p-space-sm flex flex-col items-center justify-center text-center">
+              <span className="font-label-sm text-label-sm font-bold text-primary uppercase">{globalAlert.greenCount} ESTACION{globalAlert.greenCount !== 1 ? 'ES' : ''}</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant leading-tight mt-1">VFR<br/>Ilimitado</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DECISION CARDS */}
+      <div className="flex flex-col gap-space-sm">
+        {filteredDecisions.map(decision => (
+          <DecisionCard 
+            key={decision.icao} 
+            decision={decision} 
+            isExpanded={expandedTaf === decision.icao}
+            onToggleExpand={() => setExpandedTaf(expandedTaf === decision.icao ? null : decision.icao)}
+          />
+        ))}
+        {filteredDecisions.length === 0 && (
+          <div className="p-space-xl text-center text-on-surface-variant font-body-md text-body-md bg-surface-container-lowest rounded-xl border border-white/5">
+            No hay estaciones que coincidan con el filtro.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-export function FlightDecisionBoard() {
-  const [decisions, setDecisions] = useState<FlightDecision[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedStation, setSelectedStation] = useState<FlightDecision | null>(null);
+// Subcomponents
 
-  const loadData = async () => {
-    setIsLoading(true);
-    const data = await getFlightDecisions();
-    setDecisions(data);
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    loadData();
-    // Refrescar cada 15 minutos automáticamente
-    const interval = setInterval(loadData, 15 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+function FilterBadge({ label, count, active, onClick, color }: { label: string, count: number, active: boolean, onClick: () => void, color: string }) {
+  let bgClass = "bg-surface-container hover:bg-surface-container-high text-on-surface-variant border-transparent";
+  let dotClass = "bg-on-surface-variant/50";
+  
+  if (active) {
+    if (color === 'red') { bgClass = "bg-error/15 border-error text-error"; dotClass = "bg-error"; }
+    else if (color === 'yellow') { bgClass = "bg-tertiary/15 border-tertiary text-tertiary"; dotClass = "bg-tertiary"; }
+    else if (color === 'green') { bgClass = "bg-primary/15 border-primary text-primary"; dotClass = "bg-primary"; }
+    else { bgClass = "bg-secondary-container text-on-secondary-container border-secondary-container"; dotClass = "bg-transparent hidden"; }
+  } else {
+    if (color === 'red') { dotClass = "bg-error"; }
+    else if (color === 'yellow') { dotClass = "bg-tertiary"; }
+    else if (color === 'green') { dotClass = "bg-primary"; }
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* HEADER */}
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <h2 className="font-headline-sm font-bold text-on-surface flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">flight_takeoff</span>
-            Panel de Decisión de Vuelos
-          </h2>
-          <p className="font-body-sm text-on-surface-variant">Pronósticos TAF operacionales a 8 horas</p>
+    <button 
+      onClick={onClick}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-label-md text-label-md font-medium border transition-all active:scale-95 ${bgClass} shrink-0`}
+    >
+      {color !== 'default' && <div className={`w-2 h-2 rounded-full ${dotClass}`}></div>}
+      {label} ({count})
+    </button>
+  );
+}
+
+function DecisionCard({ decision, isExpanded, onToggleExpand }: { decision: FlightDecision, isExpanded: boolean, onToggleExpand: () => void }) {
+  // Styles based on status
+  let borderColor = "border-white/10";
+  let topBorderColor = "border-t-surface-container-high";
+  let badgeColor = "bg-surface-container text-on-surface-variant";
+  let badgeIcon = "check_circle";
+
+  if (decision.statusColor === 'red') {
+    borderColor = "border-error/20";
+    topBorderColor = "border-t-error";
+    badgeColor = "bg-error/15 text-error";
+    badgeIcon = "warning";
+  } else if (decision.statusColor === 'yellow') {
+    borderColor = "border-tertiary/20";
+    topBorderColor = "border-t-tertiary";
+    badgeColor = "bg-tertiary/15 text-tertiary";
+    badgeIcon = "visibility";
+  } else if (decision.statusColor === 'green') {
+    borderColor = "border-primary/20";
+    topBorderColor = "border-t-primary";
+    badgeColor = "bg-primary/10 text-primary";
+    badgeIcon = "check";
+  }
+
+  // Simulated flights
+  const mockedFlights = decision.icao === 'MPMG' ? ['PST-804', 'PST-702'] : 
+                       decision.icao === 'MPTO' ? ['PST-201'] : 
+                       decision.icao === 'MPDA' ? ['PST-405'] : [];
+
+  return (
+    <div className={`bg-surface-container-lowest rounded-xl border ${borderColor} border-t-4 ${topBorderColor} shadow-sm overflow-hidden flex flex-col`}>
+      {/* Header */}
+      <div className="p-space-sm flex items-start justify-between">
+        <div className="flex items-center gap-space-sm">
+          <span className="font-display-sm text-display-sm font-bold text-secondary shrink-0">{decision.icao}</span>
+          <div className="flex flex-col">
+            <span className="font-label-lg text-label-lg font-bold text-on-surface leading-tight">{decision.name}</span>
+            <span className="font-label-sm text-label-sm text-on-surface-variant">{decision.fullName}</span>
+          </div>
         </div>
-        <button 
-          onClick={loadData}
-          disabled={isLoading}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container-high hover:bg-surface-container-highest transition-colors text-on-surface"
-        >
-          <span className={`material-symbols-outlined ${isLoading ? 'animate-spin text-primary' : ''}`}>sync</span>
+        <div className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-label-sm text-label-sm font-bold uppercase ${badgeColor}`}>
+          <span className="material-symbols-outlined text-[16px]">{badgeIcon}</span>
+          {decision.shortAlert}
+        </div>
+      </div>
+
+      {/* Evolución 8H */}
+      <div className="px-space-sm pb-space-sm flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="font-label-sm text-label-sm text-on-surface-variant">Evolución Ventana 8H</span>
+          {decision.criticalWindow && (
+            <span className="font-label-sm text-label-sm text-error font-bold">Ventana Crítica: {decision.criticalWindow}</span>
+          )}
+          {!decision.criticalWindow && decision.statusColor === 'green' && (
+            <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">Pista: Seca • VFR</span>
+          )}
+        </div>
+
+        <div className="flex gap-space-xs overflow-x-auto pb-1 no-scrollbar">
+          {decision.forecasts.map((f, i) => {
+            let blockBg = "bg-surface-container";
+            let dotColor = "bg-primary";
+            let textColor = "text-on-surface";
+            
+            if (f.color === 'red') {
+              blockBg = "bg-error/10";
+              dotColor = "bg-error";
+              textColor = "text-error";
+            } else if (f.color === 'yellow') {
+              blockBg = "bg-surface-container-high";
+              dotColor = "bg-tertiary";
+            }
+
+            return (
+              <div key={i} className={`flex flex-col gap-1 p-2 rounded-lg ${blockBg} min-w-[140px] flex-1 shrink-0 border border-white/5`}>
+                <div className="flex items-center gap-1.5 font-label-sm text-label-sm font-bold text-on-surface">
+                  <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></div>
+                  {f.shortPeriod}
+                </div>
+                <span className={`font-body-sm text-body-sm leading-tight ${textColor}`}>{f.text}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Footer / Flights & TAF Toggle */}
+      <div className="px-space-sm py-3 border-t border-white/5 flex items-center justify-between bg-surface-container-lowest">
+        <div className="flex items-center gap-2">
+          {mockedFlights.length > 0 ? (
+            <>
+              <span className="material-symbols-outlined text-[18px] text-on-surface-variant">flight_takeoff</span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant">Vuelos afectados:</span>
+              <div className="flex gap-1.5">
+                {mockedFlights.map(fl => (
+                  <span key={fl} className="bg-surface-container px-2 py-0.5 rounded text-on-surface font-label-sm text-label-sm font-bold">
+                    {fl}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 text-primary">
+              <span className="material-symbols-outlined text-[16px]">check_circle</span>
+              <span className="font-label-sm text-label-sm font-medium">Operación dentro de mínimos VFR</span>
+            </div>
+          )}
+        </div>
+        
+        <button onClick={onToggleExpand} className="flex items-center gap-1 font-label-md text-label-md text-secondary font-bold hover:opacity-80 transition-opacity">
+          TAF Crudo
+          <span className="material-symbols-outlined text-[20px] transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+            expand_more
+          </span>
         </button>
       </div>
 
-      {/* GRID */}
-      {isLoading && decisions.length === 0 ? (
-        <div className="flex justify-center p-8">
-          <span className="material-symbols-outlined animate-spin text-primary text-3xl">sync</span>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          {decisions.map(station => (
-            <div key={station.icao} className="bg-surface-container-lowest border border-outline-variant/30 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group">
-              
-              {/* LÍNEA SUPERIOR */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <StatusIcon color={station.statusColor} />
-                  <div>
-                    <h3 className="font-label-lg font-bold text-on-surface leading-tight">{station.name}</h3>
-                    <span className="font-label-sm text-on-surface-variant uppercase tracking-widest">{station.icao}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* CENTRO: STATUS */}
-              <div className="mb-4">
-                <p className={`font-label-md font-bold ${
-                  station.statusColor === 'green' ? 'text-emerald-700' : 
-                  station.statusColor === 'yellow' ? 'text-amber-700' : 'text-rose-700'
-                }`}>
-                  {station.statusText}
-                </p>
-              </div>
-
-              {/* LÍNEA INFERIOR: PRÓXIMAS HORAS (RESUMEN) */}
-              <div className="flex-1">
-                {station.forecasts.length > 0 ? (
-                  <div className="space-y-2">
-                    {station.forecasts.slice(0, 2).map((fcst, i) => (
-                      <div key={i} className="flex gap-2">
-                        <div className={`w-1 h-auto shrink-0 rounded-full ${
-                          fcst.color === 'green' ? 'bg-emerald-400' : 
-                          fcst.color === 'yellow' ? 'bg-amber-400' : 'bg-rose-400'
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-label-sm text-[10px] text-on-surface-variant font-bold">{fcst.period}</p>
-                          <p className="font-body-sm text-[11px] text-on-surface truncate" title={fcst.text}>{fcst.text}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {station.forecasts.length > 2 && (
-                      <p className="text-[10px] text-on-surface-variant text-right pt-1">+ {station.forecasts.length - 2} cambios más</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="font-body-sm text-xs text-on-surface-variant italic">No hay pronóstico en las próximas horas.</p>
-                )}
-              </div>
-
-              {/* BOTON VER MÁS */}
-              <button 
-                onClick={() => setSelectedStation(station)}
-                className="mt-4 w-full py-2 bg-surface-container hover:bg-surface-container-high rounded-xl font-label-sm font-bold text-primary transition-colors flex items-center justify-center gap-1"
-              >
-                Ver más detalles <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* MODAL VER MÁS */}
-      {selectedStation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface-container-lowest w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            
-            <div className="p-6 bg-surface-container-high flex items-start justify-between border-b border-outline-variant/30">
-              <div className="flex items-center gap-4">
-                <StatusIcon color={selectedStation.statusColor} />
-                <div>
-                  <h2 className="font-headline-sm font-bold text-on-surface">{selectedStation.name}</h2>
-                  <p className="font-body-sm text-on-surface-variant uppercase">{selectedStation.icao} • {selectedStation.statusText}</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setSelectedStation(null)}
-                className="w-8 h-8 rounded-full bg-surface-container hover:bg-surface-variant flex items-center justify-center transition-colors"
-              >
-                <span className="material-symbols-outlined text-on-surface text-[20px]">close</span>
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-              <h3 className="font-label-md font-bold text-on-surface mb-4 uppercase tracking-widest text-xs">Desglose de las próximas 8 horas</h3>
-              
-              <div className="space-y-4">
-                {selectedStation.forecasts.map((fcst, i) => (
-                  <div key={i} className="bg-surface-container p-4 rounded-2xl flex gap-4">
-                     <div className={`w-1.5 h-auto shrink-0 rounded-full ${
-                        fcst.color === 'green' ? 'bg-emerald-400' : 
-                        fcst.color === 'yellow' ? 'bg-amber-400' : 'bg-rose-400'
-                      }`} />
-                      <div className="flex-1">
-                        <p className="font-label-md text-on-surface-variant font-bold mb-1">{fcst.period}</p>
-                        <p className="font-body-md text-on-surface">{fcst.text}</p>
-                      </div>
-                  </div>
-                ))}
-                {selectedStation.forecasts.length === 0 && (
-                  <p className="text-on-surface-variant italic">No hay datos en el rango operativo actual.</p>
-                )}
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-outline-variant/30">
-                <h3 className="font-label-md font-bold text-on-surface mb-2 uppercase tracking-widest text-xs">CÓDIGO TAF ORIGINAL (NOAA)</h3>
-                <div className="bg-[#1e1e1e] rounded-xl p-4 overflow-x-auto">
-                  <code className="text-[#d4d4d4] text-xs font-mono whitespace-pre-wrap">{selectedStation.rawTAF}</code>
-                </div>
-              </div>
-            </div>
-
-          </div>
+      {/* Expanded TAF */}
+      {isExpanded && (
+        <div className="p-space-sm bg-surface-container border-t border-white/5 font-mono text-[11px] text-on-surface-variant leading-relaxed break-words whitespace-pre-wrap">
+          {decision.rawTAF}
         </div>
       )}
     </div>

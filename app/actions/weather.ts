@@ -20,16 +20,21 @@ interface TafResponse {
 export type StatusColor = 'green' | 'yellow' | 'red';
 
 export interface ProcessedForecast {
-  period: string; // e.g. "07:00 AM - 12:00 PM"
-  text: string;   // e.g. "Viento 10 nudos, Lluvia ligera"
+  period: string; // e.g. "07:00 - 13:00"
+  shortPeriod: string; // e.g. "07 - 13h"
+  text: string;   // e.g. "Vto 300°/6kt • Nubes T..."
   color: StatusColor;
+  isCritical: boolean;
 }
 
 export interface FlightDecision {
   icao: string;
   name: string;
+  fullName: string;
   statusColor: StatusColor;
   statusText: string;
+  shortAlert: string; // e.g. "ALERTA TSRA" o "VFR ÓPTIMO"
+  criticalWindow: string | null; // e.g. "13:00 - 17:00"
   forecasts: ProcessedForecast[];
   rawTAF: string;
 }
@@ -37,21 +42,19 @@ export interface FlightDecision {
 function translateWeather(wx: string | null): string {
   if (!wx) return '';
   const translations: Record<string, string> = {
-    'TSRA': 'Tormenta con lluvia',
+    'TSRA': 'TSRA', // Mantener siglas para estética aeronáutica o traducirlo
     'TS': 'Tormentas',
     'RA': 'Lluvia',
-    'SHRA': 'Chubascos',
-    'VCTS': 'Tormentas en cercanías',
-    'BR': 'Bruma',
-    'FG': 'Niebla densa',
-    'HZ': 'Calima',
-    'DZ': 'Llovizna'
+    'SHRA': 'SHRA',
+    'VCTS': 'VCTS',
+    'BR': 'BRUMA',
+    'FG': 'NIEBLA',
+    'HZ': 'CALIMA',
+    'DZ': 'LLOVIZNA'
   };
   
-  // Buscar coincidencia exacta
   if (translations[wx]) return translations[wx];
   
-  // Buscar parcial si es muy compuesto
   let translated = wx;
   Object.keys(translations).forEach(key => {
     translated = translated.replace(key, translations[key]);
@@ -65,13 +68,25 @@ function determineColor(fcst: TafForecast): StatusColor {
   const gust = fcst.wgst || 0;
   const maxWind = Math.max(wind, gust);
 
-  if (wx.includes('TS') || wx.includes('FG') || maxWind > 25) {
-    return 'red';
-  }
-  if (wx.includes('RA') || wx.includes('BR') || maxWind >= 15) {
-    return 'yellow';
-  }
+  if (wx.includes('TS') || wx.includes('FG') || maxWind > 25) return 'red';
+  if (wx.includes('RA') || wx.includes('BR') || maxWind >= 15) return 'yellow';
   return 'green';
+}
+
+function getShortAlert(colors: StatusColor[], fcsts: TafForecast[]): string {
+  if (colors.includes('red')) {
+    const worst = fcsts.find(f => determineColor(f) === 'red');
+    if (worst?.wxString?.includes('TS')) return 'ALERTA TSRA';
+    if (worst?.wxString?.includes('FG')) return 'ALERTA NIEBLA';
+    return 'ALERTA VIENTO';
+  }
+  if (colors.includes('yellow')) {
+    const warn = fcsts.find(f => determineColor(f) === 'yellow');
+    if (warn?.wxString?.includes('BR')) return 'BRUMA';
+    if (warn?.wxString?.includes('RA')) return 'LLUVIA';
+    return 'PRECAUCIÓN';
+  }
+  return 'VFR ÓPTIMO';
 }
 
 function getOverallStatus(colors: StatusColor[]): { color: StatusColor, text: string } {
@@ -83,7 +98,7 @@ function getOverallStatus(colors: StatusColor[]): { color: StatusColor, text: st
 export async function getFlightDecisions(): Promise<FlightDecision[]> {
   try {
     const res = await fetch("https://aviationweather.gov/api/data/taf?ids=MPDA,MPMG,MPTO,MPBO,MPCE&format=json", {
-      next: { revalidate: 300 } // Caché por 5 minutos
+      next: { revalidate: 300 }
     });
     
     if (!res.ok) throw new Error("Fallo al obtener TAF");
@@ -93,58 +108,66 @@ export async function getFlightDecisions(): Promise<FlightDecision[]> {
     const eightHoursLater = now + (8 * 3600);
 
     const decisions: FlightDecision[] = data.map(station => {
-      // Filtrar pronósticos dentro de las próximas 8 horas
-      // timeTo > now && timeFrom < eightHoursLater
       const relevantFcsts = station.fcsts.filter(f => f.timeTo > now && f.timeFrom < eightHoursLater);
       
       const processedForecasts: ProcessedForecast[] = relevantFcsts.map(f => {
-        // Formatear periodo de tiempo
         const dFrom = new Date(f.timeFrom * 1000);
         const dTo = new Date(f.timeTo * 1000);
-        const formatOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+        const formatOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
         const period = `${dFrom.toLocaleTimeString('es-PA', formatOptions)} - ${dTo.toLocaleTimeString('es-PA', formatOptions)}`;
+        const shortPeriod = `${dFrom.toLocaleTimeString('es-PA', {hour: '2-digit', hour12:false})} - ${dTo.toLocaleTimeString('es-PA', {hour: '2-digit', hour12:false})}h`;
         
-        // Formatear texto
-        const windText = f.wdir === 'VRB' ? `Viento Variable a ${f.wspd}kt` : `Viento ${f.wdir}°/${f.wspd}kt`;
+        const windText = f.wdir === 'VRB' ? `VRB ${f.wspd}kt` : `${f.wdir}°/${f.wspd}kt`;
         const wxText = translateWeather(f.wxString);
         
         let text = windText;
-        if (f.wgst) text += ` ráfagas ${f.wgst}kt`;
-        if (wxText) text += ` • ${wxText}`;
+        if (f.wgst) text += ` ráf. ${f.wgst}kt`;
         
-        // Nubes (opcional, si es TCU o CB lo destacamos)
         const scaryClouds = f.clouds?.filter(c => c.type === 'CB' || c.type === 'TCU') || [];
-        if (scaryClouds.length > 0) {
-           text += ` • Nubes de desarrollo (${scaryClouds.map(c => c.type).join(', ')})`;
+        if (wxText) {
+          text += ` • ${wxText}`;
+          if (scaryClouds.length > 0) text += ` • ${scaryClouds.map(c => c.type).join(', ')}`;
+        } else {
+          if (scaryClouds.length > 0) {
+            text += ` • Nubes ${scaryClouds.map(c => c.type).join(', ')}`;
+          } else {
+            text += ` • VFR`;
+          }
         }
 
-        return {
-          period,
-          text,
-          color: determineColor(f)
-        };
+        const color = determineColor(f);
+        return { period, shortPeriod, text, color, isCritical: color === 'red' || color === 'yellow' };
       });
 
-      const overall = getOverallStatus(processedForecasts.map(f => f.color));
+      const colors = processedForecasts.map(f => f.color);
+      const overall = getOverallStatus(colors);
+      const shortAlert = getShortAlert(colors, relevantFcsts);
+      
+      // Buscar la ventana crítica
+      const criticalBlock = processedForecasts.find(f => f.isCritical);
+      const criticalWindow = criticalBlock ? criticalBlock.period : null;
 
       let nombreCorto = station.name;
-      if (station.icaoId === 'MPDA') nombreCorto = 'DAVID';
-      if (station.icaoId === 'MPMG') nombreCorto = 'PANAMÁ ALBROOK';
-      if (station.icaoId === 'MPTO') nombreCorto = 'PANAMÁ TOCUMEN';
-      if (station.icaoId === 'MPBO') nombreCorto = 'BOCAS DEL TORO';
-      if (station.icaoId === 'MPCE') nombreCorto = 'CHITRÉ';
+      let fullName = station.name;
+      if (station.icaoId === 'MPDA') { nombreCorto = 'David, Chiriquí'; fullName = 'Enrique Malek'; }
+      if (station.icaoId === 'MPMG') { nombreCorto = 'Panamá Albrook'; fullName = 'Marcos A. Gelabert'; }
+      if (station.icaoId === 'MPTO') { nombreCorto = 'Panamá Tocumen'; fullName = 'Aeropuerto Internacional'; }
+      if (station.icaoId === 'MPBO') { nombreCorto = 'Bocas del Toro'; fullName = 'Isla Colón'; }
+      if (station.icaoId === 'MPCE') { nombreCorto = 'Chitré'; fullName = 'Alonso Valderrama'; }
 
       return {
         icao: station.icaoId,
         name: nombreCorto,
+        fullName,
         statusColor: overall.color,
         statusText: overall.text,
+        shortAlert,
+        criticalWindow,
         forecasts: processedForecasts,
         rawTAF: station.rawTAF
       };
     });
 
-    // Ordenar para mostrar de forma consistente (ej. Panamá primero, luego David, etc.)
     const order = ['MPMG', 'MPTO', 'MPDA', 'MPBO', 'MPCE'];
     return decisions.sort((a, b) => order.indexOf(a.icao) - order.indexOf(b.icao));
 
