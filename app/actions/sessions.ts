@@ -10,7 +10,7 @@ const supabaseKey = process.env.SUPABASE_SECRET_KEY!; // Service Role Key
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
 export async function registrarSesion(userId: string, lat: number | null, lon: number | null, userAgentStr: string) {
-  const headersList = headers();
+  const headersList = await headers();
   // Extraer IP de headers estándar (Vercel, proxies, etc.)
   let ip = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || 'IP desconocida';
   if (ip.includes(',')) {
