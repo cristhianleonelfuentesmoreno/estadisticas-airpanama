@@ -29,10 +29,10 @@ export function SettingsWidget() {
     try {
       const s = await getAppSettings();
       if (s) {
-        setLoginTitle(s.loginTitle || "¡Hola!");
-        setLoginText(s.loginText || "Ingresa tus datos personales y empieza el viaje con nosotros.");
-        setRegisterTitle(s.registerTitle || "¡Bienvenido de vuelta!");
-        setRegisterText(s.registerText || "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información.");
+        setLoginTitle(s.loginTitle ?? "¡Hola!");
+        setLoginText(s.loginText ?? "Ingresa tus datos personales y empieza el viaje con nosotros.");
+        setRegisterTitle(s.registerTitle ?? "¡Bienvenido de vuelta!");
+        setRegisterText(s.registerText ?? "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información.");
         setBgPosition(s.bgPosition || "center");
         setBgSize(s.bgSize || "cover");
         setBgPositionMobile(s.bgPositionMobile || s.bgPosition || "center");

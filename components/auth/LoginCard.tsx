@@ -52,9 +52,10 @@ const GoogleButton = ({ text, onClick, loading }: { text: string, onClick: () =>
   );
 };
 
-const HeroPanel = ({ type, activeView, title, buttonText, onToggle }: any) => (
+const HeroPanel = ({ type, activeView, title, text, buttonText, onToggle }: any) => (
   <div className={`hero ${type} ${activeView === type ? "active" : ""}`}>
     <h2 style={{ fontSize: '2rem', margin: '0 0 10px 0' }}>{title}</h2>
+    {text && <p>{text}</p>}
     <button type="button" onClick={onToggle} style={{ marginTop: '20px' }}>
       {buttonText}
     </button>
@@ -305,8 +306,8 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         <HeroPanel
           type="register"
           activeView={activeView}
-          title={settings?.registerTitle || "¡Bienvenido de vuelta!"}
-          text={settings?.registerText || "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información."}
+          title={settings?.registerTitle ?? "¡Bienvenido de vuelta!"}
+          text={settings?.registerText ?? "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información."}
           buttonText="INICIAR SESIÓN"
           onToggle={toggleView}
         />
@@ -328,8 +329,8 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         <HeroPanel
           type="login"
           activeView={activeView}
-          title={settings?.loginTitle || "¡Hola!"}
-          text={settings?.loginText || "Ingresa tus datos personales y empieza el viaje con nosotros."}
+          title={settings?.loginTitle ?? "¡Hola!"}
+          text={settings?.loginText ?? "Ingresa tus datos personales y empieza el viaje con nosotros."}
           buttonText="REGISTRARSE"
           onToggle={toggleView}
         />

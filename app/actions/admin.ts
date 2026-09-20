@@ -137,13 +137,19 @@ export async function updateAppSettings(formData: FormData) {
   let bgUrl = formData.get("bgUrl") as string;
   const imageFile = formData.get("imageFile") as File | null;
 
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!
+  );
+
   if (imageFile && imageFile.size > 0) {
     const ext = imageFile.name.split('.').pop();
     const fileName = `bg-${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from('assets').upload(fileName, imageFile, { upsert: true });
+    const { error: uploadError } = await supabaseAdmin.storage.from('assets').upload(fileName, imageFile, { upsert: true });
     if (uploadError) return { error: uploadError.message };
     
-    const { data: urlData } = supabase.storage.from('assets').getPublicUrl(fileName);
+    const { data: urlData } = supabaseAdmin.storage.from('assets').getPublicUrl(fileName);
     bgUrl = urlData.publicUrl;
   }
 
@@ -159,7 +165,7 @@ export async function updateAppSettings(formData: FormData) {
     bgPositionMobile: formData.get("bgPositionMobile") as string,
   };
   
-  const { error } = await supabase.storage.from('assets').upload('settings.json', JSON.stringify(newSettings), { contentType: 'application/json', upsert: true });
+  const { error } = await supabaseAdmin.storage.from('assets').upload('settings.json', JSON.stringify(newSettings), { contentType: 'application/json', upsert: true });
   if (error) return { error: error.message };
   
   revalidatePath("/login");
