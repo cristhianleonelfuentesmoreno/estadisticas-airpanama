@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
-import Link from "next/link";
 
 export function FlightListBoard() {
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Filter & Modal State
+  const [destinationFilter, setDestinationFilter] = useState<string>('TODOS');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -21,10 +24,38 @@ export function FlightListBoard() {
     }
     
     loadData();
-    // Update every 5 minutes (300000 ms) as requested for real-time feel
     const interval = setInterval(loadData, 300000);
     return () => clearInterval(interval);
   }, []);
+
+  // 1. Filter Flights
+  const filteredFlights = destinationFilter === 'TODOS' 
+    ? flights 
+    : flights.filter(f => f.destination === destinationFilter || f.origin === destinationFilter);
+
+  // 2. Sort Flights
+  // Priority: 1. EN VUELO, 2. ABORDANDO / A TIEMPO, 3. LLEGÓ
+  const getStatusPriority = (status: FlightData['status']) => {
+    switch (status) {
+      case 'EN VUELO': return 1;
+      case 'ABORDANDO': return 2;
+      case 'A TIEMPO': return 3;
+      case 'RETRASADO': return 3;
+      case 'LLEGÓ': return 4;
+      default: return 5;
+    }
+  };
+
+  const sortedFlights = [...filteredFlights].sort((a, b) => {
+    const pA = getStatusPriority(a.status);
+    const pB = getStatusPriority(b.status);
+    if (pA !== pB) return pA - pB;
+    // Secondary sort by departure time
+    return new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime();
+  });
+
+  // 3. Limit visible flights on the dashboard (e.g., top 4)
+  const visibleFlights = sortedFlights.slice(0, 4);
 
   if (loading) {
     return (
@@ -35,35 +66,118 @@ export function FlightListBoard() {
     );
   }
 
+  // Get unique destinations for the filter
+  const uniqueDests = Array.from(new Set(flights.map(f => f.destination)));
+
   return (
-    <div className="flex flex-col gap-space-sm font-sans">
-      {/* Header */}
-      <div className="flex items-center justify-between px-1 pb-2">
-        <div className="flex items-center gap-3">
-          <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Próximos Vuelos</h2>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container rounded-full border border-white/5">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
-            <span className="font-label-sm text-label-sm font-bold text-on-surface-variant">Hoy</span>
+    <>
+      <div className="flex flex-col gap-space-sm font-sans">
+        {/* Header */}
+        <div className="flex items-center justify-between px-1 pb-2 flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Próximos Vuelos</h2>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container rounded-full border border-white/5">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+              <span className="font-label-sm text-label-sm font-bold text-on-surface-variant">Hoy</span>
+            </div>
+            
+            {/* Dest Filter */}
+            <div className="hidden sm:flex items-center gap-2 ml-2 bg-surface-container-low rounded-lg p-1 border border-white/5">
+              <button 
+                onClick={() => setDestinationFilter('TODOS')}
+                className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${destinationFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
+              >
+                Todos
+              </button>
+              {uniqueDests.map(dest => (
+                <button 
+                  key={dest}
+                  onClick={() => setDestinationFilter(dest)}
+                  className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${destinationFilter === dest ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
+                >
+                  {dest}
+                </button>
+              ))}
+            </div>
           </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="text-secondary font-label-md text-label-md font-bold flex items-center gap-1 hover:opacity-80 transition-opacity"
+          >
+            Ver todos
+            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+          </button>
         </div>
-        <Link href="/dashboard/vuelos" className="text-secondary font-label-md text-label-md font-bold flex items-center gap-1 hover:opacity-80 transition-opacity">
-          Ver todos
-          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        </Link>
+
+        {/* Mobile Filter (visible only on small screens) */}
+        <div className="sm:hidden flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <button 
+            onClick={() => setDestinationFilter('TODOS')}
+            className={`whitespace-nowrap px-3 py-1.5 text-label-sm font-bold rounded-md border ${destinationFilter === 'TODOS' ? 'bg-secondary text-on-secondary border-secondary' : 'bg-surface-container text-on-surface border-white/5'}`}
+          >
+            Todos
+          </button>
+          {uniqueDests.map(dest => (
+            <button 
+              key={dest}
+              onClick={() => setDestinationFilter(dest)}
+              className={`whitespace-nowrap px-3 py-1.5 text-label-sm font-bold rounded-md border ${destinationFilter === dest ? 'bg-secondary text-on-secondary border-secondary' : 'bg-surface-container text-on-surface border-white/5'}`}
+            >
+              {dest}
+            </button>
+          ))}
+        </div>
+
+        {/* Flight Cards */}
+        <div className="flex flex-col gap-space-sm">
+          {visibleFlights.map(flight => (
+            <FlightCard key={flight.id} flight={flight} />
+          ))}
+          {sortedFlights.length > 4 && (
+             <div className="text-center pt-2 pb-4">
+               <button onClick={() => setIsModalOpen(true)} className="text-on-surface-variant text-label-md font-bold hover:text-secondary">
+                 +{sortedFlights.length - 4} vuelos ocultos. Clic para ver todos.
+               </button>
+             </div>
+          )}
+          {visibleFlights.length === 0 && (
+            <div className="p-space-xl text-center text-on-surface-variant font-body-md text-body-md bg-surface-container-lowest rounded-xl border border-white/5">
+              No hay vuelos programados para esta ruta hoy.
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Flight Cards */}
-      <div className="flex flex-col gap-space-sm">
-        {flights.map(flight => (
-          <FlightCard key={flight.id} flight={flight} />
-        ))}
-        {flights.length === 0 && (
-          <div className="p-space-xl text-center text-on-surface-variant font-body-md text-body-md bg-surface-container-lowest rounded-xl border border-white/5">
-            No hay vuelos programados para hoy.
+      {/* Modal / Popup for "Ver todos" */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-primary/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl max-h-[90vh] bg-surface-container-lowest rounded-2xl flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-space-md border-b border-surface-container">
+              <div className="flex items-center gap-3">
+                <h2 className="font-headline-md text-headline-md font-bold text-on-surface">Vuelos de Hoy ({sortedFlights.length})</h2>
+                <div className="px-3 py-1 bg-surface-container-high rounded-full font-label-sm text-label-sm font-bold text-on-surface border border-white/5">
+                  Ruta: {destinationFilter === 'TODOS' ? 'Todas' : destinationFilter}
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            {/* Modal Content - Scrollable list of all sorted flights */}
+            <div className="p-space-md overflow-y-auto flex flex-col gap-space-sm bg-surface">
+              {sortedFlights.map(flight => (
+                <FlightCard key={flight.id} flight={flight} />
+              ))}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }
 
