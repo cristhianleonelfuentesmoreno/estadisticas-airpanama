@@ -172,6 +172,7 @@ export async function saveCompletedMalekFlights() {
       aerolinea: f.airline,
       numero_vuelo: f.flightNumber,
       origen: f.origin,
+      hora_itinerario: f.arrivalTime,
       hora_llegada_real: f.arrivalTime,
       estado_final: f.status,
       pasajeros_abordo: f.paxCount,
@@ -250,6 +251,7 @@ export async function saveCompletedMalekDepartures() {
       aerolinea: f.airline,
       numero_vuelo: f.flightNumber,
       destino: f.destination,
+      hora_itinerario: f.departureTime,
       hora_salida_real: f.departureTime,
       estado_final: f.status,
       pasajeros_abordo: f.paxCount,
@@ -299,4 +301,17 @@ export async function updateSalidaMalek(id: string, updates: { hora_salida_real?
     return { success: false, error: error.message };
   }
   return { success: true, message: "Registro actualizado exitosamente." };
+}
+export async function deleteLlegadaMalek(id: string) {
+  const supabase = getAdminSupabase();
+  const { error } = await supabase.from('llegadas_malek_historico').delete().eq('id', id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function deleteSalidaMalek(id: string) {
+  const supabase = getAdminSupabase();
+  const { error } = await supabase.from('salidas_malek_historico').delete().eq('id', id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
 }

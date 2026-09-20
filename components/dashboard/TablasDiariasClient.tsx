@@ -2,15 +2,16 @@
 
 import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { updateLlegadaMalek } from "@/app/actions/flights";
+import { updateLlegadaMalek, deleteLlegadaMalek, deleteSalidaMalek } from "@/app/actions/flights";
 
 interface MalekFlight {
   id: string;
   fecha: string;
   aerolinea: string;
   numero_vuelo: string;
-  origen?: string;
+  origen: string;
   destino?: string;
+  hora_itinerario?: string;
   hora_llegada_real?: string;
   hora_salida_real?: string;
   estado_final: string;
@@ -25,7 +26,7 @@ export default function TablasDiariasClient({
   initialData: { llegadas: MalekFlight[], salidas: MalekFlight[] };
   currentDateStr: string;
 }) {
-  const [viewType, setViewType] = useState<'llegadas' | 'salidas' | 'todos'>('llegadas');
+  const [viewType, setViewType] = useState<'llegadas' | 'salidas' | 'todos'>('todos');
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -106,10 +107,10 @@ export default function TablasDiariasClient({
     setTimeout(() => window.location.reload(), 600);
   };
 
-  const getAirlineColor = (airline: string) => {
-    if (airline === 'Air Panama') return 'bg-primary-container text-white';
-    if (airline === 'Copa Airlines') return 'bg-sky-700 text-white';
-    return 'bg-gray-700 text-white';
+  const getAirlineBadge = (airline: string) => {
+    if (airline === 'Air Panama') return 'bg-red-600 text-white';
+    if (airline === 'Copa Airlines') return 'bg-[#0032A0] text-white';
+    return 'bg-slate-100 text-slate-700';
   };
 
   const formatTime = (isoString?: string) => {
@@ -178,62 +179,86 @@ export default function TablasDiariasClient({
     }
   };
 
+  const handleDelete = async (flight: MalekFlight) => {
+    if (!confirm(`¿Estás seguro de que deseas ELIMINAR el vuelo ${flight.numero_vuelo}? Esta acción no se puede deshacer y borrará el registro histórico.`)) {
+      return;
+    }
+    
+    const isLlegada = !!flight.hora_llegada_real;
+    let res;
+    if (isLlegada) {
+      res = await deleteLlegadaMalek(flight.id);
+    } else {
+      res = await deleteSalidaMalek(flight.id);
+    }
+    
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Error al eliminar el vuelo: " + res.error);
+    }
+  };
+
   return (
     <div className="flex flex-col w-full min-h-[calc(100vh-8rem)] relative">
       {/* Header Panel */}
-      <section className="bg-primary-container text-on-primary px-4 py-6 shadow-md flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
+      <section className="bg-gradient-to-br from-primary-container to-[#111f33] text-on-primary px-5 py-8 shadow-xl flex flex-col gap-5 rounded-b-[2rem] relative overflow-hidden">
+        {/* Decoración sutil de fondo */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+        <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4"></div>
+
+        <div className="flex items-center justify-between gap-2 relative z-10">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold">Registro Histórico</span>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Registro Histórico</span>
             </div>
-            <h1 className="font-headline-md text-2xl text-white font-bold tracking-tight">
+            <h1 className="font-headline-md text-2xl md:text-3xl text-white font-black tracking-tight drop-shadow-sm">
               Información del Aeropuerto Internacional Enrique Malek (David - Chiriquí)
             </h1>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/10">
-              <span className="material-symbols-outlined text-[15px] text-white">table_view</span>
-              <span className="font-label-sm text-[11px] text-white font-semibold tracking-wide">Modo Airtable</span>
+            <div className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">
+              <span className="material-symbols-outlined text-[16px] text-white">table_view</span>
+              <span className="font-label-sm text-[12px] text-white font-bold tracking-wide">Modo Airtable</span>
             </div>
           </div>
         </div>
 
         {/* Llegadas / Salidas Toggle */}
-        <div className="flex items-center gap-2 mt-2 bg-white/10 p-1 rounded-xl w-fit border border-white/10">
+        <div className="flex items-center gap-2 mt-1 bg-white/10 p-1.5 rounded-2xl w-fit border border-white/10 shadow-inner relative z-10 backdrop-blur-md">
           <button 
             onClick={() => setViewType('todos')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1.5 ${viewType === 'todos' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'todos' ? 'bg-white text-primary shadow-md scale-[1.02]' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
-            <span className="material-symbols-outlined text-[16px]">swap_vert</span>
+            <span className="material-symbols-outlined text-[18px]">swap_vert</span>
             Todos
           </button>
           <button 
             onClick={() => setViewType('llegadas')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1.5 ${viewType === 'llegadas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'llegadas' ? 'bg-white text-primary shadow-md scale-[1.02]' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
-            <span className="material-symbols-outlined text-[16px]">flight_land</span>
+            <span className="material-symbols-outlined text-[18px]">flight_land</span>
             Llegadas
           </button>
           <button 
             onClick={() => setViewType('salidas')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-1.5 ${viewType === 'salidas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'salidas' ? 'bg-white text-primary shadow-md scale-[1.02]' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
-            <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+            <span className="material-symbols-outlined text-[18px]">flight_takeoff</span>
             Salidas
           </button>
         </div>
 
-        <div className="bg-white/5 backdrop-blur-md rounded-xl p-3 flex flex-col gap-3 border border-white/10 mt-2">
+        <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 flex flex-col gap-4 border border-white/10 mt-1 relative z-10 shadow-lg">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <button onClick={handlePrevDay} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all">
-                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            <div className="flex items-center gap-2">
+              <button onClick={handlePrevDay} className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all border border-white/5">
+                <span className="material-symbols-outlined text-[20px]">chevron_left</span>
               </button>
               
               <div 
-                className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg text-white relative cursor-pointer hover:bg-white/20 transition-all"
+                className="flex items-center gap-2.5 px-4 py-2 bg-white/10 rounded-xl text-white relative cursor-pointer hover:bg-white/20 hover:scale-[1.02] transition-all border border-white/10 shadow-sm"
                 onClick={() => dateInputRef.current?.showPicker && dateInputRef.current.showPicker()}
               >
                 <input 
@@ -243,34 +268,34 @@ export default function TablasDiariasClient({
                   onChange={handleDateChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
-                <span className="material-symbols-outlined text-white text-[16px] pointer-events-none">calendar_today</span>
-                <span className="font-label-md text-[13px] font-bold tracking-wide pointer-events-none">
+                <span className="material-symbols-outlined text-white text-[18px] pointer-events-none drop-shadow-sm">calendar_today</span>
+                <span className="font-label-md text-[14px] font-black tracking-wide pointer-events-none drop-shadow-sm">
                   {new Date(currentDateStr + "T12:00:00").toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
                 </span>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleToday(); }} 
-                  className={`text-[10px] px-1.5 rounded font-bold uppercase ml-1 transition-all z-10 relative ${isToday ? 'bg-secondary text-white' : 'bg-white/20 hover:bg-secondary'}`}
+                  className={`text-[11px] px-2 py-0.5 rounded-md font-black uppercase ml-1 transition-all z-10 relative shadow-sm ${isToday ? 'bg-emerald-500 text-white' : 'bg-white/20 hover:bg-emerald-500'}`}
                 >
                   Hoy
                 </button>
               </div>
 
-              <button onClick={handleNextDay} className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white hover:bg-white/20 active:scale-95 transition-all">
-                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              <button onClick={handleNextDay} className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all border border-white/5">
+                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1 text-center">
-            <div className="bg-white/5 rounded-lg py-2 flex flex-col">
-              <span className="text-[10px] text-white/70">
+          <div className="grid grid-cols-2 gap-3 pt-1 text-center">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl py-3 flex flex-col border border-white/20 shadow-inner hover:bg-white/15 transition-colors">
+              <span className="text-[11px] text-white/80 font-bold uppercase tracking-wider mb-0.5">
                 {viewType === 'todos' ? 'Total Vuelos' : `Total ${viewType === 'llegadas' ? 'Llegadas' : 'Salidas'}`}
               </span>
-              <span className="font-label-md text-xl font-bold text-white">{totalFlights}</span>
+              <span className="font-headline-md text-2xl font-black text-white drop-shadow-sm">{totalFlights}</span>
             </div>
-            <div className="bg-emerald-500/20 rounded-lg py-2 flex flex-col border border-emerald-500/30">
-              <span className="text-[10px] text-emerald-200 font-medium">Completados</span>
-              <span className="font-label-md text-xl font-bold text-emerald-300">{aTiempo}</span>
+            <div className="bg-gradient-to-b from-emerald-500/20 to-emerald-600/20 backdrop-blur-md rounded-2xl py-3 flex flex-col border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.15)] hover:from-emerald-500/30 hover:to-emerald-600/30 transition-colors">
+              <span className="text-[11px] text-emerald-100 font-bold uppercase tracking-wider mb-0.5">Completados</span>
+              <span className="font-headline-md text-2xl font-black text-emerald-300 drop-shadow-sm">{aTiempo}</span>
             </div>
           </div>
         </div>
@@ -352,7 +377,7 @@ export default function TablasDiariasClient({
                   <th className="px-4 py-3.5 min-w-[120px]">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">schedule</span>
-                      <span>{viewType === 'todos' ? 'Hora' : (viewType === 'llegadas' ? 'Hora Llegada' : 'Hora Salida')}</span>
+                      <span>Itinerario ➔ Real (Retraso)</span>
                     </div>
                   </th>
                   <th className="px-4 py-3.5 min-w-[120px]">
@@ -403,14 +428,48 @@ export default function TablasDiariasClient({
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-[13px]">
-                            <span className="font-bold text-slate-800">
-                              {formatTime(isLlegada ? flight.hora_llegada_real : flight.hora_salida_real)}
-                            </span>
+                          <div className="flex flex-col gap-1 w-[120px]">
+                            <div className="flex items-center justify-between text-[13px]">
+                              <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Itinerario">
+                                {formatTime(flight.hora_itinerario || (isLlegada ? flight.hora_llegada_real : flight.hora_salida_real))}
+                              </span>
+                              <span className="material-symbols-outlined text-[14px] text-slate-300">arrow_right_alt</span>
+                              <span className="font-bold text-slate-800" title="Hora Real">
+                                {formatTime(isLlegada ? flight.hora_llegada_real : flight.hora_salida_real)}
+                              </span>
+                            </div>
+                            
+                            {(() => {
+                              const realStr = isLlegada ? flight.hora_llegada_real : flight.hora_salida_real;
+                              const itinStr = flight.hora_itinerario || realStr;
+                              const rDate = new Date(realStr || '');
+                              const iDate = new Date(itinStr || '');
+                              
+                              let diffMins = 0;
+                              if (!isNaN(rDate.getTime()) && !isNaN(iDate.getTime())) {
+                                diffMins = Math.round((rDate.getTime() - iDate.getTime()) / 60000);
+                              }
+                              
+                              const isDelayed = diffMins > 10; // Tolerancia 10 min
+                              const pct = isDelayed ? Math.min((diffMins / 60) * 100, 100) : 0;
+                              
+                              return (
+                                <>
+                                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden flex">
+                                    <div 
+                                      className={`h-full rounded-full transition-all ${isDelayed ? 'bg-rose-500' : 'bg-emerald-400'}`} 
+                                      style={{ width: `${isDelayed ? pct : 100}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="flex justify-end mt-0.5">
+                                    <span className={`text-[10px] font-bold ${isDelayed ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                      {isDelayed ? `+${diffMins}m retraso` : 'A Tiempo'}
+                                    </span>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
-                          <span className="text-[11px] text-emerald-600 font-medium">
-                            {new Date(isLlegada ? (flight.hora_llegada_real || '') : (flight.hora_salida_real || '')).toLocaleDateString('es-PA')}
-                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5 text-[12px] mb-1">
@@ -428,13 +487,22 @@ export default function TablasDiariasClient({
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <button 
-                            onClick={() => openEditDrawer(flight)}
-                            className="p-1.5 rounded-lg bg-slate-100 text-primary hover:bg-primary hover:text-white active:scale-95 transition-all shadow-sm"
-                            title="Editar Fila"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">edit</span>
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button 
+                              onClick={() => openEditDrawer(flight)}
+                              className="p-1.5 rounded-lg bg-slate-100 text-primary hover:bg-primary hover:text-white active:scale-95 transition-all shadow-sm"
+                              title="Editar Fila"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">edit</span>
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(flight)}
+                              className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white active:scale-95 transition-all shadow-sm"
+                              title="Eliminar Vuelo Incorrecto"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

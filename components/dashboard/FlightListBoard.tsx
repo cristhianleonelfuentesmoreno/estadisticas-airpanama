@@ -251,7 +251,7 @@ function FlightCard({ flight }: { flight: FlightData }) {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-headline-sm text-headline-sm font-black text-on-surface">{flight.flightNumber}</span>
-          <span className={`font-label-md text-label-md font-bold px-2 py-0.5 rounded-md border ${flight.airline === 'Air Panama' ? 'text-primary bg-primary-container/20 border-primary/10' : 'text-sky-400 bg-sky-900/20 border-sky-400/20'}`}>
+          <span className={`font-label-md text-label-md font-bold px-2 py-0.5 rounded-md shadow-sm ${flight.airline === 'Air Panama' ? 'text-white bg-red-600' : 'text-white bg-[#0032A0]'}`}>
             {flight.airline}
           </span>
           <span className="font-label-md text-label-md font-medium text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-md border border-white/5">

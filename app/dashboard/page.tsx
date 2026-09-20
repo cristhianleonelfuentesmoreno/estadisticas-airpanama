@@ -16,8 +16,7 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState("");
   
   // Dashboard Metrics State
-  const [vuelosActivos, setVuelosActivos] = useState(0);
-  const [vuelosTotales, setVuelosTotales] = useState(0);
+  const [vuelosCompletados, setVuelosCompletados] = useState(0);
   const [pasajerosHoy, setPasajerosHoy] = useState(0);
   const [otpPercent, setOtpPercent] = useState("0.0");
   const [factorOcup, setFactorOcup] = useState("0.0");
@@ -54,28 +53,33 @@ export default function DashboardPage() {
 
     const fetchFlightStats = async () => {
       try {
-        const data = await getUpcomingFlights();
+        const { getLlegadasMalek, getSalidasMalek } = await import("@/app/actions/flights");
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+        const llegadas = await getLlegadasMalek(today);
+        const salidas = await getSalidasMalek(today);
         
-        // Vuelos Activos
-        const activos = data.filter(f => f.status === 'EN VUELO' || f.status === 'ABORDANDO').length;
-        setVuelosActivos(activos);
-        setVuelosTotales(data.length);
+        // Filtrar solo los de Air Panama
+        const combined = [...llegadas, ...salidas].filter(f => f.aerolinea === 'Air Panama');
+        
+        // Vuelos Completados
+        const completados = combined.length;
+        setVuelosCompletados(completados);
         
         // Pasajeros y Factor de Ocupación
-        const totalPax = data.reduce((acc, f) => acc + f.paxCount, 0);
-        const totalMax = data.reduce((acc, f) => acc + f.paxMax, 0);
+        const totalPax = combined.reduce((acc, f) => acc + (f.pasajeros_abordo || 0), 0);
+        const totalMax = combined.reduce((acc, f) => acc + (f.capacidad_total || 0), 0);
         setPasajerosHoy(totalPax);
         setFactorOcup(totalMax > 0 ? ((totalPax / totalMax) * 100).toFixed(1) : "0.0");
         
         // Puntualidad (OTP - On Time Performance)
-        const aTiempo = data.filter(f => f.status !== 'RETRASADO').length;
-        setOtpPercent(data.length > 0 ? ((aTiempo / data.length) * 100).toFixed(1) : "0.0");
+        const aTiempo = combined.filter(f => f.estado_final === 'LLEGÓ' || f.estado_final === 'CUMPLIDO').length;
+        setOtpPercent(completados > 0 ? ((aTiempo / completados) * 100).toFixed(1) : "0.0");
       } catch (e) {
         console.error("Error fetching metrics:", e);
       }
     };
     fetchFlightStats();
-    const statsInterval = setInterval(fetchFlightStats, 300000); // 5 min update
+    const statsInterval = setInterval(fetchFlightStats, 60000); // Actualizar cada minuto
 
     return () => {
       clearInterval(interval);
@@ -127,56 +131,56 @@ export default function DashboardPage() {
 <div className="grid grid-cols-2 gap-space-sm"><Link href="/dashboard/diario" className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm active:scale-95 transition-all hover:bg-primary/90"><span className="material-symbols-outlined text-[18px] text-emerald-400">upload_file</span><span className="">+ Subir Diarios</span></Link><Link href="/dashboard/mensual" className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-surface-container-lowest text-secondary font-label-md text-label-md font-bold ring-1 ring-secondary/30 shadow-sm active:scale-95 transition-all hover:bg-secondary-container/15"><span className="material-symbols-outlined text-[18px] text-secondary">event_note</span><span className="">+ Reg. Mensual</span></Link></div>
 {/*  Executive KPI Grid  */}
 <div className="grid grid-cols-2 gap-space-sm">
-{/*  Vuelos Activos  */}
-<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between">
+{/*  Vuelos Completados  */}
+<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Vuelos Activos</span>
-<span className="w-7 h-7 rounded-lg bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed">
-<span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">Vuelos Completados</span>
+<span className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700">
+<span className="material-symbols-outlined text-[16px]">flight_land</span>
 </span>
 </div>
 <div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{vuelosActivos}</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">de {vuelosTotales} vuelos programados hoy</span>
+<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{vuelosCompletados}</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Día en curso (Air Panama)</span>
 </div>
 </div>
 {/*  Puntualidad (OTP)  */}
-<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between">
+<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Puntualidad OTP</span>
-<span className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800">
+<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">Puntualidad OTP</span>
+<span className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
 <span className="material-symbols-outlined text-[16px]">verified</span>
 </span>
 </div>
 <div className="mt-space-xs">
 <span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{otpPercent}%</span>
-<span className="font-label-sm text-label-sm text-emerald-700 block mt-1 font-bold">Vuelos a Tiempo</span>
+<span className="font-label-sm text-label-sm text-emerald-600 block mt-1 font-bold">Vuelos a Tiempo</span>
 </div>
 </div>
 {/*  Pax en Tránsito  */}
-<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between">
+<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Pasajeros Hoy</span>
-<span className="w-7 h-7 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">Pasajeros Totales</span>
+<span className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700">
 <span className="material-symbols-outlined text-[16px]">groups</span>
 </span>
 </div>
 <div className="mt-space-xs">
 <span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{pasajerosHoy.toLocaleString()}</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Factor Ocup: {factorOcup}%</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Llegaron y viajaron hoy</span>
 </div>
 </div>
-{/*  Alertas Meteorológicas  */}
-<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between">
+{/*  Factor de Ocupación  */}
+<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Alertas Ruta</span>
-<span className="w-7 h-7 rounded-lg bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed">
-<span className="material-symbols-outlined text-[16px]">warning</span>
+<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">Factor Ocupación</span>
+<span className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
+<span className="material-symbols-outlined text-[16px]">pie_chart</span>
 </span>
 </div>
 <div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-secondary leading-none">01</span>
-<span className="font-body-sm text-body-sm text-secondary block mt-1 font-semibold">Cizalladura en Bocas</span>
+<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{factorOcup}%</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Promedio de cabina</span>
 </div>
 </div>
 </div>
