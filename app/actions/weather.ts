@@ -42,15 +42,15 @@ export interface FlightDecision {
 function translateWeather(wx: string | null): string {
   if (!wx) return '';
   const translations: Record<string, string> = {
-    'TSRA': 'TSRA', // Mantener siglas para estética aeronáutica o traducirlo
-    'TS': 'Tormentas',
+    'TSRA': 'Tormenta con Lluvia',
+    'TS': 'Tormenta Eléctrica',
     'RA': 'Lluvia',
-    'SHRA': 'SHRA',
-    'VCTS': 'VCTS',
-    'BR': 'BRUMA',
-    'FG': 'NIEBLA',
-    'HZ': 'CALIMA',
-    'DZ': 'LLOVIZNA'
+    'SHRA': 'Lluvia Aislada (Chubascos)',
+    'VCTS': 'Tormentas en la Cercanía',
+    'BR': 'Visibilidad Reducida (Bruma)',
+    'FG': 'Niebla Densa',
+    'HZ': 'Calima',
+    'DZ': 'Llovizna'
   };
   
   if (translations[wx]) return translations[wx];
@@ -76,17 +76,17 @@ function determineColor(fcst: TafForecast): StatusColor {
 function getShortAlert(colors: StatusColor[], fcsts: TafForecast[]): string {
   if (colors.includes('red')) {
     const worst = fcsts.find(f => determineColor(f) === 'red');
-    if (worst?.wxString?.includes('TS')) return 'ALERTA TSRA';
-    if (worst?.wxString?.includes('FG')) return 'ALERTA NIEBLA';
-    return 'ALERTA VIENTO';
+    if (worst?.wxString?.includes('TS')) return 'RIESGO ALTO: TORMENTAS';
+    if (worst?.wxString?.includes('FG')) return 'RIESGO ALTO: NIEBLA';
+    return 'RIESGO ALTO: VIENTOS FUERTES';
   }
   if (colors.includes('yellow')) {
     const warn = fcsts.find(f => determineColor(f) === 'yellow');
-    if (warn?.wxString?.includes('BR')) return 'BRUMA';
-    if (warn?.wxString?.includes('RA')) return 'LLUVIA';
-    return 'PRECAUCIÓN';
+    if (warn?.wxString?.includes('BR')) return 'PRECAUCIÓN: BRUMA';
+    if (warn?.wxString?.includes('RA')) return 'PRECAUCIÓN: PISTA MOJADA';
+    return 'PRECAUCIÓN OPERATIVA';
   }
-  return 'VFR ÓPTIMO';
+  return 'OPERACIÓN NORMAL';
 }
 
 function getOverallStatus(colors: StatusColor[]): { color: StatusColor, text: string } {
@@ -117,21 +117,21 @@ export async function getFlightDecisions(): Promise<FlightDecision[]> {
         const period = `${dFrom.toLocaleTimeString('es-PA', formatOptions)} - ${dTo.toLocaleTimeString('es-PA', formatOptions)}`;
         const shortPeriod = `${dFrom.toLocaleTimeString('es-PA', {hour: '2-digit', hour12:false})} - ${dTo.toLocaleTimeString('es-PA', {hour: '2-digit', hour12:false})}h`;
         
-        const windText = f.wdir === 'VRB' ? `VRB ${f.wspd}kt` : `${f.wdir}°/${f.wspd}kt`;
+        const windText = f.wdir === 'VRB' ? `Viento variable a ${f.wspd} nudos` : `Viento a ${f.wspd} nudos`;
         const wxText = translateWeather(f.wxString);
         
         let text = windText;
-        if (f.wgst) text += ` ráf. ${f.wgst}kt`;
+        if (f.wgst) text += ` con ráfagas de ${f.wgst} nudos`;
         
         const scaryClouds = f.clouds?.filter(c => c.type === 'CB' || c.type === 'TCU') || [];
         if (wxText) {
           text += ` • ${wxText}`;
-          if (scaryClouds.length > 0) text += ` • ${scaryClouds.map(c => c.type).join(', ')}`;
+          if (scaryClouds.length > 0) text += ` • Riesgo de Turbulencia/Rayos`;
         } else {
           if (scaryClouds.length > 0) {
-            text += ` • Nubes ${scaryClouds.map(c => c.type).join(', ')}`;
+            text += ` • Riesgo de Turbulencia/Rayos`;
           } else {
-            text += ` • VFR`;
+            text += ` • Cielo Despejado (Óptimo)`;
           }
         }
 

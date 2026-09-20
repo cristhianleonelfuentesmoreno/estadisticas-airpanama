@@ -44,9 +44,9 @@ export function FlightDecisionBoard() {
     let globalAlert = null;
     if (counts.red > 0) {
       const redStations = decisions.filter(d => d.statusColor === 'red');
-      const worstAlert = redStations[0]?.shortAlert || "ALERTA TSRA";
+      const worstAlert = redStations[0]?.shortAlert || "RIESGO ALTO: TORMENTAS";
       globalAlert = {
-        title: worstAlert === 'ALERTA TSRA' ? "Alerta de Convección Severa" : "Alerta Meteorológica Severa",
+        title: worstAlert.includes('TORMENTAS') ? "Alerta de Tormentas Severas" : worstAlert.includes('NIEBLA') ? "Alerta de Visibilidad Crítica" : "Alerta Operativa Severa",
         subtitle: `Múltiples Estaciones • Próximas 8 Horas`,
         level: "DEFCON OPS-2",
         redCount: counts.red,
@@ -265,7 +265,7 @@ function DecisionCard({ decision, isExpanded, onToggleExpand }: { decision: Flig
                 <span className="font-label-sm text-label-sm text-error font-bold">Ventana Crítica: {decision.criticalWindow}</span>
               )}
               {!decision.criticalWindow && decision.statusColor === 'green' && (
-                <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">Pista: Seca • VFR</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">Condiciones Óptimas</span>
               )}
             </div>
 
@@ -315,7 +315,7 @@ function DecisionCard({ decision, isExpanded, onToggleExpand }: { decision: Flig
               ) : (
                 <div className="flex items-center gap-1.5 text-primary">
                   <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                  <span className="font-label-sm text-label-sm font-medium">Operación dentro de mínimos VFR</span>
+                  <span className="font-label-sm text-label-sm font-medium">Condiciones Seguras para Vuelos</span>
                 </div>
               )}
             </div>
