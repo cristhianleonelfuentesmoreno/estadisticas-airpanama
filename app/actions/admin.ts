@@ -77,3 +77,28 @@ export async function updateUserCargo(userId: string, cargo: string | null) {
   revalidatePath("/dashboard");
   return { success: true };
 }
+
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+
+export async function deleteUserAction(userId: string) {
+  const supabase = await createClient();
+  
+  const { data: authData } = await supabase.auth.getUser();
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (perfil?.role !== "administrador") return { error: "No autorizado" };
+
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!
+  );
+
+  // Intentamos borrar el perfil primero por si no hay CASCADE
+  await supabaseAdmin.from("perfiles").delete().eq("id", userId);
+
+  // Borrar al usuario de la autenticación
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard");
+  return { success: true };
+}

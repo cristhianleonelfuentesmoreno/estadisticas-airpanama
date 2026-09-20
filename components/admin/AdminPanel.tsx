@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateUserStatus, updateUserRole, updateUserCargo } from "@/app/actions/admin";
+import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction } from "@/app/actions/admin";
 import { toast } from "sonner";
 
 export interface User {
@@ -18,6 +18,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Estados temporales para el modal
   const [tempStatus, setTempStatus] = useState<User['status']>('pendiente');
@@ -71,6 +72,25 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       toast.error("Ocurrió un error al guardar los cambios.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editingUser) return;
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a ${editingUser.email}? Esta acción no se puede deshacer.`)) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await deleteUserAction(editingUser.id);
+      if (res.error) throw new Error(res.error);
+      
+      setUsers(users.filter(u => u.id !== editingUser.id));
+      toast.success("Usuario eliminado exitosamente.");
+      setEditingUser(null);
+    } catch (error: any) {
+      toast.error(`Error al eliminar usuario: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -274,26 +294,41 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
               </div>
             </div>
 
-            <div className="p-4 bg-surface-container-low flex justify-end gap-3">
+            <div className="p-4 bg-surface-container-low flex justify-between items-center gap-3">
               <button 
-                onClick={() => setEditingUser(null)}
-                className="px-6 py-2.5 rounded-full font-label-md font-bold text-on-surface-variant hover:bg-surface-variant/50 transition-colors"
-                disabled={isSaving}
+                onClick={handleDelete}
+                disabled={isDeleting || isSaving}
+                className="px-4 py-2.5 rounded-full font-label-md font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
               >
-                Cancelar
-              </button>
-              <button 
-                onClick={handleSave}
-                disabled={isSaving}
-                className="px-6 py-2.5 rounded-full font-label-md font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2"
-              >
-                {isSaving ? (
+                {isDeleting ? (
                   <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
                 ) : (
-                  <span className="material-symbols-outlined text-[18px]">save</span>
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
                 )}
-                Guardar
+                Eliminar
               </button>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setEditingUser(null)}
+                  className="px-6 py-2.5 rounded-full font-label-md font-bold text-on-surface-variant hover:bg-surface-variant/50 transition-colors"
+                  disabled={isSaving || isDeleting}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleSave}
+                  disabled={isSaving || isDeleting}
+                  className="px-6 py-2.5 rounded-full font-label-md font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2"
+                >
+                  {isSaving ? (
+                    <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">save</span>
+                  )}
+                  Guardar
+                </button>
+              </div>
             </div>
           </div>
         </div>
