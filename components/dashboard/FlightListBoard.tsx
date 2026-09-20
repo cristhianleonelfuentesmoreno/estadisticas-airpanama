@@ -99,6 +99,18 @@ export function FlightListBoard() {
                 </button>
               ))}
             </div>
+
+            {/* Source API Link */}
+            <a 
+              href="https://www.flightradar24.com/data/airlines/7p-pnc" 
+              target="_blank" 
+              rel="noreferrer"
+              className="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant hover:text-secondary hover:underline transition-colors ml-2 border border-white/5 bg-surface-container-low px-2 py-1 rounded-md"
+              title="Ir a la fuente de datos"
+            >
+              <span className="material-symbols-outlined text-[14px]">public</span>
+              FlightRadar24
+            </a>
           </div>
           <button 
             onClick={() => setIsModalOpen(true)}
