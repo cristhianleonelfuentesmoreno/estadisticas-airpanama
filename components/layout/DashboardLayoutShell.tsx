@@ -107,12 +107,12 @@ export default function DashboardLayoutShell({
       <header className="md:hidden fixed top-0 inset-x-0 z-50 bg-primary-container/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.06)] pt-safe">
         <div className="h-16 px-gutter-mobile flex items-center justify-between gap-space-sm max-w-[1600px] mx-auto">
           {/* Logo */}
-          <div className="flex items-center gap-space-sm">
+          <Link href="/dashboard" className="flex items-center gap-space-sm active:scale-95 transition-transform">
             <div className="flex items-center gap-space-xs">
               <img src="/logo.png" alt="Air Panama Logo" className="w-8 h-8 object-contain drop-shadow-sm" />
               <span className="font-headline-sm text-headline-sm font-black tracking-tighter text-on-primary italic">AirPanama</span>
             </div>
-          </div>
+          </Link>
 
           {/* User Profile & Logout Mobile */}
           <div className="flex items-center gap-2">
@@ -156,10 +156,10 @@ export default function DashboardLayoutShell({
       <header className="hidden md:flex fixed top-0 inset-x-0 h-20 z-30 bg-primary-container shadow-md">
         <div className="w-full h-full px-8 flex items-center justify-between max-w-[1600px] mx-auto ml-[72px]">
           {/* Logo Desktop (Blanco) */}
-          <div className="flex items-center gap-space-xs pointer-events-none">
+          <Link href="/dashboard" className="flex items-center gap-space-xs hover:opacity-80 transition-opacity">
             <img src="/logo.png" alt="Air Panama Logo" className="w-10 h-10 object-contain drop-shadow-md" />
             <span className="font-headline-md text-headline-md font-black tracking-tighter text-on-primary italic pr-2">AirPanama</span>
-          </div>
+          </Link>
           
           {/* User profile Desktop */}
           <div className="flex items-center gap-space-sm">
