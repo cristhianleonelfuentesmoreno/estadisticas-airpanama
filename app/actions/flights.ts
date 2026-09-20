@@ -166,7 +166,7 @@ export async function saveCompletedMalekFlights() {
     .insert(flightsToInsert);
 
   if (error) {
-    console.error("Error guardando historial Malek:", error);
+    console.log("Error guardando historial Malek:", error?.message || error);
     return { success: false, error: error.message };
   }
 
