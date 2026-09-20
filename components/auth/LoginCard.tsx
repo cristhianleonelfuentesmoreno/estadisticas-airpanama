@@ -92,17 +92,25 @@ export const LoginCard = () => {
       toast.warning("Tu solicitud está pendiente de aprobación por el administrador.", { duration: 6000 });
       window.history.replaceState(null, "", window.location.pathname);
     }
+    if (params.get("error") === "not_registered") {
+      toast.error("No está registrado o el usuario o contraseña no están bien escritas. Debe tocar Registrarse.", { duration: 6000 });
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    if (params.get("status") === "registered_google") {
+      toast.success("¡Tu solicitud para ingresar al programa ha sido enviada! El administrador autorizará tu acceso pronto.", { duration: 8000 });
+      window.history.replaceState(null, "", window.location.pathname);
+    }
   }, []);
 
   const toggleView = () => setActiveView(activeView === "login" ? "register" : "login");
 
-  const handleGoogleAuth = async () => {
+  const handleGoogleAuth = async (action: 'login' | 'register') => {
     try {
       setLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/api/auth/callback`,
+          redirectTo: `${window.location.origin}/api/auth/callback?action=${action}`,
         }
       });
       if (error) {
@@ -148,7 +156,7 @@ export const LoginCard = () => {
 
     if (error) {
       setLoading(false);
-      return toast.error("Usuario o contraseña no registrado");
+      return toast.error("No está registrado o el usuario o contraseña no están bien escritas. Debe tocar Registrarse.", { duration: 6000 });
     }
 
     // Verificar el rol y estado en la tabla perfiles
@@ -189,7 +197,7 @@ export const LoginCard = () => {
         
         <div className={`form register ${activeView === "register" ? "active" : ""}`}>
           <h2>Registro</h2>
-          <GoogleButton text="Regístrate con Google" onClick={handleGoogleAuth} loading={loading} />
+          <GoogleButton text="Regístrate con Google" onClick={() => handleGoogleAuth('register')} loading={loading} />
           <p>O usa tu correo para registrarte</p>
           <form className="form-inputs" onSubmit={handleRegister} suppressHydrationWarning>
             <input type="text" placeholder="Nombre completo" value={regName} onChange={e => setRegName(e.target.value)} required suppressHydrationWarning />
@@ -212,7 +220,7 @@ export const LoginCard = () => {
         
         <div className={`form login ${activeView === "login" ? "active" : ""}`}>
           <h2>Iniciar Sesión</h2>
-          <GoogleButton text="Ingresa con Google" onClick={handleGoogleAuth} loading={loading} />
+          <GoogleButton text="Ingresa con Google" onClick={() => handleGoogleAuth('login')} loading={loading} />
           <p>O usa tu cuenta local</p>
           <form className="form-inputs" onSubmit={handleLogin} suppressHydrationWarning>
             <input type="email" placeholder="Correo electrónico" value={logEmail} onChange={e => setLogEmail(e.target.value)} required suppressHydrationWarning />
