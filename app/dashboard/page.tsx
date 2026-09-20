@@ -144,39 +144,6 @@ export default function DashboardPage() {
 </div>
 </div>
 </div>
-{/*  Quick Navigation Matrix  */}
-<div className="flex flex-col gap-space-xs pt-space-xs">
-<div className="flex items-center justify-between px-1">
-<h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Accesos Rápidos</h2>
-<span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wide">Módulos Ops</span>
-</div>
-<div className="grid grid-cols-4 gap-space-xs">
-<Link className="bg-surface-container-lowest hover:bg-surface-container p-space-sm rounded-xl shadow-sm flex flex-col items-center text-center gap-1 active:scale-95 transition-all" href="/dashboard/diario">
-<div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm">
-<span className="material-symbols-outlined text-[22px]">table_chart</span>
-</div>
-<span className="font-label-sm text-label-sm text-on-surface leading-tight mt-1">Tablas Diarias</span>
-</Link>
-<Link className="bg-surface-container-lowest hover:bg-surface-container p-space-sm rounded-xl shadow-sm flex flex-col items-center text-center gap-1 active:scale-95 transition-all" href="/dashboard/mensual">
-<div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm">
-<span className="material-symbols-outlined text-[22px]">calendar_month</span>
-</div>
-<span className="font-label-sm text-label-sm text-on-surface leading-tight mt-1">Reportes Mes</span>
-</Link>
-<Link className="bg-surface-container-lowest hover:bg-surface-container p-space-sm rounded-xl shadow-sm flex flex-col items-center text-center gap-1 active:scale-95 transition-all" href="/dashboard/estadisticas">
-<div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm">
-<span className="material-symbols-outlined text-[22px]">query_stats</span>
-</div>
-<span className="font-label-sm text-label-sm text-on-surface leading-tight mt-1">Métricas KPI</span>
-</Link>
-<button className="bg-surface-container-lowest hover:bg-surface-container p-space-sm rounded-xl shadow-sm flex flex-col items-center text-center gap-1 active:scale-95 transition-all" onClick={() => setIsModalOpen(true)}>
-<div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-on-secondary shadow-sm">
-<span className="material-symbols-outlined text-[22px]">post_add</span>
-</div>
-<span className="font-label-sm text-label-sm text-on-surface leading-tight mt-1">Registrar Vuelo</span>
-</button>
-</div>
-</div>
 
 {/*  Panel de Decisión de Vuelos (TAF)  */}
 <div className="pt-space-xs">
