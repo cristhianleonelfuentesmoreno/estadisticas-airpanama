@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { FlightDecisionBoard } from "@/components/dashboard/FlightDecisionBoard";
 
 export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -190,6 +191,13 @@ export default function DashboardPage() {
 </button>
 </div>
 </div>
+</div>
+
+{/*  Panel de Decisión de Vuelos (TAF)  */}
+<div className="pt-space-xs">
+<FlightDecisionBoard />
+</div>
+
 {/*  Scheduled Flight Feed  */}
 <div className="flex flex-col gap-space-sm pt-space-xs pb-space-lg">
 <div className="flex items-center justify-between px-1">
