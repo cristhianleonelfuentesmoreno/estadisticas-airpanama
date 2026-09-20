@@ -195,21 +195,14 @@ export function FlightListBoard() {
 
 function FlightCard({ flight }: { flight: FlightData }) {
   // Determine status badge styling
-  let badgeClass = "bg-primary/15 text-primary border-primary/20";
-  let badgeIcon = "check_circle";
+  let badgeClass = "bg-amber-100 text-amber-800 border-amber-200/50"; // default A TIEMPO, ABORDANDO
   
-  if (flight.status === 'ABORDANDO') {
-    badgeClass = "bg-tertiary/15 text-tertiary border-tertiary/20";
-    badgeIcon = "flight_takeoff";
-  } else if (flight.status === 'RETRASADO') {
+  if (flight.status === 'RETRASADO') {
     badgeClass = "bg-error/15 text-error border-error/20";
-    badgeIcon = "warning";
   } else if (flight.status === 'LLEGÓ') {
     badgeClass = "bg-surface-container-high text-on-surface-variant border-white/10";
-    badgeIcon = "flight_land";
   } else if (flight.status === 'EN VUELO') {
-    badgeClass = "bg-secondary/15 text-secondary border-secondary/20";
-    badgeIcon = "flight";
+    badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200/50";
   }
 
   // Format times
@@ -237,7 +230,7 @@ function FlightCard({ flight }: { flight: FlightData }) {
         </div>
         
         <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-sm text-label-sm font-bold border uppercase ${badgeClass}`}>
-          <div className={`w-2 h-2 rounded-full ${flight.status === 'LLEGÓ' ? 'bg-on-surface-variant' : 'bg-current'}`}></div>
+          <div className={`w-2 h-2 rounded-full ${flight.status === 'LLEGÓ' ? 'bg-on-surface-variant' : 'bg-current'} ${flight.status === 'EN VUELO' ? 'animate-pulse' : ''}`}></div>
           {flight.status}
         </div>
       </div>
