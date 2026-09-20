@@ -59,8 +59,8 @@ export default function DashboardLayoutShell({
 
         const res = await registrarSesion(user.id, location.lat, location.lon, navigator.userAgent);
         if (res.success && res.sessionId) {
-          sessionId = res.sessionId;
-          localStorage.setItem('sessionId', sessionId);
+          sessionId = res.sessionId as string;
+          localStorage.setItem('sessionId', sessionId as string);
         }
       }
 
