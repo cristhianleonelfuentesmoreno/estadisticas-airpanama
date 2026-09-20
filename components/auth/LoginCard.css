@@ -1,0 +1,266 @@
+/* LoginCard.css */
+
+.card {
+  position: relative;
+  overflow: hidden;
+  width: 1100px;
+  height: 500px;
+  border-radius: 24px;
+  background: #ffffff;
+  border: 8px solid #ffffff;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.card-bg {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 50%;
+  background: url("/bg-plane.png"); 
+  background-size: cover;
+  background-position: center;
+  border-radius: 18px;
+  translate: 0 0;
+  transition: 0.65s ease-in-out;
+}
+
+/* Overlays a dark tint to make text readable */
+.card-bg::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  border-radius: 18px;
+}
+
+.card-bg.login {
+  translate: 100% 0;
+}
+
+.hero, .form {
+  position: absolute;
+  width: 50%;
+  height: 100%;
+  opacity: 0;
+  visibility: hidden;
+  transition: 0.65s ease-in-out;
+}
+
+.hero.active, .form.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.form.register {
+  left: 50%;
+}
+
+.hero.login {
+  left: 50%;
+  translate: 100% 0;
+}
+
+.hero.login.active {
+  translate: 0;
+}
+
+.hero.register {
+  translate: -100% 0;
+}
+
+.hero.register.active {
+  translate: 0;
+}
+
+.hero {
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 50%;
+  color: #f9f9f9;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.form.login {
+  translate: 100% 0;
+}
+
+.form.login.active {
+  translate: 0;
+}
+
+.form.register {
+  translate: -100% 0;
+}
+
+.form.register.active {
+  translate: 0;
+}
+
+.hero p {
+  margin: 0 0 6px;
+  opacity: 0.85;
+  line-height: 1.45;
+}
+
+.hero button {
+  padding: 12px 40px;
+  border-radius: 32px;
+  letter-spacing: 1px;
+  font-family: inherit;
+  color: inherit;
+  border: 1px solid #f9f9f9;
+  background: transparent;
+  transition: 0.3s;
+  cursor: pointer;
+}
+
+.hero button:hover {
+  color: #212625;
+  background: #f9f9f9;
+}
+
+.form {
+  background: #ffffff;
+  z-index: 1;
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 32px;
+}
+
+.form h2 {
+  margin: 0;
+  color: #333;
+}
+
+.form p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.form-inputs {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background: #f9f9f9;
+  font-family: inherit;
+  transition: 0.3s;
+}
+
+.form input:focus {
+  outline: none;
+  border-color: #333;
+  background: #fff;
+}
+
+.form button.submit-btn {
+  width: 100%;
+  padding: 12px;
+  background: #212625;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.form button.submit-btn:hover:not(:disabled) {
+  background: #000;
+}
+
+.form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================================
+   RESPONSIVE DESIGN (MOBILE)
+========================================= */
+@media (max-width: 768px) {
+  .card {
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+    border: none;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .hero p {
+    display: none;
+  }
+
+  /* En móvil, la imagen será un encabezado estático en la parte superior */
+  .card-bg {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    bottom: auto;
+    translate: 0 0 !important; /* Desactivamos el slide */
+    border-radius: 0;
+  }
+
+  /* Reseteamos posiciones absolutas y traslaciones */
+  .hero, .form {
+    position: relative;
+    width: 100%;
+    height: auto;
+    translate: 0 0 !important;
+    left: 0 !important;
+    top: 0 !important;
+  }
+
+  /* Ocultamos completamente lo que no está activo */
+  .hero:not(.active), .form:not(.active) {
+    display: none !important;
+  }
+
+  /* El panel de marketing va encima de la imagen superior */
+  .hero.active {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 220px;
+    padding: 20px;
+    z-index: 50;
+    display: flex;
+    justify-content: center;
+  }
+
+  .hero.active button {
+    position: relative;
+    z-index: 100;
+  }
+
+  /* El formulario va debajo del encabezado de forma natural */
+  .form.active {
+    display: flex;
+    padding: 30px 20px;
+    z-index: 10;
+  }
+}

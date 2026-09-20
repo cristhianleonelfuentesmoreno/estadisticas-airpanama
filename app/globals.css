@@ -1,26 +1,153 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-tertiary-fixed: #d5e3ff;
+  --color-inverse-surface: #2d3133;
+  --color-on-surface-variant: #43474d;
+  --color-secondary-fixed-dim: #ffb3ae;
+  --color-on-primary: #ffffff;
+  --color-surface-bright: #f7f9fb;
+  --color-on-tertiary-container: #7a8ca9;
+  --color-outline: #74777e;
+  --color-surface-tint: #49607e;
+  --color-primary-fixed-dim: #b0c8eb;
+  --color-on-secondary-fixed: #410004;
+  --color-on-secondary: #ffffff;
+  --color-on-primary-fixed: #001c37;
+  --color-primary-fixed: #d2e4ff;
+  --color-on-secondary-fixed-variant: #930014;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-inverse-primary: #b0c8eb;
+  --color-inverse-on-surface: #eff1f3;
+  --color-background: #f7f9fb;
+  --color-surface-dim: #d8dadc;
+  --color-on-background: #191c1e;
+  --color-tertiary: #000e23;
+  --color-error: #ba1a1a;
+  --color-secondary: #bb001d;
+  --color-surface-container-high: #e6e8ea;
+  --color-on-error-container: #93000a;
+  --color-on-tertiary: #ffffff;
+  --color-on-primary-fixed-variant: #314865;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface: #f7f9fb;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-secondary-container: #fffbff;
+  --color-on-surface: #191c1e;
+  --color-tertiary-container: #12243c;
+  --color-primary-container: #0a2540;
+  --color-primary: #000f22;
+  --color-on-primary-container: #768dad;
+  --color-outline-variant: #c4c6ce;
+  --color-tertiary-fixed-dim: #b6c7e7;
+  --color-surface-container: #eceef0;
+  --color-secondary-fixed: #ffdad7;
+  --color-surface-variant: #e0e3e5;
+  --color-secondary-container: #e02932;
+  --color-on-tertiary-fixed: #091c34;
+  --color-surface-container-highest: #e0e3e5;
+  --color-on-tertiary-fixed-variant: #364762;
+
+  --radius: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
+
+  --spacing-gutter: 1rem;
+  --spacing-space-xl: 2.25rem;
+  --spacing-gutter-mobile: 0.75rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-margin: 1.5rem;
+  --spacing-margin-mobile: 1rem;
+  --spacing-space-lg: 1.5rem;
+
+  --font-label-md: "Plus Jakarta Sans", sans-serif;
+  --font-body-sm: "Plus Jakarta Sans", sans-serif;
+  --font-body-lg: "Plus Jakarta Sans", sans-serif;
+  --font-label-sm: "Plus Jakarta Sans", sans-serif;
+  --font-headline-sm: "Plus Jakarta Sans", sans-serif;
+  --font-headline-lg: "Plus Jakarta Sans", sans-serif;
+  --font-headline-lg-mobile: "Plus Jakarta Sans", sans-serif;
+  --font-headline-md: "Plus Jakarta Sans", sans-serif;
+  --font-display-hero: "Plus Jakarta Sans", sans-serif;
+  --font-label-code: "Plus Jakarta Sans", sans-serif;
+  --font-body-md: "Plus Jakarta Sans", sans-serif;
+
+  --text-label-md: 13px;
+  --text-label-md--line-height: 18px;
+  --text-label-md--letter-spacing: 0.01em;
+  --text-label-md--font-weight: 600;
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 16px;
+  --text-body-sm--font-weight: 400;
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 24px;
+  --text-body-lg--font-weight: 400;
+  --text-label-sm: 11px;
+  --text-label-sm--line-height: 14px;
+  --text-label-sm--letter-spacing: 0.05em;
+  --text-label-sm--font-weight: 700;
+  --text-headline-sm: 18px;
+  --text-headline-sm--line-height: 24px;
+  --text-headline-sm--font-weight: 600;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--letter-spacing: -0.02em;
+  --text-headline-lg--font-weight: 700;
+  --text-headline-lg-mobile: 26px;
+  --text-headline-lg-mobile--line-height: 32px;
+  --text-headline-lg-mobile--letter-spacing: -0.015em;
+  --text-headline-lg-mobile--font-weight: 700;
+  --text-headline-md: 22px;
+  --text-headline-md--line-height: 28px;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-md--font-weight: 600;
+  --text-display-hero: 40px;
+  --text-display-hero--line-height: 48px;
+  --text-display-hero--letter-spacing: -0.02em;
+  --text-display-hero--font-weight: 800;
+  --text-label-code: 28px;
+  --text-label-code--line-height: 32px;
+  --text-label-code--letter-spacing: 0.05em;
+  --text-label-code--font-weight: 800;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-md--font-weight: 400;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html, body {
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    overscroll-behavior: none;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  main > :first-child {
+    margin-top: 0 !important;
+  }
+  main > :last-child {
+    margin-bottom: 0 !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Evitar zoom automático de iOS en inputs */
+@media (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
+::-webkit-scrollbar {
+  display: none;
 }
