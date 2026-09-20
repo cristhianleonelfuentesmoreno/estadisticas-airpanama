@@ -188,7 +188,7 @@ export default function DashboardPage() {
 <span className="material-symbols-outlined text-[22px]">post_add</span>
 </div>
 <span className="font-label-sm text-label-sm text-on-surface leading-tight mt-1">Registrar Vuelo</span>
-</div>
+</button>
 </div>
 </div>
 
