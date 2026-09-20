@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { FlightDecisionBoard } from "@/components/dashboard/FlightDecisionBoard";
 import { FlightListBoard } from "@/components/dashboard/FlightListBoard";
+import { getUpcomingFlights } from "@/app/actions/flights";
 
 export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -13,6 +14,13 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("Cargando...");
   const [userCargo, setUserCargo] = useState("...");
   const [currentTime, setCurrentTime] = useState("");
+  
+  // Dashboard Metrics State
+  const [vuelosActivos, setVuelosActivos] = useState(0);
+  const [vuelosTotales, setVuelosTotales] = useState(0);
+  const [pasajerosHoy, setPasajerosHoy] = useState(0);
+  const [otpPercent, setOtpPercent] = useState("0.0");
+  const [factorOcup, setFactorOcup] = useState("0.0");
 
   useEffect(() => {
     // Reloj en vivo
@@ -44,7 +52,35 @@ export default function DashboardPage() {
     };
     fetchUser();
 
-    return () => clearInterval(interval);
+    const fetchFlightStats = async () => {
+      try {
+        const data = await getUpcomingFlights();
+        
+        // Vuelos Activos
+        const activos = data.filter(f => f.status === 'EN VUELO' || f.status === 'ABORDANDO').length;
+        setVuelosActivos(activos);
+        setVuelosTotales(data.length);
+        
+        // Pasajeros y Factor de Ocupación
+        const totalPax = data.reduce((acc, f) => acc + f.paxCount, 0);
+        const totalMax = data.reduce((acc, f) => acc + f.paxMax, 0);
+        setPasajerosHoy(totalPax);
+        setFactorOcup(totalMax > 0 ? ((totalPax / totalMax) * 100).toFixed(1) : "0.0");
+        
+        // Puntualidad (OTP - On Time Performance)
+        const aTiempo = data.filter(f => f.status !== 'RETRASADO').length;
+        setOtpPercent(data.length > 0 ? ((aTiempo / data.length) * 100).toFixed(1) : "0.0");
+      } catch (e) {
+        console.error("Error fetching metrics:", e);
+      }
+    };
+    fetchFlightStats();
+    const statsInterval = setInterval(fetchFlightStats, 300000); // 5 min update
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(statsInterval);
+    };
   }, []);
 
   const handleRefresh = () => {
@@ -100,8 +136,8 @@ export default function DashboardPage() {
 </span>
 </div>
 <div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">18</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">6 en ruta • 12 en rampa</span>
+<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{vuelosActivos}</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">de {vuelosTotales} vuelos programados hoy</span>
 </div>
 </div>
 {/*  Puntualidad (OTP)  */}
@@ -113,8 +149,8 @@ export default function DashboardPage() {
 </span>
 </div>
 <div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">94.8%</span>
-<span className="font-label-sm text-label-sm text-emerald-700 block mt-1 font-bold">+2.3% vs. meta mes</span>
+<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{otpPercent}%</span>
+<span className="font-label-sm text-label-sm text-emerald-700 block mt-1 font-bold">Vuelos a Tiempo</span>
 </div>
 </div>
 {/*  Pax en Tránsito  */}
@@ -126,8 +162,8 @@ export default function DashboardPage() {
 </span>
 </div>
 <div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">1,420</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Factor Ocup: 88.4%</span>
+<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{pasajerosHoy.toLocaleString()}</span>
+<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Factor Ocup: {factorOcup}%</span>
 </div>
 </div>
 {/*  Alertas Meteorológicas  */}
