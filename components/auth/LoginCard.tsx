@@ -144,6 +144,21 @@ export const LoginCard = () => {
       ), { duration: 8000 });
       window.history.replaceState(null, "", window.location.pathname);
     }
+    
+    if (params.get("error") === "rejected") {
+      toast.custom((t) => (
+        <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+          <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-xl">block</span>
+          </div>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">Acceso Denegado</h3>
+            <p className="font-body-sm text-xs text-on-surface-variant mt-1">Su cuenta ha sido denegada por un administrador.</p>
+          </div>
+        </div>
+      ), { duration: 6000 });
+      window.history.replaceState(null, "", window.location.pathname);
+    }
   }, []);
 
   const toggleView = () => setActiveView(activeView === "login" ? "register" : "login");

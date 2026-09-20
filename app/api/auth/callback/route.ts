@@ -20,15 +20,23 @@ export async function GET(request: Request) {
           .eq('id', userData.user.id)
           .single()
 
-        if (perfil?.status !== 'aprobado') {
-          // No está aprobado (es nuevo, pendiente o rechazado)
+        if (!perfil || perfil?.status !== 'aprobado') {
           await supabase.auth.signOut()
           
           if (action === 'register') {
+            if (perfil?.status === 'pendiente') {
+              return NextResponse.redirect(`${origin}/login?status=pending`)
+            }
             return NextResponse.redirect(`${origin}/login?status=registered_google`)
           } else {
             // action === 'login'
-            return NextResponse.redirect(`${origin}/login?error=not_registered`)
+            if (!perfil) {
+              return NextResponse.redirect(`${origin}/login?error=not_registered`)
+            } else if (perfil.status === 'pendiente') {
+              return NextResponse.redirect(`${origin}/login?status=pending`)
+            } else if (perfil.status === 'rechazado') {
+              return NextResponse.redirect(`${origin}/login?error=rejected`)
+            }
           }
         }
       }
