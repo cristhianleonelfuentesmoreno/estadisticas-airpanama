@@ -39,7 +39,7 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
   const itinerary = [
     // --- AIR PANAMA: AVION DH8D HP-1997 ---
     { num: '972', dep: '13:30', arr: '14:45', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 21, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    { num: '973', dep: '14:45', arr: '16:00', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'IRIS PEREIRA/ YASLIN SANTAMARIA', pax: 70, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+    // { num: '973', dep: '14:45', arr: '16:00', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'IRIS PEREIRA/ YASLIN SANTAMARIA', pax: 70, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
     { num: '982', dep: '16:00', arr: '17:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'BOC', desName: 'Bocas del Toro', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 30, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
     { num: '983', dep: '17:15', arr: '18:45', ori: 'BOC', oriName: 'Bocas del Toro', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'JAVIER SANCHEZ/ KRYSTEL CEDEÑO', pax: 70, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
     // { num: '970', dep: '18:45', arr: '19:45', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 11, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
