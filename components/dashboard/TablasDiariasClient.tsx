@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { updateLlegadaMalek, deleteLlegadaMalek, deleteSalidaMalek } from "@/app/actions/flights";
+import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords } from "@/app/actions/flights";
+import * as XLSX from 'xlsx';
 
 interface MalekFlight {
   id: string;
@@ -31,15 +32,55 @@ export default function TablasDiariasClient({
   const [activeFilter, setActiveFilter] = useState("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   
+  type SortColumn = 'ruta' | 'estado' | null;
+  type SortDirection = 'asc' | 'desc';
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      if (sortDirection === 'asc') setSortDirection('desc');
+      else { setSortColumn(null); setSortDirection('asc'); }
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
   const router = useRouter();
   const dateInputRef = useRef<HTMLInputElement>(null);
   
-  // Drawer state
+  // Modals state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  
+  // Add Flight Form State
+  const [addFormData, setAddFormData] = useState({
+    type: 'llegadas' as 'llegadas' | 'salidas',
+    aerolinea: 'Air Panama',
+    numero_vuelo: '',
+    origen: '',
+    destino: '',
+    fecha: currentDateStr,
+    hora_itinerario: '',
+    hora_real: '',
+    estado_final: 'LLEGÓ',
+    pasajeros_abordo: 0,
+    capacidad_total: 78
+  });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingFlight, setEditingFlight] = useState<MalekFlight | null>(null);
   const [editFormData, setEditFormData] = useState({
+    fecha: "",
+    aerolinea: "",
+    numero_vuelo: "",
+    origen: "",
+    destino: "",
+    hora_itinerario: "",
     hora_real: "",
     pasajeros_abordo: 0,
+    capacidad_total: 0,
     estado_final: ""
   });
 
@@ -102,6 +143,24 @@ export default function TablasDiariasClient({
     });
   }, [activeDataList, searchQuery, activeFilter]);
 
+  const sortedData = useMemo(() => {
+    let sorted = [...filteredData];
+    if (sortColumn === 'ruta') {
+      sorted.sort((a, b) => {
+        const routeA = a.hora_llegada_real ? `${a.origen}-DAV` : `DAV-${a.destino}`;
+        const routeB = b.hora_llegada_real ? `${b.origen}-DAV` : `DAV-${b.destino}`;
+        return sortDirection === 'asc' ? routeA.localeCompare(routeB) : routeB.localeCompare(routeA);
+      });
+    } else if (sortColumn === 'estado') {
+      sorted.sort((a, b) => {
+        const eA = a.estado_final || '';
+        const eB = b.estado_final || '';
+        return sortDirection === 'asc' ? eA.localeCompare(eB) : eB.localeCompare(eA);
+      });
+    }
+    return sorted;
+  }, [filteredData, sortColumn, sortDirection]);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => window.location.reload(), 600);
@@ -138,9 +197,17 @@ export default function TablasDiariasClient({
   const openEditDrawer = (flight: MalekFlight) => {
     setEditingFlight(flight);
     const timeValue = flight.hora_llegada_real ? flight.hora_llegada_real : flight.hora_salida_real;
+    
     setEditFormData({
+      fecha: flight.fecha || "",
+      aerolinea: flight.aerolinea || "",
+      numero_vuelo: flight.numero_vuelo || "",
+      origen: flight.origen || "",
+      destino: flight.destino || "",
+      hora_itinerario: toTimeStringForInput(flight.hora_itinerario),
       hora_real: toTimeStringForInput(timeValue),
       pasajeros_abordo: flight.pasajeros_abordo || 0,
+      capacidad_total: flight.capacidad_total || 78,
       estado_final: flight.estado_final
     });
     setIsDrawerOpen(true);
@@ -150,18 +217,28 @@ export default function TablasDiariasClient({
     e.preventDefault();
     if (!editingFlight) return;
     
-    // Parse time to ISO
-    const [hours, minutes] = editFormData.hora_real.split(':').map(Number);
     const isLlegada = !!editingFlight.hora_llegada_real;
-    const timeToUpdate = isLlegada ? editingFlight.hora_llegada_real : editingFlight.hora_salida_real;
-    const newDate = new Date(timeToUpdate || new Date().toISOString());
-    newDate.setHours(hours, minutes, 0, 0);
+    
+    const itinDate = new Date(`${editFormData.fecha}T${editFormData.hora_itinerario}:00-05:00`);
+    const realDate = new Date(`${editFormData.fecha}T${editFormData.hora_real}:00-05:00`);
 
-    const updates = {
-      [isLlegada ? 'hora_llegada_real' : 'hora_salida_real']: newDate.toISOString(),
-      pasajeros_abordo: editFormData.pasajeros_abordo,
+    const updates: any = {
+      fecha: editFormData.fecha,
+      aerolinea: editFormData.aerolinea,
+      numero_vuelo: editFormData.numero_vuelo,
+      hora_itinerario: itinDate.toISOString(),
+      pasajeros_abordo: Number(editFormData.pasajeros_abordo),
+      capacidad_total: Number(editFormData.capacidad_total),
       estado_final: editFormData.estado_final
     };
+    
+    if (isLlegada) {
+      updates.origen = editFormData.origen;
+      updates.hora_llegada_real = realDate.toISOString();
+    } else {
+      updates.destino = editFormData.destino;
+      updates.hora_salida_real = realDate.toISOString();
+    }
 
     let res;
     if (isLlegada) {
@@ -199,6 +276,218 @@ export default function TablasDiariasClient({
     }
   };
 
+  const handleAddFlightSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const isLlegada = addFormData.type === 'llegadas';
+    
+    // Create correct Date objects
+    const itinDate = new Date(`${addFormData.fecha}T${addFormData.hora_itinerario}:00-05:00`);
+    const realDate = new Date(`${addFormData.fecha}T${addFormData.hora_real || addFormData.hora_itinerario}:00-05:00`);
+    
+    const record: any = {
+      fecha: addFormData.fecha,
+      aerolinea: addFormData.aerolinea,
+      numero_vuelo: addFormData.numero_vuelo,
+      hora_itinerario: itinDate.toISOString(),
+      estado_final: addFormData.estado_final,
+      pasajeros_abordo: Number(addFormData.pasajeros_abordo),
+      capacidad_total: Number(addFormData.capacidad_total)
+    };
+
+    if (isLlegada) {
+      record.origen = addFormData.origen;
+      record.hora_llegada_real = realDate.toISOString();
+    } else {
+      record.destino = addFormData.destino;
+      record.hora_salida_real = realDate.toISOString();
+    }
+
+    const res = await insertFlightRecords([record], addFormData.type);
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Error al guardar: " + res.error);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data: any[] = XLSX.utils.sheet_to_json(ws, { raw: false });
+        
+        const llegadasToInsert = [];
+        const salidasToInsert = [];
+
+        for (const row of data) {
+          // Leer las columnas de AODB según la captura
+          const leg = row['Leg']?.toString().toLowerCase() || row['Tipo']?.toString().toLowerCase() || '';
+          const isLlegada = leg.includes('arrival') || leg.includes('llegada');
+          const isSalida = leg.includes('departure') || leg.includes('salida');
+          
+          if (!isLlegada && !isSalida) continue;
+
+          // Filtrar estrictamente solo Air Panama y Copa Airlines
+          let aerolinea = row['Airline']?.toString().trim() || row['Aerolínea']?.toString().trim();
+          if (aerolinea !== 'Air Panama' && aerolinea !== 'Copa Airlines') {
+            continue; // Se ignora cualquier otra aerolínea
+          }
+
+          // Extraer Fecha y Horas robustamente
+          let fechaStr = currentDateStr; // Fallback
+          let runwayTimeStr = '12:00';
+          let actualTimeStr = '12:00';
+
+          const rawRunway = (row['Runway Time'] || row['Runway time'] || row['Hora Itinerario'] || '').toString().trim();
+          const rawActual = (row['Actual Time (ATA/ATAD)'] || row['Actual Time'] || row['Actual time'] || row['Hora Real'] || rawRunway).toString().trim();
+
+          // Si rawRunway viene como "08/01/2026 12:33" (MM/DD/YYYY HH:mm)
+          if (rawRunway.includes(' ')) {
+            const parts = rawRunway.split(' ');
+            const dParts = parts[0].split('/'); // MM/DD/YYYY
+            if (dParts.length === 3) {
+              fechaStr = `${dParts[2]}-${dParts[0].padStart(2, '0')}-${dParts[1].padStart(2, '0')}`; // YYYY-MM-DD
+            }
+            runwayTimeStr = parts[1];
+          } else if (rawRunway) {
+            runwayTimeStr = rawRunway;
+          }
+
+          if (rawActual.includes(' ')) {
+            actualTimeStr = rawActual.split(' ')[1];
+          } else if (rawActual) {
+            actualTimeStr = rawActual;
+          }
+
+          // Fallback por si la fecha venía en otra columna (como Date)
+          if (!rawRunway.includes(' ')) {
+            let fallbackDate = (row['Date'] || row['Fecha'] || '').toString().trim();
+            if (fallbackDate && fallbackDate.includes('/')) {
+              const months: any = { 'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06', 'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12' };
+              const parts = fallbackDate.split('/');
+              if (parts.length === 3) {
+                const day = parts[0].padStart(2, '0');
+                const month = months[parts[1].toLowerCase()] || parts[1].padStart(2, '0');
+                const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                fechaStr = `${year}-${month}-${day}`;
+              }
+            } else if (fallbackDate) {
+              fechaStr = fallbackDate;
+            }
+          }
+          
+          // Parsear Número de Vuelo
+          let rawFlight = (row['Flight'] || row['Vuelo'] || '').toString().trim().toUpperCase();
+          rawFlight = rawFlight.replace(' ', '-'); // "CM 030" -> "CM-030"
+          
+          if (aerolinea === 'Air Panama' && rawFlight.startsWith('7P') && !rawFlight.includes('-')) {
+            rawFlight = rawFlight.replace('7P', '7P-');
+          } else if (aerolinea === 'Copa Airlines') {
+            if (rawFlight.startsWith('CMP')) rawFlight = rawFlight.replace('CMP', 'CM-');
+            if (rawFlight.startsWith('CM') && !rawFlight.includes('-')) rawFlight = rawFlight.replace('CM', 'CM-');
+            
+            // Pad flight number with zero if it's too short, ej: CM-14 -> CM-014
+            const parts = rawFlight.split('-');
+            if (parts.length === 2 && parts[1].length < 3) {
+              parts[1] = parts[1].padStart(3, '0');
+              rawFlight = `${parts[0]}-${parts[1]}`;
+            }
+          }
+          
+          const itinDate = new Date(`${fechaStr}T${runwayTimeStr}:00-05:00`);
+          const realDate = new Date(`${fechaStr}T${actualTimeStr}:00-05:00`);
+
+          // Calcular estado básico basado en retraso (>15 mins = DEMORADO)
+          const diffMins = (realDate.getTime() - itinDate.getTime()) / 60000;
+          let estadoFinal = 'LLEGÓ';
+          if (diffMins > 15) estadoFinal = 'DEMORADO';
+
+          const record: any = {
+            fecha: fechaStr,
+            aerolinea: aerolinea,
+            numero_vuelo: rawFlight,
+            hora_itinerario: itinDate.toISOString(),
+            estado_final: row['Estado'] || estadoFinal,
+            pasajeros_abordo: Number(row['Pax'] || row['Pasajeros']) || 0,
+            capacidad_total: aerolinea === 'Air Panama' ? 78 : 160 // Valor por defecto
+          };
+
+          // Extra (si existe en base de datos futura, no hace daño enviarlo, se ignora si no existe)
+          if (row['Reg']) record.matricula = row['Reg'];
+
+          const od = row['O/D'] || row['Origen'] || row['Destino'] || 'PAC';
+
+          if (isLlegada) {
+            record.origen = od;
+            record.hora_llegada_real = realDate.toISOString();
+            llegadasToInsert.push(record);
+          } else {
+            record.destino = od;
+            record.hora_salida_real = realDate.toISOString();
+            salidasToInsert.push(record);
+          }
+        }
+
+        let total = 0;
+        if (llegadasToInsert.length > 0) {
+          const res = await insertFlightRecords(llegadasToInsert, 'llegadas');
+          if (res.success) total += llegadasToInsert.length;
+        }
+        if (salidasToInsert.length > 0) {
+          const res = await insertFlightRecords(salidasToInsert, 'salidas');
+          if (res.success) total += salidasToInsert.length;
+        }
+
+        alert(`Importación completada: ${total} vuelos procesados e importados correctamente.`);
+        window.location.reload();
+      } catch (err: any) {
+        console.error("Error importando Excel:", err);
+        alert("Error procesando archivo. Verifica el formato. Detalles: " + err.message);
+        setImporting(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        "Leg": "Arrival",
+        "Airline": "Air Panama",
+        "Flight": "7P972",
+        "O/D": "PAC",
+        "Reg": "HP1996P",
+        "Aircraft": "F50",
+        "Date": "01/Aug/26",
+        "Runway Time": "09:45",
+        "Actual Time": "09:50",
+        "Pax": 60
+      },
+      {
+        "Leg": "Departure",
+        "Airline": "Copa Airlines",
+        "Flight": "CMP14",
+        "O/D": "PTY",
+        "Reg": "HP1850P",
+        "Aircraft": "B738",
+        "Date": "01/Aug/26",
+        "Runway Time": "10:15",
+        "Actual Time": "11:00",
+        "Pax": 150
+      }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "AODB Data");
+    XLSX.writeFile(wb, "Plantilla_AODB_Malek.xlsx");
+  };
+
   return (
     <div className="flex flex-col w-full min-h-[calc(100vh-8rem)] relative">
       {/* Header Panel */}
@@ -218,9 +507,16 @@ export default function TablasDiariasClient({
             </h1>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <div className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer">
-              <span className="material-symbols-outlined text-[16px] text-white">table_view</span>
-              <span className="font-label-sm text-[12px] text-white font-bold tracking-wide">Modo Airtable</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setIsAddModalOpen(true)} className="bg-emerald-500 hover:bg-emerald-400 px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-emerald-400/50">
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                <span className="text-[12px]">Agregar Vuelo</span>
+              </button>
+              <button onClick={() => setIsImportModalOpen(true)} className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
+                <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                <span className="text-[12px]">Importar</span>
+              </button>
+
             </div>
           </div>
         </div>
@@ -368,10 +664,18 @@ export default function TablasDiariasClient({
                       <span>Vuelo / Línea</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3.5 min-w-[120px]">
+                  <th 
+                    className="px-4 py-3.5 min-w-[120px] cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                    onClick={() => handleSort('ruta')}
+                  >
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">near_me</span>
                       <span>Ruta</span>
+                      {sortColumn === 'ruta' && (
+                        <span className="material-symbols-outlined text-[14px] text-primary">
+                          {sortDirection === 'asc' ? 'arrow_downward' : 'arrow_upward'}
+                        </span>
+                      )}
                     </div>
                   </th>
                   <th className="px-4 py-3.5 min-w-[120px]">
@@ -386,10 +690,18 @@ export default function TablasDiariasClient({
                       <span>Ocupación</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3.5 min-w-[110px]">
+                  <th 
+                    className="px-4 py-3.5 min-w-[110px] cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                    onClick={() => handleSort('estado')}
+                  >
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">flag</span>
                       <span>Estado</span>
+                      {sortColumn === 'estado' && (
+                        <span className="material-symbols-outlined text-[14px] text-primary">
+                          {sortDirection === 'asc' ? 'arrow_downward' : 'arrow_upward'}
+                        </span>
+                      )}
                     </div>
                   </th>
                   <th className="px-4 py-3.5 min-w-[80px] text-center">
@@ -398,8 +710,8 @@ export default function TablasDiariasClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredData.length > 0 ? (
-                  filteredData.map((flight) => {
+                {sortedData.length > 0 ? (
+                  sortedData.map((flight) => {
                     const paxCount = flight.pasajeros_abordo || 0;
                     const paxMax = flight.capacidad_total || 100;
                     const paxPct = Math.round((paxCount / paxMax) * 100);
@@ -409,7 +721,7 @@ export default function TablasDiariasClient({
                       <tr key={flight.id} className="hover:bg-slate-50 transition-colors group">
                         <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-4 py-3 shadow-[2px_0_5px_rgba(0,0,0,0.02)] border-r border-slate-100">
                           <div className="flex items-center gap-3">
-                            <span className={`w-9 h-9 rounded-lg ${getAirlineColor(flight.aerolinea)} flex items-center justify-center font-bold text-[11px] shrink-0 uppercase`}>
+                            <span className={`w-9 h-9 rounded-lg ${getAirlineBadge(flight.aerolinea)} flex items-center justify-center font-bold text-[14px] shrink-0 uppercase`}>
                               {flight.numero_vuelo.split('-')[0]}
                             </span>
                             <div>
@@ -546,15 +858,15 @@ export default function TablasDiariasClient({
             className="absolute inset-0 bg-[#0A192F]/60 backdrop-blur-sm transition-opacity"
             onClick={() => setIsDrawerOpen(false)}
           ></div>
-          <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl z-10 transform transition-transform animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in-0 duration-300 flex flex-col gap-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl z-10 transform transition-transform animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in-0 duration-300 flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-primary">
                   <span className="material-symbols-outlined text-[20px]">edit_document</span>
                 </div>
                 <div>
-                  <h2 className="font-headline-sm text-[16px] font-bold text-primary">{editingFlight.numero_vuelo}</h2>
-                  <p className="font-body-sm text-[12px] text-slate-500">{editingFlight.origen} ➔ DAV</p>
+                  <h2 className="font-headline-sm text-[16px] font-bold text-primary">Editar Registro</h2>
+                  <p className="font-body-sm text-[12px] text-slate-500">ID: {editingFlight.id.slice(0,8)}...</p>
                 </div>
               </div>
               <button 
@@ -565,35 +877,94 @@ export default function TablasDiariasClient({
               </button>
             </div>
 
-            <form className="flex flex-col gap-4 pt-1" onSubmit={handleSaveEdit}>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real</label>
-                <input 
-                  className="h-12 px-4 bg-slate-50 text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none" 
-                  type="time" 
-                  required
-                  value={editFormData.hora_real}
-                  onChange={(e) => setEditFormData({...editFormData, hora_real: e.target.value})}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Pax Abordo</label>
-                  <input 
-                    className="h-12 px-4 bg-slate-50 text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none" 
-                    type="number" 
-                    min="0"
-                    max={editingFlight.capacidad_total || 160}
-                    required
-                    value={editFormData.pasajeros_abordo}
-                    onChange={(e) => setEditFormData({...editFormData, pasajeros_abordo: parseInt(e.target.value) || 0})}
-                  />
+            <div className="p-6 overflow-y-auto">
+              <form className="flex flex-col gap-5" onSubmit={handleSaveEdit}>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Fecha</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="date" required value={editFormData.fecha}
+                      onChange={(e) => setEditFormData({...editFormData, fecha: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Aerolínea</label>
+                    <select 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      required value={editFormData.aerolinea}
+                      onChange={(e) => setEditFormData({...editFormData, aerolinea: e.target.value})}
+                    >
+                      <option value="Air Panama">Air Panama</option>
+                      <option value="Copa Airlines">Copa Airlines</option>
+                    </select>
+                  </div>
                 </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="text" required value={editFormData.numero_vuelo}
+                      onChange={(e) => setEditFormData({...editFormData, numero_vuelo: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.hora_llegada_real ? 'Origen' : 'Destino'}</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="text" required 
+                      value={!!editingFlight.hora_llegada_real ? editFormData.origen : editFormData.destino}
+                      onChange={(e) => !!editingFlight.hora_llegada_real 
+                        ? setEditFormData({...editFormData, origen: e.target.value}) 
+                        : setEditFormData({...editFormData, destino: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Itin.</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="time" required value={editFormData.hora_itinerario}
+                      onChange={(e) => setEditFormData({...editFormData, hora_itinerario: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="time" required value={editFormData.hora_real}
+                      onChange={(e) => setEditFormData({...editFormData, hora_real: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Pasajeros</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="number" min="0" required value={editFormData.pasajeros_abordo}
+                      onChange={(e) => setEditFormData({...editFormData, pasajeros_abordo: parseInt(e.target.value) || 0})}
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Capacidad</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="number" min="0" required value={editFormData.capacidad_total}
+                      onChange={(e) => setEditFormData({...editFormData, capacidad_total: parseInt(e.target.value) || 0})}
+                    />
+                  </div>
+                </div>
+
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado</label>
+                  <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
                   <select 
-                    className="h-12 px-4 bg-slate-50 text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary outline-none" 
+                    className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                     value={editFormData.estado_final}
                     onChange={(e) => setEditFormData({...editFormData, estado_final: e.target.value})}
                   >
@@ -603,25 +974,185 @@ export default function TablasDiariasClient({
                     <option value="DESVIADO">Desviado</option>
                   </select>
                 </div>
+
+                <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-2">
+                  <button 
+                    className="flex-1 h-11 rounded-xl bg-slate-100 text-slate-600 font-bold active:scale-95 transition-transform" 
+                    onClick={() => setIsDrawerOpen(false)} 
+                    type="button"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    className="flex-1 h-11 rounded-xl bg-primary text-white font-bold shadow-md hover:bg-primary/90 active:scale-95 transition-transform flex items-center justify-center gap-2" 
+                    type="submit"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">save</span>
+                    <span>Guardar Cambios</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Agregar Vuelo */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">add_circle</span>
+                Agregar Registro de Vuelo
+              </h2>
+              <button onClick={() => setIsAddModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              <form onSubmit={handleAddFlightSubmit} className="flex flex-col gap-5">
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Tipo de Operación</label>
+                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.type} onChange={(e) => setAddFormData({...addFormData, type: e.target.value as any})} required>
+                      <option value="llegadas">Llegada a Malek</option>
+                      <option value="salidas">Salida de Malek</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Fecha (YYYY-MM-DD)</label>
+                    <input type="date" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.fecha} onChange={(e) => setAddFormData({...addFormData, fecha: e.target.value})} required />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Aerolínea</label>
+                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.aerolinea} onChange={(e) => setAddFormData({...addFormData, aerolinea: e.target.value})} required>
+                      <option value="Air Panama">Air Panama</option>
+                      <option value="Copa Airlines">Copa Airlines</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
+                    <input type="text" placeholder="Ej: 7P-972" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.numero_vuelo} onChange={(e) => setAddFormData({...addFormData, numero_vuelo: e.target.value})} required />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{addFormData.type === 'llegadas' ? 'Origen' : 'Destino'}</label>
+                    <input type="text" placeholder="Ej: PAC" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.type === 'llegadas' ? addFormData.origen : addFormData.destino} 
+                      onChange={(e) => addFormData.type === 'llegadas' ? setAddFormData({...addFormData, origen: e.target.value}) : setAddFormData({...addFormData, destino: e.target.value})} required />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
+                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.estado_final} onChange={(e) => setAddFormData({...addFormData, estado_final: e.target.value})} required>
+                      <option value="LLEGÓ">Llegó</option>
+                      <option value="CUMPLIDO">Cumplido</option>
+                      <option value="DEMORADO">Demorado</option>
+                      <option value="DESVIADO">Desviado</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Itinerario (HH:MM)</label>
+                    <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.hora_itinerario} onChange={(e) => setAddFormData({...addFormData, hora_itinerario: e.target.value})} required />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real (HH:MM)</label>
+                    <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.hora_real} onChange={(e) => setAddFormData({...addFormData, hora_real: e.target.value})} required />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Pasajeros</label>
+                    <input type="number" min="0" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.pasajeros_abordo} onChange={(e) => setAddFormData({...addFormData, pasajeros_abordo: parseInt(e.target.value)})} required />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Capacidad</label>
+                    <input type="number" min="0" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.capacidad_total} onChange={(e) => setAddFormData({...addFormData, capacidad_total: parseInt(e.target.value)})} required />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-2">
+                  <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 h-11 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="flex-1 h-11 rounded-xl bg-primary text-white font-bold shadow-md hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+                    <span className="material-symbols-outlined text-[18px]">save</span>
+                    Guardar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Importar Vuelos */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">upload_file</span>
+                Importar Vuelos Masivos
+              </h2>
+              <button onClick={() => setIsImportModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            
+            <div className="p-6 flex flex-col gap-6 items-center">
+              <div className="text-center space-y-2">
+                <h3 className="font-bold text-slate-800 text-[15px]">Arrastra tu archivo Excel o CSV</h3>
+                <p className="text-slate-500 text-sm leading-relaxed">
+                  Puedes importar registros históricos pasados arrastrando el documento aquí. Asegúrate de que las columnas coincidan con la plantilla oficial.
+                </p>
               </div>
 
-              <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                <button 
-                  className="flex-1 h-12 rounded-xl bg-slate-100 text-slate-600 font-semibold active:scale-95 transition-transform" 
-                  onClick={() => setIsDrawerOpen(false)} 
-                  type="button"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  className="flex-1 h-12 rounded-xl bg-primary text-white font-bold shadow-md hover:bg-primary/90 active:scale-95 transition-transform flex items-center justify-center gap-2" 
-                  type="submit"
-                >
-                  <span className="material-symbols-outlined text-[18px]">save</span>
-                  <span>Guardar</span>
-                </button>
+              <div className="relative w-full h-48 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 flex flex-col items-center justify-center gap-3 hover:border-primary hover:bg-primary/5 transition-colors group cursor-pointer">
+                <input 
+                  type="file" 
+                  accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={handleFileUpload}
+                  disabled={importing}
+                />
+                <div className={`flex flex-col items-center gap-2 ${importing ? 'animate-pulse' : ''}`}>
+                  <span className={`material-symbols-outlined text-4xl ${importing ? 'text-primary' : 'text-slate-400 group-hover:text-primary transition-colors'}`}>
+                    {importing ? 'hourglass_top' : 'cloud_upload'}
+                  </span>
+                  <span className="font-bold text-slate-600 text-sm group-hover:text-primary transition-colors">
+                    {importing ? 'Procesando archivo...' : 'Haz clic o arrastra aquí'}
+                  </span>
+                </div>
               </div>
-            </form>
+
+              <button 
+                onClick={handleDownloadTemplate} 
+                className="text-primary font-bold text-sm hover:underline flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                Descargar Plantilla de Ejemplo
+              </button>
+            </div>
           </div>
         </div>
       )}

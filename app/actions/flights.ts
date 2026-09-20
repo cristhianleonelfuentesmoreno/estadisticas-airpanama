@@ -315,3 +315,16 @@ export async function deleteSalidaMalek(id: string) {
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
+
+export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salidas') {
+  const supabase = getAdminSupabase();
+  const table = type === 'llegadas' ? 'llegadas_malek_historico' : 'salidas_malek_historico';
+  
+  const { error } = await supabase.from(table).insert(data);
+  if (error) {
+    console.error("Error bulk inserting to", table, ":", error);
+    return { success: false, error: error.message };
+  }
+  
+  return { success: true };
+}

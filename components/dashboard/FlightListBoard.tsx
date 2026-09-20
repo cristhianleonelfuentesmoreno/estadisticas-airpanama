@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 
 export function FlightListBoard() {
@@ -10,6 +10,7 @@ export function FlightListBoard() {
   // Filter & Modal State
   const [destinationFilter, setDestinationFilter] = useState<string>('TODOS');
   const [airlineFilter, setAirlineFilter] = useState<string>('TODOS');
+  const [statusFilter, setStatusFilter] = useState<string>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
@@ -33,7 +34,8 @@ export function FlightListBoard() {
   const filteredFlights = flights.filter(f => {
     const passDest = destinationFilter === 'TODOS' || f.destination === destinationFilter || f.origin === destinationFilter;
     const passAirline = airlineFilter === 'TODOS' || f.airline === airlineFilter;
-    return passDest && passAirline;
+    const passStatus = statusFilter === 'TODOS' || f.status === statusFilter;
+    return passDest && passAirline && passStatus;
   });
 
   // 2. Sort Flights
@@ -137,6 +139,26 @@ export function FlightListBoard() {
                 </button>
               ))}
             </div>
+
+            {/* Status Filter */}
+            <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit">
+              <span className="text-on-surface-variant text-[11px] font-bold px-2 uppercase tracking-wider">Estado:</span>
+              <button 
+                onClick={() => setStatusFilter('TODOS')}
+                className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${statusFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
+              >
+                Todos
+              </button>
+              {['A TIEMPO', 'ABORDANDO', 'EN VUELO', 'LLEGÓ'].map(status => (
+                <button 
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${statusFilter === status ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
           </div>
           
           <button 
@@ -221,15 +243,18 @@ export function FlightListBoard() {
 }
 
 function FlightCard({ flight }: { flight: FlightData }) {
-  // Determine status badge styling
-  let badgeClass = "bg-amber-100 text-amber-800 border-amber-200/50"; // default A TIEMPO, ABORDANDO
-  
-  if (flight.status === 'RETRASADO') {
-    badgeClass = "bg-error/15 text-error border-error/20";
-  } else if (flight.status === 'LLEGÓ') {
-    badgeClass = "bg-surface-container-high text-on-surface-variant border-white/10";
-  } else if (flight.status === 'EN VUELO') {
-    badgeClass = "bg-emerald-100 text-emerald-800 border-emerald-200/50";
+  const localStatus = flight.status;
+
+  // Determine status badge styling based on localStatus
+  let badgeClass = 'text-primary border-primary/20 bg-primary-container/10';
+  if (localStatus === 'RETRASADO') {
+    badgeClass = 'text-error border-error/20 bg-error-container/10';
+  } else if (localStatus === 'LLEGÓ') {
+    badgeClass = 'text-on-surface-variant border-white/10 bg-surface-container-high';
+  } else if (localStatus === 'EN VUELO') {
+    badgeClass = 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10';
+  } else if (localStatus === 'A TIEMPO') {
+    badgeClass = 'text-amber-500 border-amber-500/20 bg-amber-500/10';
   }
 
   // Format times
@@ -240,7 +265,7 @@ function FlightCard({ flight }: { flight: FlightData }) {
   const arrTimeStr = aTime.toLocaleTimeString('es-PA', timeOpts);
 
   // Plane color based on status
-  const planeColorClass = flight.status === 'LLEGÓ' ? 'text-primary' : 'text-error';
+  const planeColorClass = localStatus === 'LLEGÓ' ? 'text-primary' : 'text-error';
   // Progress clamping
   const progressPercent = Math.min(Math.max(flight.progress, 0), 100);
 
@@ -257,11 +282,12 @@ function FlightCard({ flight }: { flight: FlightData }) {
           <span className="font-label-md text-label-md font-medium text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-md border border-white/5">
             {flight.aircraft} ({flight.aircraftReg})
           </span>
-        </div>
-        
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-sm text-label-sm font-bold border uppercase whitespace-nowrap ${badgeClass}`}>
-          <div className={`w-2 h-2 rounded-full ${flight.status === 'LLEGÓ' ? 'bg-on-surface-variant' : 'bg-current'} ${flight.status === 'EN VUELO' ? 'animate-pulse' : ''}`}></div>
-          {flight.status}
+          
+          {/* Status Badge */}
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-sm text-label-sm font-bold border uppercase whitespace-nowrap shadow-sm ${badgeClass}`}>
+            <div className={`w-2 h-2 rounded-full bg-current ${localStatus === 'EN VUELO' ? 'animate-pulse' : ''}`}></div>
+            {localStatus}
+          </div>
         </div>
       </div>
 
