@@ -199,7 +199,10 @@ export function SettingsWidget() {
                   {/* Vista Previa */}
                   <div className="w-full md:w-1/2 flex flex-col gap-3">
                     <span className="font-label-md font-bold text-on-surface text-xs">Vista Previa ({activeTab === 'desktop' ? 'Computadora' : 'Celular'})</span>
-                    <div className={`w-full bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 shadow-inner relative transition-all ${activeTab === 'desktop' ? 'h-48' : 'h-[280px] w-[200px] mx-auto'}`}>
+                    <div 
+                      className="w-full bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 shadow-inner relative transition-all mx-auto"
+                      style={{ aspectRatio: activeTab === 'desktop' ? '550 / 500' : '390 / 220', maxWidth: activeTab === 'desktop' ? '280px' : '100%' }}
+                    >
                       <div 
                         className="absolute inset-0"
                         style={{
