@@ -36,7 +36,6 @@ export default function MenuOverlay() {
     { name: "Inicio (Dashboard)", href: "/dashboard", icon: Home },
     { name: "Tablas Diarias", href: "/dashboard/diario", icon: Table },
     { name: "Reportes Mensuales", href: "/dashboard/mensual", icon: BarChart2 },
-    { name: "Estadísticas", href: "/dashboard/estadisticas", icon: BarChart2 },
   ];
 
   return (

@@ -90,10 +90,9 @@ export default function DashboardLayoutShell({
   };
 
   const navLinks = [
-    { name: "Inicio", path: "/dashboard", icon: "dashboard" },
-    { name: "Tablas Diarias", path: "/dashboard/diario", icon: "table_chart" },
-    { name: "Reportes Mensuales", path: "/dashboard/mensual", icon: "calendar_month" },
-    { name: "Estadísticas", path: "/dashboard/estadisticas", icon: "query_stats" },
+    { name: "Inicio", path: "/dashboard", icon: "space_dashboard" },
+    { name: "Tablas", path: "/dashboard/diario", icon: "table_chart" },
+    { name: "Reportes", path: "/dashboard/mensual", icon: "event_note" },
   ];
 
   return (
