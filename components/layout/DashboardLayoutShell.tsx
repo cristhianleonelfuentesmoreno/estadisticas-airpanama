@@ -109,8 +109,8 @@ export default function DashboardLayoutShell({
           {/* Logo */}
           <div className="flex items-center gap-space-sm">
             <div className="flex items-center gap-space-xs">
-              <span className="font-headline-sm text-headline-sm font-bold tracking-tight text-on-primary">AirPanama</span>
-              <span className="hidden sm:inline-block px-1.5 py-0.5 rounded-full bg-secondary-container font-label-sm text-label-sm text-on-secondary uppercase">Ops</span>
+              <img src="/logo.png" alt="Air Panama Logo" className="w-8 h-8 object-contain drop-shadow-sm" />
+              <span className="font-headline-sm text-headline-sm font-black tracking-tighter text-on-primary italic">AirPanama</span>
             </div>
           </div>
 
@@ -157,8 +157,8 @@ export default function DashboardLayoutShell({
         <div className="w-full h-full px-8 flex items-center justify-between max-w-[1600px] mx-auto ml-[72px]">
           {/* Logo Desktop (Blanco) */}
           <div className="flex items-center gap-space-xs pointer-events-none">
-            <span className="font-headline-md text-headline-md font-bold tracking-tight text-on-primary">AirPanama</span>
-            <span className="px-1.5 py-0.5 rounded-full font-label-sm text-label-sm uppercase bg-secondary text-white">Ops</span>
+            <img src="/logo.png" alt="Air Panama Logo" className="w-10 h-10 object-contain drop-shadow-md" />
+            <span className="font-headline-md text-headline-md font-black tracking-tighter text-on-primary italic pr-2">AirPanama</span>
           </div>
           
           {/* User profile Desktop */}
