@@ -64,6 +64,8 @@ export default function TablasDiariasClient({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importWorkbook, setImportWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
   const [flightToDelete, setFlightToDelete] = useState<MalekFlight | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -334,6 +336,156 @@ export default function TablasDiariasClient({
     }
   };
 
+  const processExcelSheet = async (wb: XLSX.WorkBook, sheetName: string) => {
+    setImporting(true);
+    setIsSheetModalOpen(false);
+
+    try {
+      const ws = wb.Sheets[sheetName];
+      const data: any[] = XLSX.utils.sheet_to_json(ws, { raw: false });
+      
+      const llegadasToInsert = [];
+      const salidasToInsert = [];
+
+      for (const row of data) {
+        // Leer las columnas de AODB según la captura
+        const leg = row['Leg']?.toString().toLowerCase() || row['Tipo']?.toString().toLowerCase() || '';
+        const isLlegada = leg.includes('arrival') || leg.includes('llegada');
+        const isSalida = leg.includes('departure') || leg.includes('salida');
+        
+        if (!isLlegada && !isSalida) continue;
+
+        // Filtrar estrictamente solo Air Panama y Copa Airlines
+        let aerolinea = row['Airline']?.toString().trim() || row['Aerolínea']?.toString().trim();
+        if (aerolinea !== 'Air Panama' && aerolinea !== 'Copa Airlines') {
+          continue; // Se ignora cualquier otra aerolínea
+        }
+
+        // Extraer Fecha y Horas robustamente
+        let fechaStr = currentDateStr; // Fallback
+        let runwayTimeStr = '12:00';
+        let actualTimeStr = '12:00';
+
+        const rawRunway = (row['Runway Time'] || row['Runway time'] || row['Hora Itinerario'] || '').toString().trim();
+        const rawActual = (row['Actual Time (ATA/ATAD)'] || row['Actual Time'] || row['Actual time'] || row['Hora Real'] || rawRunway).toString().trim();
+
+        // Si rawRunway viene como "08/01/2026 12:33" (MM/DD/YYYY HH:mm)
+        if (rawRunway.includes(' ')) {
+          const parts = rawRunway.split(' ');
+          const dParts = parts[0].split('/'); // MM/DD/YYYY
+          if (dParts.length === 3) {
+            fechaStr = `${dParts[2]}-${dParts[0].padStart(2, '0')}-${dParts[1].padStart(2, '0')}`; // YYYY-MM-DD
+          }
+          runwayTimeStr = parts[1];
+        } else if (rawRunway) {
+          runwayTimeStr = rawRunway;
+        }
+
+        if (rawActual.includes(' ')) {
+          actualTimeStr = rawActual.split(' ')[1];
+        } else if (rawActual) {
+          actualTimeStr = rawActual;
+        }
+
+        // Fallback por si la fecha venía en otra columna (como Date)
+        if (!rawRunway.includes(' ')) {
+          let fallbackDate = (row['Date'] || row['Fecha'] || '').toString().trim();
+          if (fallbackDate && fallbackDate.includes('/')) {
+            const months: any = { 'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06', 'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12' };
+            const parts = fallbackDate.split('/');
+            if (parts.length === 3) {
+              const day = parts[0].padStart(2, '0');
+              const month = months[parts[1].toLowerCase()] || parts[1].padStart(2, '0');
+              const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+              fechaStr = `${year}-${month}-${day}`;
+            }
+          } else if (fallbackDate) {
+            fechaStr = fallbackDate;
+          }
+        }
+        
+        // Parsear Número de Vuelo
+        let rawFlight = (row['Flight'] || row['Vuelo'] || '').toString().trim().toUpperCase();
+        rawFlight = rawFlight.replace(' ', '-'); // "CM 030" -> "CM-030"
+        
+        if (aerolinea === 'Air Panama' && rawFlight.startsWith('7P') && !rawFlight.includes('-')) {
+          rawFlight = rawFlight.replace('7P', '7P-');
+        } else if (aerolinea === 'Copa Airlines') {
+          if (rawFlight.startsWith('CMP')) rawFlight = rawFlight.replace('CMP', 'CM-');
+          if (rawFlight.startsWith('CM') && !rawFlight.includes('-')) rawFlight = rawFlight.replace('CM', 'CM-');
+          
+          // Pad flight number with zero if it's too short, ej: CM-14 -> CM-014
+          const parts = rawFlight.split('-');
+          if (parts.length === 2 && parts[1].length < 3) {
+            parts[1] = parts[1].padStart(3, '0');
+            rawFlight = `${parts[0]}-${parts[1]}`;
+          }
+        }
+        
+        const itinDate = new Date(`${fechaStr}T${runwayTimeStr}:00-05:00`);
+        const realDate = new Date(`${fechaStr}T${actualTimeStr}:00-05:00`);
+
+        // Calcular estado básico basado en retraso (>15 mins = DEMORADO)
+        const diffMins = (realDate.getTime() - itinDate.getTime()) / 60000;
+        let estadoFinal = 'LLEGÓ';
+        if (diffMins > 15) estadoFinal = 'DEMORADO';
+
+        const record: any = {
+          fecha: fechaStr,
+          aerolinea: aerolinea,
+          numero_vuelo: rawFlight,
+          hora_itinerario: itinDate.toISOString(),
+          estado_final: row['Estado'] || estadoFinal,
+          pasajeros_abordo: Number(row['Pax'] || row['Pasajeros']) || 0,
+          capacidad_total: aerolinea === 'Air Panama' ? 78 : 160 // Valor por defecto
+        };
+
+        // Extra (si existe en base de datos futura, no hace daño enviarlo, se ignora si no existe)
+        if (row['Reg']) record.matricula = row['Reg'];
+
+        const od = row['O/D'] || row['Origen'] || row['Destino'] || 'PAC';
+
+        if (isLlegada) {
+          record.origen = od;
+          record.hora_llegada_real = realDate.toISOString();
+          llegadasToInsert.push(record);
+        } else {
+          record.destino = od;
+          record.hora_salida_real = realDate.toISOString();
+          salidasToInsert.push(record);
+        }
+      }
+
+      let totalInserted = 0;
+      let totalSkipped = 0;
+      if (llegadasToInsert.length > 0) {
+        const res = await insertFlightRecords(llegadasToInsert, 'llegadas');
+        if (res.success) {
+          totalInserted += res.inserted || 0;
+          totalSkipped += res.skipped || 0;
+        }
+      }
+      if (salidasToInsert.length > 0) {
+        const res = await insertFlightRecords(salidasToInsert, 'salidas');
+        if (res.success) {
+          totalInserted += res.inserted || 0;
+          totalSkipped += res.skipped || 0;
+        }
+      }
+
+      let msg = `Importación completada:\n- ${totalInserted} vuelos nuevos agregados.`;
+      if (totalSkipped > 0) msg += `\n- ${totalSkipped} vuelos omitidos (ya existían en el sistema).`;
+      alert(msg);
+      window.location.reload();
+    } catch (err: any) {
+      console.error("Error importando Excel:", err);
+      alert("Error procesando archivo. Verifica el formato. Detalles: " + err.message);
+    } finally {
+      setImporting(false);
+      setImportWorkbook(null);
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -344,145 +496,19 @@ export default function TablasDiariasClient({
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data: any[] = XLSX.utils.sheet_to_json(ws, { raw: false });
         
-        const llegadasToInsert = [];
-        const salidasToInsert = [];
-
-        for (const row of data) {
-          // Leer las columnas de AODB según la captura
-          const leg = row['Leg']?.toString().toLowerCase() || row['Tipo']?.toString().toLowerCase() || '';
-          const isLlegada = leg.includes('arrival') || leg.includes('llegada');
-          const isSalida = leg.includes('departure') || leg.includes('salida');
-          
-          if (!isLlegada && !isSalida) continue;
-
-          // Filtrar estrictamente solo Air Panama y Copa Airlines
-          let aerolinea = row['Airline']?.toString().trim() || row['Aerolínea']?.toString().trim();
-          if (aerolinea !== 'Air Panama' && aerolinea !== 'Copa Airlines') {
-            continue; // Se ignora cualquier otra aerolínea
-          }
-
-          // Extraer Fecha y Horas robustamente
-          let fechaStr = currentDateStr; // Fallback
-          let runwayTimeStr = '12:00';
-          let actualTimeStr = '12:00';
-
-          const rawRunway = (row['Runway Time'] || row['Runway time'] || row['Hora Itinerario'] || '').toString().trim();
-          const rawActual = (row['Actual Time (ATA/ATAD)'] || row['Actual Time'] || row['Actual time'] || row['Hora Real'] || rawRunway).toString().trim();
-
-          // Si rawRunway viene como "08/01/2026 12:33" (MM/DD/YYYY HH:mm)
-          if (rawRunway.includes(' ')) {
-            const parts = rawRunway.split(' ');
-            const dParts = parts[0].split('/'); // MM/DD/YYYY
-            if (dParts.length === 3) {
-              fechaStr = `${dParts[2]}-${dParts[0].padStart(2, '0')}-${dParts[1].padStart(2, '0')}`; // YYYY-MM-DD
-            }
-            runwayTimeStr = parts[1];
-          } else if (rawRunway) {
-            runwayTimeStr = rawRunway;
-          }
-
-          if (rawActual.includes(' ')) {
-            actualTimeStr = rawActual.split(' ')[1];
-          } else if (rawActual) {
-            actualTimeStr = rawActual;
-          }
-
-          // Fallback por si la fecha venía en otra columna (como Date)
-          if (!rawRunway.includes(' ')) {
-            let fallbackDate = (row['Date'] || row['Fecha'] || '').toString().trim();
-            if (fallbackDate && fallbackDate.includes('/')) {
-              const months: any = { 'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06', 'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12' };
-              const parts = fallbackDate.split('/');
-              if (parts.length === 3) {
-                const day = parts[0].padStart(2, '0');
-                const month = months[parts[1].toLowerCase()] || parts[1].padStart(2, '0');
-                const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-                fechaStr = `${year}-${month}-${day}`;
-              }
-            } else if (fallbackDate) {
-              fechaStr = fallbackDate;
-            }
-          }
-          
-          // Parsear Número de Vuelo
-          let rawFlight = (row['Flight'] || row['Vuelo'] || '').toString().trim().toUpperCase();
-          rawFlight = rawFlight.replace(' ', '-'); // "CM 030" -> "CM-030"
-          
-          if (aerolinea === 'Air Panama' && rawFlight.startsWith('7P') && !rawFlight.includes('-')) {
-            rawFlight = rawFlight.replace('7P', '7P-');
-          } else if (aerolinea === 'Copa Airlines') {
-            if (rawFlight.startsWith('CMP')) rawFlight = rawFlight.replace('CMP', 'CM-');
-            if (rawFlight.startsWith('CM') && !rawFlight.includes('-')) rawFlight = rawFlight.replace('CM', 'CM-');
-            
-            // Pad flight number with zero if it's too short, ej: CM-14 -> CM-014
-            const parts = rawFlight.split('-');
-            if (parts.length === 2 && parts[1].length < 3) {
-              parts[1] = parts[1].padStart(3, '0');
-              rawFlight = `${parts[0]}-${parts[1]}`;
-            }
-          }
-          
-          const itinDate = new Date(`${fechaStr}T${runwayTimeStr}:00-05:00`);
-          const realDate = new Date(`${fechaStr}T${actualTimeStr}:00-05:00`);
-
-          // Calcular estado básico basado en retraso (>15 mins = DEMORADO)
-          const diffMins = (realDate.getTime() - itinDate.getTime()) / 60000;
-          let estadoFinal = 'LLEGÓ';
-          if (diffMins > 15) estadoFinal = 'DEMORADO';
-
-          const record: any = {
-            fecha: fechaStr,
-            aerolinea: aerolinea,
-            numero_vuelo: rawFlight,
-            hora_itinerario: itinDate.toISOString(),
-            estado_final: row['Estado'] || estadoFinal,
-            pasajeros_abordo: Number(row['Pax'] || row['Pasajeros']) || 0,
-            capacidad_total: aerolinea === 'Air Panama' ? 78 : 160 // Valor por defecto
-          };
-
-          // Extra (si existe en base de datos futura, no hace daño enviarlo, se ignora si no existe)
-          if (row['Reg']) record.matricula = row['Reg'];
-
-          const od = row['O/D'] || row['Origen'] || row['Destino'] || 'PAC';
-
-          if (isLlegada) {
-            record.origen = od;
-            record.hora_llegada_real = realDate.toISOString();
-            llegadasToInsert.push(record);
-          } else {
-            record.destino = od;
-            record.hora_salida_real = realDate.toISOString();
-            salidasToInsert.push(record);
-          }
+        if (wb.SheetNames.length > 1) {
+          // Hay más de 1 pestaña, mostramos el modal para que el usuario seleccione
+          setImportWorkbook(wb);
+          setIsSheetModalOpen(true);
+          setImporting(false); // Pausamos el spinner de carga de importación global mientras selecciona
+        } else {
+          // Si solo hay 1 pestaña, la importamos directamente
+          await processExcelSheet(wb, wb.SheetNames[0]);
         }
-
-        let totalInserted = 0;
-        let totalSkipped = 0;
-        if (llegadasToInsert.length > 0) {
-          const res = await insertFlightRecords(llegadasToInsert, 'llegadas');
-          if (res.success) {
-            totalInserted += res.inserted || 0;
-            totalSkipped += res.skipped || 0;
-          }
-        }
-        if (salidasToInsert.length > 0) {
-          const res = await insertFlightRecords(salidasToInsert, 'salidas');
-          if (res.success) {
-            totalInserted += res.inserted || 0;
-            totalSkipped += res.skipped || 0;
-          }
-        }
-
-        let msg = `Importación completada:\n- ${totalInserted} vuelos nuevos agregados.`;
-        if (totalSkipped > 0) msg += `\n- ${totalSkipped} vuelos omitidos (ya existían en el sistema).`;
-        alert(msg);
-        window.location.reload();
       } catch (err: any) {
-        console.error("Error importando Excel:", err);
-        alert("Error procesando archivo. Verifica el formato. Detalles: " + err.message);
+        console.error("Error leyendo Excel:", err);
+        alert("Error procesando archivo. Detalles: " + err.message);
         setImporting(false);
       }
     };
@@ -1247,6 +1273,51 @@ export default function TablasDiariasClient({
                 className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
               >
                 Sí, Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Seleccionar Pestaña de Excel */}
+      {isSheetModalOpen && importWorkbook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden transform transition-all">
+            <div className="p-6 border-b border-surface-variant/30 flex items-center gap-3">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                <span className="material-symbols-outlined text-[24px]">dataset</span>
+              </div>
+              <h3 className="text-xl font-title-lg font-bold text-on-surface">Seleccionar Pestaña</h3>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-sm font-body-sm text-on-surface-variant mb-4">
+                El archivo de Excel contiene múltiples pestañas. ¿Cuál de estas deseas importar a la base de datos?
+              </p>
+              
+              <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {importWorkbook.SheetNames.map(sheet => (
+                  <button
+                    key={sheet}
+                    onClick={() => processExcelSheet(importWorkbook, sheet)}
+                    className="flex items-center justify-between p-3 rounded-2xl border border-surface-variant/50 hover:border-blue-500 hover:bg-blue-50 text-left transition-all group"
+                  >
+                    <span className="font-label-lg font-semibold text-on-surface group-hover:text-blue-700">{sheet}</span>
+                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-blue-500 transition-transform group-hover:translate-x-1">chevron_right</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex bg-surface-container-low border-t border-black/5 p-4 gap-3">
+              <button 
+                onClick={() => {
+                  setIsSheetModalOpen(false);
+                  setImportWorkbook(null);
+                }}
+                className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors"
+              >
+                Cancelar
               </button>
             </div>
           </div>
