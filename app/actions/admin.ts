@@ -78,6 +78,23 @@ export async function updateUserCargo(userId: string, cargo: string | null) {
   return { success: true };
 }
 
+export async function updateUserName(userId: string, nombre: string | null) {
+  const supabase = await createClient();
+  
+  const { data: authData } = await supabase.auth.getUser();
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (perfil?.role !== "administrador") return { error: "No autorizado" };
+
+  const { error } = await supabase
+    .from("perfiles")
+    .update({ nombre: nombre || null })
+    .eq("id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export async function deleteUserAction(userId: string) {

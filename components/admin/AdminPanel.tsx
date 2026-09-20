@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction } from "@/app/actions/admin";
+import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction, updateUserName } from "@/app/actions/admin";
 import { toast } from "sonner";
 
 export interface User {
@@ -24,12 +24,14 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
   const [tempStatus, setTempStatus] = useState<User['status']>('pendiente');
   const [tempRole, setTempRole] = useState<User['role']>('usuario');
   const [tempCargo, setTempCargo] = useState<string>('');
+  const [tempNombre, setTempNombre] = useState<string>('');
 
   const openEditModal = (user: User) => {
     setEditingUser(user);
     setTempStatus(user.status);
     setTempRole(user.role);
     setTempCargo(user.cargo || '');
+    setTempNombre(user.nombre || '');
   };
 
   const handleSave = async () => {
@@ -41,6 +43,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       if (tempStatus !== editingUser.status) promises.push(updateUserStatus(editingUser.id, tempStatus));
       if (tempRole !== editingUser.role) promises.push(updateUserRole(editingUser.id, tempRole));
       if (tempCargo !== (editingUser.cargo || '')) promises.push(updateUserCargo(editingUser.id, tempCargo));
+      if (tempNombre !== (editingUser.nombre || '')) promises.push(updateUserName(editingUser.id, tempNombre));
 
       await Promise.all(promises);
 
@@ -49,7 +52,8 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
         ...u, 
         status: tempStatus, 
         role: tempRole, 
-        cargo: tempCargo 
+        cargo: tempCargo,
+        nombre: tempNombre
       } : u));
 
       // Mensaje estético
@@ -266,6 +270,18 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
                     tempStatus === 'aprobado' ? 'translate-x-7' : 'translate-x-1'
                   }`} />
                 </button>
+              </div>
+
+              {/* Nombre */}
+              <div className="flex flex-col gap-2">
+                <label className="font-label-md font-bold text-on-surface">Nombre Completo</label>
+                <input 
+                  type="text"
+                  value={tempNombre}
+                  onChange={(e) => setTempNombre(e.target.value)}
+                  placeholder="Ej. Juan Pérez"
+                  className="h-12 px-4 rounded-xl bg-surface-container text-on-surface font-label-md focus:outline-none focus:ring-2 ring-primary/20 placeholder:text-on-surface-variant/50"
+                />
               </div>
 
               {/* Rol */}
