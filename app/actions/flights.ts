@@ -262,7 +262,7 @@ export async function saveCompletedMalekFlights() {
       origen: f.origin,
       hora_itinerario: `${today}T${f.arrivalTimeLocal}:00-05:00`,
       hora_llegada_real: `${today}T${f.arrivalTimeLocal}:00-05:00`,
-      estado_final: f.status,
+      estado_final: f.status === 'ARRIBO' ? 'LLEGÓ' : f.status,
       pasajeros_abordo: f.paxCount,
       capacidad_total: f.paxMax
     }));
@@ -341,7 +341,7 @@ export async function saveCompletedMalekDepartures() {
       destino: f.destination,
       hora_itinerario: `${today}T${f.departureTimeLocal}:00-05:00`,
       hora_salida_real: `${today}T${f.departureTimeLocal}:00-05:00`,
-      estado_final: f.status,
+      estado_final: f.status === 'ARRIBO' ? 'LLEGÓ' : f.status,
       pasajeros_abordo: f.paxCount,
       capacidad_total: f.paxMax
     }));

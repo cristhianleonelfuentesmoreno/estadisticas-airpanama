@@ -81,7 +81,7 @@ export default function TablasDiariasClient({
     fecha: currentDateStr,
     hora_itinerario: '',
     hora_real: '',
-    estado_final: 'ARRIBO',
+    estado_final: 'LLEGÓ',
     pasajeros_abordo: 0,
     capacidad_total: 78,
     avion: 'DH8D'
@@ -146,7 +146,7 @@ export default function TablasDiariasClient({
   }, [initialData, viewType]);
 
   const totalFlights = activeDataList.length;
-  const aTiempo = activeDataList.filter(f => f.estado_final === "ARRIBO" || f.estado_final === "CUMPLIDO").length;
+  const aTiempo = activeDataList.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
 
   const filteredData = useMemo(() => {
     return activeDataList.filter(flight => {
@@ -466,7 +466,7 @@ export default function TablasDiariasClient({
 
         // Calcular estado básico basado en retraso (>15 mins = DEMORADO)
         const diffMins = (realDate.getTime() - itinDate.getTime()) / 60000;
-        let estadoFinal = 'ARRIBO';
+        let estadoFinal = 'LLEGÓ';
         if (diffMins > 15) estadoFinal = 'DEMORADO';
 
         const record: any = {
@@ -892,7 +892,7 @@ export default function TablasDiariasClient({
                         <td className="px-4 py-3">
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800">
                             <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                            {flight.estado_final}
+                            {flight.estado_final === 'LLEGÓ' ? 'ARRIBO' : flight.estado_final}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -1081,7 +1081,7 @@ export default function TablasDiariasClient({
                     value={editFormData.estado_final}
                     onChange={(e) => setEditFormData({...editFormData, estado_final: e.target.value})}
                   >
-                    <option value="ARRIBO">Arribo</option>
+                    <option value="LLEGÓ">Arribo</option>
                     <option value="CUMPLIDO">Cumplido</option>
                     <option value="DEMORADO">Demorado</option>
                     <option value="DESVIADO">Desviado</option>
@@ -1186,7 +1186,7 @@ export default function TablasDiariasClient({
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.estado_final} onChange={(e) => setAddFormData({...addFormData, estado_final: e.target.value})} required>
-                      <option value="ARRIBO">Arribo</option>
+                      <option value="LLEGÓ">Arribo</option>
                       <option value="CUMPLIDO">Cumplido</option>
                       <option value="DEMORADO">Demorado</option>
                       <option value="DESVIADO">Desviado</option>
