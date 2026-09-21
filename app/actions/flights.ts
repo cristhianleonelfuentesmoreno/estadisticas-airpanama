@@ -13,7 +13,7 @@ export interface FlightData {
   arrivalTime: string;
   departureTimeLocal: string;
   arrivalTimeLocal: string;
-  status: 'A TIEMPO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'LLEGÓ';
+  status: 'PROGRAMADO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'LLEGÓ';
   gate: string;
   pilot: string;
   paxCount: number;
@@ -38,52 +38,88 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
   // El itinerario real transcrito directamente de la imagen + Simulados de Copa
   const itinerary = [
     // --- AIR PANAMA: AVION DH8D HP-1997 ---
-    { num: '972', dep: '13:30', arr: '14:45', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 21, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    // { num: '973', dep: '14:45', arr: '16:00', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'IRIS PEREIRA/ YASLIN SANTAMARIA', pax: 70, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    { num: '982', dep: '16:00', arr: '17:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'BOC', desName: 'Bocas del Toro', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 30, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    { num: '983', dep: '17:15', arr: '18:45', ori: 'BOC', oriName: 'Bocas del Toro', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'JAVIER SANCHEZ/ KRYSTEL CEDEÑO', pax: 70, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    // { num: '970', dep: '18:45', arr: '19:45', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'RUDY NIETO/ ADAM ALMENGOR', pax: 11, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    // { num: '971', dep: '19:45', arr: '20:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'JAVIER SANCHEZ/ KRYSTEL CEDEÑO', pax: 28, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+    { num: '670', dep: '07:00', arr: '08:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'MARIO RODRIGUEZ/ EDUARDO HERRERA', pax: 25, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+    { num: '671', dep: '08:30', arr: '09:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'IRIS PEREIRA/ BIANCA HIDALGO', pax: 34, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+    { num: '970', dep: '16:15', arr: '17:30', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'MARIO RODRIGUEZ/ EDUARDO HERRERA', pax: 16, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+    { num: '971', dep: '17:30', arr: '18:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'YESSICA QUINTERO/ KRYSTEL CEDEÑO', pax: 59, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
 
-    // --- AIR PANAMA: AVION FK50 HP-1891 ---
-    { num: '680', dep: '06:45', arr: '08:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'BOC', desName: 'Bocas del Toro', pilot: 'ALEX CASTRO/ PEDRO RODRIGUEZ', pax: 4, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
-    { num: '681', dep: '08:15', arr: '09:45', ori: 'BOC', oriName: 'Bocas del Toro', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'MILAGROS PEREZ', pax: 36, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
-    { num: '682', dep: '09:45', arr: '11:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'BOC', desName: 'Bocas del Toro', pilot: 'ALEX CASTRO/ PEDRO RODRIGUEZ', pax: 41, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
-    { num: '683', dep: '11:15', arr: '12:45', ori: 'BOC', oriName: 'Bocas del Toro', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'MILAGROS PEREZ', pax: 50, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
-    { num: '980', dep: '12:45', arr: '14:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'BOC', desName: 'Bocas del Toro', pilot: 'DIMAS PALACIOS/ TAIRENA SIERRA', pax: 26, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
-    { num: '981', dep: '14:15', arr: '15:45', ori: 'BOC', oriName: 'Bocas del Toro', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'YESSICA QUINTERO', pax: 50, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
-    { num: '950', dep: '16:30', arr: '17:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'CTD', desName: 'Chitré', pilot: 'DIMAS PALACIOS/ TAIRENA SIERRA', pax: 16, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
-    { num: '951', dep: '17:15', arr: '18:00', ori: 'CTD', oriName: 'Chitré', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'YESSICA QUINTERO', pax: 24, max: 50, type: 'FK50', reg: 'HP-1891', airline: 'Air Panama' },
+    // --- AIR PANAMA: AVION C-208 HP-1993 (Tramos DAV) ---
+    { num: '693', dep: '10:50', arr: '11:30', ori: 'BOC', oriName: 'Bocas del Toro', des: 'DAV', desName: 'David (Malek)', pilot: 'JORGE CANO/ JERRY WAITE', pax: 4, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
+    { num: '692', dep: '11:55', arr: '12:35', ori: 'DAV', oriName: 'David (Malek)', des: 'BOC', desName: 'Bocas del Toro', pilot: 'JORGE CANO/ JERRY WAITE', pax: 4, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
 
-    // --- AIR PANAMA: AVION C-208 HP-1993 (CHARTER) ---
-    { num: '6601', dep: '10:00', arr: '11:20', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'PUE', desName: 'Puerto Obaldia', pilot: 'FELIX MORALES / MARIAFELIZA SARRIA', pax: 8, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-    { num: '6600', dep: '11:20', arr: '13:00', ori: 'PUE', oriName: 'Puerto Obaldia', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'FELIX MORALES / MARIAFELIZA SARRIA', pax: 6, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-    { num: '9901', dep: '13:00', arr: '13:40', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'SIC', desName: 'San José', pilot: 'FELIX MORALES / MARIAFELIZA SARRIA', pax: 12, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-    { num: '9900', dep: '13:40', arr: '14:10', ori: 'SIC', oriName: 'San José', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'FELIX MORALES / MARIAFELIZA SARRIA', pax: 12, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-    { num: '9903', dep: '14:10', arr: '14:50', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'SIC', desName: 'San José', pilot: 'FELIX MORALES / MARIAFELIZA SARRIA', pax: 10, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-    { num: '9902', dep: '14:50', arr: '15:30', ori: 'SIC', oriName: 'San José', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'FELIX MORALES / MARIAFELIZA SARRIA', pax: 10, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-
-    // --- COPA AIRLINES (Simulados para David) ---
-    { num: '011', dep: '07:45', arr: '08:50', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA 1', pax: 145, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
-    { num: '012', dep: '09:20', arr: '10:25', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA 1', pax: 155, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
-    // { num: '013', dep: '15:15', arr: '16:20', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA 2', pax: 130, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
-    // { num: '014', dep: '17:00', arr: '18:05', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA 2', pax: 120, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
+    // --- COPA AIRLINES ---
+    { num: '013', dep: '06:30', arr: '07:45', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 140, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
+    { num: '011', dep: '08:26', arr: '09:39', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 155, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
+    { num: '017', dep: '07:55', arr: '09:10', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 145, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
+    { num: '018', dep: '09:50', arr: '11:03', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 130, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
+    { num: '028', dep: '17:53', arr: '19:17', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 135, max: 160, type: 'B738', reg: 'HP-1534CMP', airline: 'Copa Airlines' },
+    { num: '030', dep: '19:57', arr: '21:10', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 150, max: 160, type: 'B738', reg: 'HP-1534CMP', airline: 'Copa Airlines' },
   ];
 
+  // 1. Time Guard & API Fetching (AeroAPI)
+  let aeroApiData: any[] = [];
+  const panamaTimeStr = now.toLocaleString("en-US", { timeZone: "America/Panama", hour12: false, hour: 'numeric' });
+  const panamaHour = parseInt(panamaTimeStr, 10);
+
+  // Solo consultar a FlightAware entre 06:00 AM y 08:00 PM (inclusive)
+  if (panamaHour >= 6 && panamaHour <= 20) {
+    try {
+      const apiKey = process.env.FLIGHTAWARE_API_KEY;
+      if (apiKey) {
+        // Next.js Data Cache: Revalidar cada 1800 segundos (30 minutos)
+        // Garantiza máximo 1 consulta cada 30 min sin importar cuántos usuarios entren
+        const fetchConfig = {
+          headers: { 'x-apikey': apiKey },
+          next: { revalidate: 1800 }
+        };
+        
+        // Consultar salidas y llegadas de MPDA (Enrique Malek, David)
+        const [depRes, arrRes] = await Promise.all([
+          fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/departures', fetchConfig),
+          fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/arrivals', fetchConfig)
+        ]);
+        
+        if (depRes.ok && arrRes.ok) {
+          const depData = await depRes.json();
+          const arrData = await arrRes.json();
+          aeroApiData = [...(depData.departures || []), ...(arrData.arrivals || [])];
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching AeroAPI:", error);
+    }
+  }
+
   const flights: FlightData[] = itinerary.map((flight) => {
-    const depDate = parseTime(flight.dep);
-    const arrDate = parseTime(flight.arr);
+    let depDate = parseTime(flight.dep);
+    let arrDate = parseTime(flight.arr);
     
     // Si la llegada es matemáticamente menor a la salida, significa que cruza la medianoche
     if (arrDate < depDate) {
       arrDate.setDate(arrDate.getDate() + 1);
     }
 
+    // 2. Merge con datos de AeroAPI (si existen)
+    const icaoPrefix = flight.airline === 'Copa Airlines' ? 'CMP' : 'PNC';
+    const iataPrefix = flight.airline === 'Copa Airlines' ? 'CM' : '7P';
+    const targetIdents = [`${icaoPrefix}${flight.num}`, `${iataPrefix}${flight.num}`, flight.num];
+    
+    const apiMatch = aeroApiData.find(f => targetIdents.includes(f.ident) || targetIdents.includes(f.flight_number));
+    
+    if (apiMatch) {
+      // Usar los tiempos reales/estimados de FlightAware si están disponibles
+      if (apiMatch.estimated_departure_time) depDate = new Date(apiMatch.estimated_departure_time);
+      else if (apiMatch.scheduled_departure_time) depDate = new Date(apiMatch.scheduled_departure_time);
+      
+      if (apiMatch.estimated_arrival_time) arrDate = new Date(apiMatch.estimated_arrival_time);
+      else if (apiMatch.scheduled_arrival_time) arrDate = new Date(apiMatch.scheduled_arrival_time);
+    }
+
     const totalDurationMs = arrDate.getTime() - depDate.getTime();
     const elapsedMs = now.getTime() - depDate.getTime();
     
     let progress = 0;
-    let status: FlightData['status'] = 'A TIEMPO';
+    let status: FlightData['status'] = 'PROGRAMADO';
     
     // Logica de calculo de estado en base a la hora actual
     if (elapsedMs < 0) {
@@ -93,7 +129,7 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
       if (Math.abs(elapsedMs) <= 30 * 60000) {
         status = 'ABORDANDO';
       } else {
-        status = 'A TIEMPO';
+        status = 'PROGRAMADO';
       }
     } else if (elapsedMs >= totalDurationMs) {
       // Ya llegó

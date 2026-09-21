@@ -44,7 +44,7 @@ export function FlightListBoard() {
     switch (status) {
       case 'EN VUELO': return 1;
       case 'ABORDANDO': return 2;
-      case 'A TIEMPO': return 3;
+      case 'PROGRAMADO': return 3;
       case 'RETRASADO': return 3;
       case 'LLEGÓ': return 4;
       default: return 5;
@@ -59,8 +59,8 @@ export function FlightListBoard() {
     return new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime();
   });
 
-  // 3. Limit visible flights on the dashboard (e.g., top 4)
-  const visibleFlights = sortedFlights.slice(0, 4);
+  // 3. Limit visible flights on the dashboard (e.g., top 12)
+  const visibleFlights = sortedFlights.slice(0, 12);
 
   if (loading) {
     return (
@@ -84,8 +84,10 @@ export function FlightListBoard() {
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Próximos Vuelos</h2>
               <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container rounded-full border border-white/5">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
-                <span className="font-label-sm text-label-sm font-bold text-on-surface-variant">Hoy</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="font-label-sm text-label-sm font-bold text-on-surface-variant">
+                  Hoy, {new Date().toLocaleDateString('es-PA', { day: 'numeric', month: 'short' })}
+                </span>
               </div>
               
               {/* Dest Filter */}
@@ -149,7 +151,7 @@ export function FlightListBoard() {
               >
                 Todos
               </button>
-              {['A TIEMPO', 'ABORDANDO', 'EN VUELO', 'LLEGÓ'].map(status => (
+              {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'LLEGÓ'].map(status => (
                 <button 
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -194,10 +196,13 @@ export function FlightListBoard() {
           {visibleFlights.map(flight => (
             <FlightCard key={flight.id} flight={flight} />
           ))}
-          {sortedFlights.length > 4 && (
-             <div className="text-center pt-2 pb-4">
-               <button onClick={() => setIsModalOpen(true)} className="text-on-surface-variant text-label-md font-bold hover:text-secondary">
-                 +{sortedFlights.length - 4} vuelos ocultos. Clic para ver todos.
+          {sortedFlights.length > 12 && (
+          <div className="text-center pt-2 pb-4">
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="px-6 py-2 rounded-full bg-white/5 hover:bg-white/10 text-secondary text-sm font-medium transition-colors border border-white/5"
+            >
+              +{sortedFlights.length - 12} vuelos ocultos. Clic para ver todos.
                </button>
              </div>
           )}
@@ -253,7 +258,7 @@ function FlightCard({ flight }: { flight: FlightData }) {
     badgeClass = 'text-on-surface-variant border-white/10 bg-surface-container-high';
   } else if (localStatus === 'EN VUELO') {
     badgeClass = 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10';
-  } else if (localStatus === 'A TIEMPO') {
+  } else if (localStatus === 'PROGRAMADO') {
     badgeClass = 'text-amber-500 border-amber-500/20 bg-amber-500/10';
   }
 
