@@ -28,6 +28,11 @@ const FALLBACK_CONFIGS: Record<string, ApiConfig> = {
     id: 'flightradar24',
     api_key: process.env.FLIGHTRADAR24_API_KEY || '',
     is_active: true
+  },
+  gemini: {
+    id: 'gemini',
+    api_key: process.env.GEMINI_API_KEY || '',
+    is_active: true
   }
 };
 

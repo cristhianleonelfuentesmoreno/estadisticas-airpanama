@@ -14,6 +14,9 @@ export function ApiManagementWidget() {
   const [frKey, setFrKey] = useState("");
   const [frActive, setFrActive] = useState(true);
 
+  const [geminiKey, setGeminiKey] = useState("");
+  const [geminiActive, setGeminiActive] = useState(true);
+
   const loadConfigs = async () => {
     try {
       const configs = await getApiConfigs();
@@ -24,6 +27,10 @@ export function ApiManagementWidget() {
       if (configs.flightradar24) {
         setFrKey(configs.flightradar24.api_key);
         setFrActive(configs.flightradar24.is_active);
+      }
+      if (configs.gemini) {
+        setGeminiKey(configs.gemini.api_key);
+        setGeminiActive(configs.gemini.is_active);
       }
     } catch (e) {
       console.error(e);
@@ -42,6 +49,7 @@ export function ApiManagementWidget() {
     try {
       await saveApiConfig('flightaware', faKey, faActive);
       await saveApiConfig('flightradar24', frKey, frActive);
+      await saveApiConfig('gemini', geminiKey, geminiActive);
       toast.success("Configuración de APIs guardada correctamente");
       setIsOpen(false);
     } catch (error: any) {
@@ -159,6 +167,42 @@ export function ApiManagementWidget() {
                   <div className="flex items-center gap-1.5 mt-1 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
                     <span className="material-symbols-outlined text-[16px] text-emerald-600">monitoring</span>
                     <span className="font-label-sm text-xs text-emerald-700 dark:text-emerald-400 font-medium">Consumo estimado: ~26,000 / 60,000 créditos (Caché optimizada)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Google Gemini */}
+              <div className="flex flex-col gap-4 p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/30">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-label-lg font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-purple-500 text-[20px]">smart_toy</span>
+                    Google Gemini (Extracción IA)
+                  </h3>
+                  <label className="flex items-center cursor-pointer">
+                    <div className="relative">
+                      <input type="checkbox" className="sr-only" checked={geminiActive} onChange={(e) => setGeminiActive(e.target.checked)} />
+                      <div className={`block w-14 h-8 rounded-full transition-colors ${geminiActive ? 'bg-primary' : 'bg-surface-variant'}`}></div>
+                      <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${geminiActive ? 'transform translate-x-6' : ''}`}></div>
+                    </div>
+                  </label>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="font-label-md font-bold text-on-surface-variant">API Key</label>
+                  <input 
+                    type="password"
+                    autoComplete="new-password"
+                    name="gemini_api_key_ignore"
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    spellCheck="false"
+                    value={geminiKey}
+                    onChange={(e) => setGeminiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full h-12 px-4 rounded-xl bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 ring-primary/20 placeholder:text-on-surface-variant/50"
+                  />
+                  <div className="flex items-center gap-1.5 mt-1 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
+                    <span className="material-symbols-outlined text-[16px] text-emerald-600">monitoring</span>
+                    <span className="font-label-sm text-xs text-emerald-700 dark:text-emerald-400 font-medium">Costo: ~$0.00002 por foto analizada (Gratis hasta 1,500 fotos/día)</span>
                   </div>
                 </div>
               </div>

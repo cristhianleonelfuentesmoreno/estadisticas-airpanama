@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { addMultipleManualFlights, ManualFlightInput } from "@/app/actions/manualFlights";
+import { parseItineraryImage } from "@/app/actions/imageParser";
 import * as Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -13,10 +14,11 @@ interface Props {
 }
 
 export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
-  const [activeTab, setActiveTab] = useState<'upload' | 'manual'>('upload');
+  const [activeTab, setActiveTab] = useState<'image' | 'upload' | 'manual'>('image');
   const [loading, setLoading] = useState(false);
   const [fileData, setFileData] = useState<ManualFlightInput[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Manual Form State
   const [fNum, setFNum] = useState("");
@@ -54,6 +56,38 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
       reader.readAsBinaryString(file);
     } else {
       toast.error("Formato no soportado. Sube un CSV o Excel (.xlsx)");
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setLoading(true);
+    const toastId = toast.loading("Analizando imagen con IA...");
+    
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Image = reader.result as string;
+        try {
+          const flights = await parseItineraryImage(base64Image);
+          if (flights && flights.length > 0) {
+            setFileData(flights as any); // Reusing fileData for parsed flights
+            toast.success(`Se encontraron ${flights.length} vuelos en la imagen.`, { id: toastId });
+          } else {
+            toast.error("No se encontraron vuelos válidos en la imagen.", { id: toastId });
+          }
+        } catch (error: any) {
+          toast.error(error.message, { id: toastId });
+        } finally {
+          setLoading(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (e) {
+      toast.error("Error leyendo la imagen", { id: toastId });
+      setLoading(false);
     }
   };
 
@@ -159,7 +193,13 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-outline-variant/20 px-6">
+        <div className="flex border-b border-outline-variant/20">
+          <button 
+            onClick={() => setActiveTab('image')}
+            className={`py-4 px-4 font-label-md font-bold text-sm border-b-2 transition-colors ${activeTab === 'image' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
+          >
+            Subir Fotografía (IA)
+          </button>
           <button 
             onClick={() => setActiveTab('upload')}
             className={`py-4 px-4 font-label-md font-bold text-sm border-b-2 transition-colors ${activeTab === 'upload' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
@@ -176,7 +216,48 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {activeTab === 'upload' ? (
+          
+          {activeTab === 'image' && (
+            <div className="flex flex-col gap-4">
+              <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-on-surface-variant text-sm flex gap-3">
+                <span className="material-symbols-outlined text-purple-500">auto_awesome</span>
+                <p>
+                  Sube una foto o pantallazo del itinerario. La Inteligencia Artificial analizará la imagen y extraerá automáticamente los vuelos estructurados, sin importar el formato.
+                </p>
+              </div>
+              
+              <div 
+                className={`w-full h-32 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${loading ? 'border-primary/50 bg-primary/5' : 'border-outline-variant hover:bg-surface-container hover:border-primary'}`}
+                onClick={() => !loading && imageInputRef.current?.click()}
+              >
+                {loading ? (
+                  <span className="material-symbols-outlined text-3xl text-primary animate-spin">sync</span>
+                ) : (
+                  <span className="material-symbols-outlined text-3xl text-on-surface-variant">add_photo_alternate</span>
+                )}
+                <span className="font-label-md font-bold text-on-surface">
+                  {loading ? 'Procesando con IA...' : 'Click para subir fotografía'}
+                </span>
+                <input type="file" className="hidden" ref={imageInputRef} accept="image/png, image/jpeg, image/jpg, image/webp" onChange={handleImageUpload} />
+              </div>
+
+              {fileData.length > 0 && (
+                <div className="mt-2 flex flex-col gap-2">
+                  <h4 className="font-label-md font-bold text-on-surface flex justify-between items-center">
+                    <span>Vista Previa ({fileData.length} vuelos detectados)</span>
+                    <button onClick={() => setFileData([])} className="text-xs text-error hover:underline">Borrar resultados</button>
+                  </h4>
+                  <div className="bg-surface-container p-3 rounded-xl max-h-40 overflow-y-auto text-sm font-mono flex flex-col gap-1">
+                    {fileData.map((f, i) => (
+                      <div key={i}>✨ {f.airline} {f.flightNumber} | {f.origin} ➡️ {f.destination} ({f.departureTimeLocal} - {f.arrivalTimeLocal})</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'upload' && (
             <div className="flex flex-col gap-4">
               <div className="p-4 rounded-2xl bg-primary-container/20 border border-primary/20 text-on-surface-variant text-sm flex gap-3">
                 <span className="material-symbols-outlined text-primary">info</span>
@@ -207,7 +288,9 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                 </div>
               )}
             </div>
-          ) : (
+          )}
+
+          {activeTab === 'manual' && (
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-bold text-on-surface-variant uppercase">Aerolínea</label>
@@ -250,14 +333,14 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
             Cancelar
           </button>
           
-          {activeTab === 'upload' ? (
+          {(activeTab === 'upload' || activeTab === 'image') ? (
             <button 
               onClick={handleSaveFile}
               disabled={loading || fileData.length === 0}
               className="px-6 py-2.5 rounded-full font-label-md font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
             >
               {loading ? <span className="material-symbols-outlined animate-spin text-[18px]">sync</span> : <span className="material-symbols-outlined text-[18px]">save</span>}
-              Guardar Archivo
+              Guardar Vuelos
             </button>
           ) : (
             <button 
