@@ -110,7 +110,6 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
                   </button>
                 ))}
               </div>
-            </div>
 
             {isAdmin && (
               <button
