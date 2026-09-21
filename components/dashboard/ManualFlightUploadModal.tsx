@@ -212,6 +212,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                       <th className="px-4 py-3">Aerolínea</th>
                       <th className="px-4 py-3">Vuelo</th>
                       <th className="px-4 py-3">Ruta</th>
+                      <th className="px-4 py-3">Avión</th>
                       <th className="px-4 py-3">Horario</th>
                     </tr>
                   </thead>
@@ -224,6 +225,16 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                           <span className="bg-surface-variant/50 px-2 py-0.5 rounded text-xs">{f.origin}</span>
                           <span className="mx-2 text-on-surface-variant/50">→</span>
                           <span className="bg-surface-variant/50 px-2 py-0.5 rounded text-xs">{f.destination}</span>
+                        </td>
+                        <td className="px-4 py-3 text-on-surface-variant">
+                          {f.aircraft || f.aircraftReg ? (
+                            <div className="flex flex-col">
+                              <span>{f.aircraft || ''}</span>
+                              <span className="text-xs text-on-surface-variant/70">{f.aircraftReg || ''}</span>
+                            </div>
+                          ) : (
+                            <span className="italic opacity-50">-</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-on-surface-variant">
                           {f.departureTimeLocal} - {f.arrivalTimeLocal}
