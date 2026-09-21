@@ -22,6 +22,7 @@ export interface FlightData {
   airline: string; // <-- Nuevo campo para diferenciar
   progress: number; // 0 to 100
   durationStr: string;
+  trackingLink?: string;
 }
 
 export async function getUpcomingFlights(): Promise<FlightData[]> {
@@ -35,84 +36,151 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
     return date;
   };
 
-  // El itinerario real transcrito directamente de la imagen + Simulados de Copa
-  const itinerary = [
-    // --- AIR PANAMA: AVION DH8D HP-1997 ---
-    { num: '670', dep: '07:00', arr: '08:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'MARIO RODRIGUEZ/ EDUARDO HERRERA', pax: 25, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    { num: '671', dep: '08:30', arr: '09:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'IRIS PEREIRA/ BIANCA HIDALGO', pax: 34, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    { num: '970', dep: '16:15', arr: '17:30', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'MARIO RODRIGUEZ/ EDUARDO HERRERA', pax: 16, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-    { num: '971', dep: '17:30', arr: '18:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'YESSICA QUINTERO/ KRYSTEL CEDEÑO', pax: 59, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+  const { getManualFlightsForToday } = await import('./manualFlights');
+  const manualFlights = await getManualFlightsForToday();
+  
+  // El itinerario real transcrito directamente de la imagen + Simulados de Copa (como fallback si la BD está vacía o no existe)
+  let itinerary = manualFlights.map(f => ({
+    num: f.flightNumber,
+    dep: f.departureTimeLocal,
+    arr: f.arrivalTimeLocal,
+    ori: f.origin,
+    oriName: f.originName,
+    des: f.destination,
+    desName: f.destinationName,
+    pilot: f.pilot,
+    pax: f.paxCount,
+    max: f.paxMax,
+    type: f.aircraft,
+    reg: f.aircraftReg,
+    airline: f.airline
+  }));
 
-    // --- AIR PANAMA: AVION C-208 HP-1993 (Tramos DAV) ---
-    { num: '693', dep: '10:50', arr: '11:30', ori: 'BOC', oriName: 'Bocas del Toro', des: 'DAV', desName: 'David (Malek)', pilot: 'JORGE CANO/ JERRY WAITE', pax: 4, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-    { num: '692', dep: '11:55', arr: '12:35', ori: 'DAV', oriName: 'David (Malek)', des: 'BOC', desName: 'Bocas del Toro', pilot: 'JORGE CANO/ JERRY WAITE', pax: 4, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
+  if (itinerary.length === 0) {
+    itinerary = [
+      // --- AIR PANAMA: AVION DH8D HP-1997 ---
+      { num: '670', dep: '07:00', arr: '08:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'MARIO RODRIGUEZ/ EDUARDO HERRERA', pax: 25, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+      { num: '671', dep: '08:30', arr: '09:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'IRIS PEREIRA/ BIANCA HIDALGO', pax: 34, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+      { num: '970', dep: '16:15', arr: '17:30', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'MARIO RODRIGUEZ/ EDUARDO HERRERA', pax: 16, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+      { num: '971', dep: '17:30', arr: '18:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'YESSICA QUINTERO/ KRYSTEL CEDEÑO', pax: 59, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
+  
+      // --- AIR PANAMA: AVION C-208 HP-1993 (Tramos DAV) ---
+      { num: '693', dep: '10:50', arr: '11:30', ori: 'BOC', oriName: 'Bocas del Toro', des: 'DAV', desName: 'David (Malek)', pilot: 'JORGE CANO/ JERRY WAITE', pax: 4, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
+      { num: '692', dep: '11:55', arr: '12:35', ori: 'DAV', oriName: 'David (Malek)', des: 'BOC', desName: 'Bocas del Toro', pilot: 'JORGE CANO/ JERRY WAITE', pax: 4, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
+  
+      // --- COPA AIRLINES ---
+      { num: '013', dep: '06:30', arr: '07:45', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 140, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
+      { num: '011', dep: '08:26', arr: '09:39', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 155, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
+      { num: '017', dep: '07:55', arr: '09:10', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 145, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
+      { num: '018', dep: '09:50', arr: '11:03', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 130, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
+      { num: '028', dep: '17:53', arr: '19:17', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 135, max: 160, type: 'B738', reg: 'HP-1534CMP', airline: 'Copa Airlines' },
+      { num: '030', dep: '19:57', arr: '21:10', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 150, max: 160, type: 'B738', reg: 'HP-1534CMP', airline: 'Copa Airlines' },
+    ];
+  }
 
-    // --- COPA AIRLINES ---
-    { num: '013', dep: '06:30', arr: '07:45', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 140, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
-    { num: '011', dep: '08:26', arr: '09:39', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 155, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
-    { num: '017', dep: '07:55', arr: '09:10', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 145, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
-    { num: '018', dep: '09:50', arr: '11:03', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 130, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
-    { num: '028', dep: '17:53', arr: '19:17', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 135, max: 160, type: 'B738', reg: 'HP-1534CMP', airline: 'Copa Airlines' },
-    { num: '030', dep: '19:57', arr: '21:10', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 150, max: 160, type: 'B738', reg: 'HP-1534CMP', airline: 'Copa Airlines' },
-  ];
+  // 1. Fetch API Configs
+  const { getApiConfigs } = await import('./apiConfig');
+  const apiConfigs = await getApiConfigs();
+  const faConfig = apiConfigs.flightaware;
+  const fr24Config = apiConfigs.flightradar24;
 
-  // 1. Time Guard & API Fetching (AeroAPI)
   let aeroApiData: any[] = [];
+  let fr24ApiData: any[] = [];
+
   const panamaTimeStr = now.toLocaleString("en-US", { timeZone: "America/Panama", hour12: false, hour: 'numeric' });
   const panamaHour = parseInt(panamaTimeStr, 10);
 
-  // Solo consultar a FlightAware entre 06:00 AM y 08:00 PM (inclusive)
+  // Solo consultar APIs entre 06:00 AM y 08:00 PM (inclusive)
   if (panamaHour >= 6 && panamaHour <= 20) {
-    try {
-      const apiKey = process.env.FLIGHTAWARE_API_KEY;
-      if (apiKey) {
-        // Next.js Data Cache: Revalidar cada 1800 segundos (30 minutos)
-        // Garantiza máximo 1 consulta cada 30 min sin importar cuántos usuarios entren
-        const fetchConfig = {
-          headers: { 'x-apikey': apiKey },
-          next: { revalidate: 1800 }
-        };
-        
-        // Consultar salidas y llegadas de MPDA (Enrique Malek, David)
-        const [depRes, arrRes] = await Promise.all([
-          fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/departures', fetchConfig),
-          fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/arrivals', fetchConfig)
-        ]);
-        
-        if (depRes.ok && arrRes.ok) {
-          const depData = await depRes.json();
-          const arrData = await arrRes.json();
-          aeroApiData = [...(depData.departures || []), ...(arrData.arrivals || [])];
+    const promises: Promise<void>[] = [];
+
+    // Tarea 1: FlightAware (Para Copa)
+    if (faConfig?.is_active && faConfig?.api_key) {
+      promises.push((async () => {
+        try {
+          const fetchConfig = {
+            headers: { 'x-apikey': faConfig.api_key },
+            next: { revalidate: 1800 }
+          };
+          const [depRes, arrRes] = await Promise.all([
+            fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/departures', fetchConfig),
+            fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/arrivals', fetchConfig)
+          ]);
+          if (depRes.ok && arrRes.ok) {
+            const depData = await depRes.json();
+            const arrData = await arrRes.json();
+            aeroApiData = [...(depData.departures || []), ...(arrData.arrivals || [])];
+          }
+        } catch (error) {
+          console.error("Error fetching FlightAware:", error);
         }
-      }
-    } catch (error) {
-      console.error("Error fetching AeroAPI:", error);
+      })());
     }
+
+    // Tarea 2: FlightRadar24 (Para Air Panama)
+    if (fr24Config?.is_active && fr24Config?.api_key) {
+      promises.push((async () => {
+        try {
+          const fetchConfig = {
+            headers: { 
+              'Accept': 'application/json',
+              'Accept-Version': 'v1',
+              'Authorization': `Bearer ${fr24Config.api_key}`
+            },
+            next: { revalidate: 1800 }
+          };
+          const res = await fetch('https://fr24api.flightradar24.com/api/live/flight-positions/full?airports=MPDA', fetchConfig);
+          if (res.ok) {
+            const data = await res.json();
+            fr24ApiData = data.data || [];
+          }
+        } catch (error) {
+          console.error("Error fetching FlightRadar24:", error);
+        }
+      })());
+    }
+
+    await Promise.all(promises);
   }
 
   const flights: FlightData[] = itinerary.map((flight) => {
     let depDate = parseTime(flight.dep);
     let arrDate = parseTime(flight.arr);
     
-    // Si la llegada es matemáticamente menor a la salida, significa que cruza la medianoche
     if (arrDate < depDate) {
       arrDate.setDate(arrDate.getDate() + 1);
     }
 
-    // 2. Merge con datos de AeroAPI (si existen)
-    const icaoPrefix = flight.airline === 'Copa Airlines' ? 'CMP' : 'PNC';
-    const iataPrefix = flight.airline === 'Copa Airlines' ? 'CM' : '7P';
-    const targetIdents = [`${icaoPrefix}${flight.num}`, `${iataPrefix}${flight.num}`, flight.num];
-    
-    const apiMatch = aeroApiData.find(f => targetIdents.includes(f.ident) || targetIdents.includes(f.flight_number));
-    
-    if (apiMatch) {
-      // Usar los tiempos reales/estimados de FlightAware si están disponibles
-      if (apiMatch.estimated_departure_time) depDate = new Date(apiMatch.estimated_departure_time);
-      else if (apiMatch.scheduled_departure_time) depDate = new Date(apiMatch.scheduled_departure_time);
+    let trackingLink = '';
+
+    // 2. Merge con datos de APIs
+    if (flight.airline === 'Copa Airlines') {
+      const targetIdents = [`CMP${flight.num}`, `CM${flight.num}`, flight.num];
+      const apiMatch = aeroApiData.find(f => targetIdents.includes(f.ident) || targetIdents.includes(f.flight_number));
       
-      if (apiMatch.estimated_arrival_time) arrDate = new Date(apiMatch.estimated_arrival_time);
-      else if (apiMatch.scheduled_arrival_time) arrDate = new Date(apiMatch.scheduled_arrival_time);
+      if (apiMatch) {
+        if (apiMatch.estimated_departure_time) depDate = new Date(apiMatch.estimated_departure_time);
+        else if (apiMatch.scheduled_departure_time) depDate = new Date(apiMatch.scheduled_departure_time);
+        
+        if (apiMatch.estimated_arrival_time) arrDate = new Date(apiMatch.estimated_arrival_time);
+        else if (apiMatch.scheduled_arrival_time) arrDate = new Date(apiMatch.scheduled_arrival_time);
+        
+        trackingLink = `https://flightaware.com/live/flight/${apiMatch.ident}`;
+      } else {
+        trackingLink = `https://flightaware.com/live/flight/CMP${flight.num}`;
+      }
+    } else if (flight.airline === 'Air Panama') {
+      const targetIdents = [`PNC${flight.num}`, `7P${flight.num}`, flight.num];
+      // En FR24, el callsign a veces viene en 'callsign' o 'flight'
+      const apiMatch = fr24ApiData.find(f => targetIdents.includes(f.callsign) || targetIdents.includes(f.flight));
+
+      if (apiMatch) {
+        // En FR24, times are in seconds (unix timestamp) if they exist. Actually this is live positions endpoint, so it has current position.
+        // Let's just create the tracking link
+        trackingLink = `https://www.flightradar24.com/${apiMatch.callsign}/${apiMatch.id}`;
+      } else {
+        trackingLink = `https://www.flightradar24.com/data/flights/7p${flight.num}`;
+      }
     }
 
     const totalDurationMs = arrDate.getTime() - depDate.getTime();
@@ -169,7 +237,8 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
       flightType: 'REGULAR',
       airline: flight.airline,
       progress,
-      durationStr
+      durationStr,
+      trackingLink
     };
   });
 

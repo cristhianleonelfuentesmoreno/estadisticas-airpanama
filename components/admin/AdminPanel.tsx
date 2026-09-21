@@ -5,6 +5,8 @@ import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction, up
 import { toast } from "sonner";
 
 import { SettingsWidget } from "./SettingsWidget";
+import { ApiManagementWidget } from "./ApiManagementWidget";
+import { ManualFlightUploadWidget } from "./ManualFlightUploadWidget";
 import { DispositivosPanel } from "./DispositivosPanel";
 import { AuditoriaPanel } from "./AuditoriaPanel";
 
@@ -110,9 +112,13 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
   return (
     <div className="flex flex-col gap-6 md:gap-8">
       {/* ========================================= */}
-      {/* WIDGET DE CONFIGURACIÓN                   */}
+      {/* WIDGET DE CONFIGURACIÓN Y APIs            */}
       {/* ========================================= */}
-      <SettingsWidget />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <SettingsWidget />
+        <ApiManagementWidget />
+        <ManualFlightUploadWidget />
+      </div>
 
       {/* ========================================= */}
       {/* TARJETA DE RESUMEN E HISTÓRICO            */}

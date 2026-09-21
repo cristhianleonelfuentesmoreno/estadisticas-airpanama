@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useRef } from "react";
 import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
+import { ManualFlightUploadModal } from "./ManualFlightUploadModal";
 
-export function FlightListBoard() {
+export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -12,6 +13,7 @@ export function FlightListBoard() {
   const [airlineFilter, setAirlineFilter] = useState<string>('TODOS');
   const [statusFilter, setStatusFilter] = useState<string>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -108,6 +110,17 @@ export function FlightListBoard() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {isAdmin && (
+              <button
+                onClick={() => setIsManualModalOpen(true)}
+                className="mt-2 sm:mt-0 flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-label-md font-bold rounded-full shadow-sm hover:bg-primary/90 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                Cargar Itinerario
+              </button>
+            )}
 
               {/* Source API Link */}
               <a 
@@ -243,6 +256,20 @@ export function FlightListBoard() {
           </div>
         </div>
       )}
+
+      {/* Manual Upload Modal */}
+      <ManualFlightUploadModal 
+        isOpen={isManualModalOpen} 
+        onClose={() => setIsManualModalOpen(false)} 
+        onSuccess={() => {
+          // Trigger a reload
+          const reload = async () => {
+            const data = await getUpcomingFlights();
+            setFlights(data);
+          };
+          reload();
+        }} 
+      />
     </>
   );
 }
@@ -293,6 +320,24 @@ function FlightCard({ flight }: { flight: FlightData }) {
             <div className={`w-2 h-2 rounded-full bg-current ${localStatus === 'EN VUELO' ? 'animate-pulse' : ''}`}></div>
             {localStatus}
           </div>
+          
+          {flight.trackingLink ? (
+            <a 
+              href={flight.trackingLink} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="ml-2 px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest border border-white/10 rounded-full font-label-sm text-label-sm font-bold text-secondary flex items-center gap-1 transition-colors"
+              title="Ver en Radar"
+            >
+              <span className="material-symbols-outlined text-[14px]">radar</span>
+              Radar
+            </a>
+          ) : (
+            <div className="ml-2 px-2.5 py-1 bg-surface-container-low border border-outline-variant/30 rounded-full font-label-sm text-label-sm font-bold text-on-surface-variant flex items-center gap-1">
+              <span className="material-symbols-outlined text-[14px]">fact_check</span>
+              Registrado
+            </div>
+          )}
         </div>
       </div>
 

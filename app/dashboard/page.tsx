@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [userName, setUserName] = useState("Cargando...");
   const [userCargo, setUserCargo] = useState("...");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
   
   // Dashboard Metrics State
@@ -42,10 +43,13 @@ export default function DashboardPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: perfil } = await supabase.from('perfiles').select('nombre, cargo').eq('id', user.id).single();
+        const { data: perfil } = await supabase.from('perfiles').select('nombre, cargo, role').eq('id', user.id).single();
         if (perfil) {
           setUserName(perfil.nombre || user.email?.split('@')[0] || "Usuario");
           setUserCargo(perfil.cargo || "Sin cargo asignado");
+          if (perfil.role === 'administrador') {
+            setIsAdmin(true);
+          }
         }
       }
     };
@@ -192,7 +196,7 @@ export default function DashboardPage() {
 
 {/*  Scheduled Flight Feed  */}
 <div className="pt-space-xs pb-space-lg">
-<FlightListBoard />
+<FlightListBoard isAdmin={isAdmin} />
 </div>
 </div>
 {/*  Interactive Modal Drawer for Quick Flight Log (Micro-Interaction)  */}
