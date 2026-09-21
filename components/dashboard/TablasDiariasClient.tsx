@@ -19,6 +19,8 @@ interface MalekFlight {
   pasajeros_abordo: number;
   capacidad_total: number;
   avion?: string;
+  hora_salida_itinerario?: string;
+  hora_llegada_itinerario?: string;
 }
 
 const AIRCRAFT_MODELS = [
@@ -195,7 +197,7 @@ export default function TablasDiariasClient({
     if (!isoString) return '--:--';
     try {
       const date = new Date(isoString);
-      return date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Panama' });
     } catch {
       return '--:--';
     }
@@ -205,9 +207,7 @@ export default function TablasDiariasClient({
     if (!isoString) return '00:00';
     try {
       const date = new Date(isoString);
-      const h = date.getHours().toString().padStart(2, '0');
-      const m = date.getMinutes().toString().padStart(2, '0');
-      return `${h}:${m}`;
+      return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'America/Panama' });
     } catch {
       return '00:00';
     }
@@ -496,24 +496,24 @@ export default function TablasDiariasClient({
       }
 
       let totalInserted = 0;
-      let totalSkipped = 0;
+      let totalUpdated = 0;
       if (llegadasToInsert.length > 0) {
         const res = await insertFlightRecords(llegadasToInsert, 'llegadas');
         if (res.success) {
           totalInserted += res.inserted || 0;
-          totalSkipped += res.skipped || 0;
+          totalUpdated += res.updated || 0;
         }
       }
       if (salidasToInsert.length > 0) {
         const res = await insertFlightRecords(salidasToInsert, 'salidas');
         if (res.success) {
           totalInserted += res.inserted || 0;
-          totalSkipped += res.skipped || 0;
+          totalUpdated += res.updated || 0;
         }
       }
 
       let msg = `Importación completada: ${totalInserted} vuelos nuevos agregados.`;
-      if (totalSkipped > 0) msg += ` ${totalSkipped} vuelos omitidos (ya existían).`;
+      if (totalUpdated > 0) msg += ` ${totalUpdated} vuelos actualizados.`;
       
       setImportResult({ show: true, type: 'success', message: msg });
       setImporting(false);
@@ -837,17 +837,36 @@ export default function TablasDiariasClient({
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex flex-col gap-1 w-[120px]">
-                            <div className="flex items-center justify-between text-[13px]">
-                              <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Itinerario">
-                                {formatTime(flight.hora_itinerario || (isLlegada ? flight.hora_llegada_real : flight.hora_salida_real))}
-                              </span>
-                              <span className="material-symbols-outlined text-[14px] text-slate-300">arrow_right_alt</span>
-                              <span className="font-bold text-slate-800" title="Hora Real">
-                                {formatTime(isLlegada ? flight.hora_llegada_real : flight.hora_salida_real)}
-                              </span>
+                          <div className="flex flex-col gap-2 w-[160px]">
+                            {/* Línea de Salida */}
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Salida</span>
+                              <div className="flex items-center justify-between text-[13px]">
+                                <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Salida Itinerario">
+                                  {formatTime(flight.hora_salida_itinerario)}
+                                </span>
+                                <span className="material-symbols-outlined text-[14px] text-slate-300 mx-1">arrow_right_alt</span>
+                                <span className="font-bold text-slate-800" title="Salida Real">
+                                  {formatTime(!isLlegada ? flight.hora_salida_real : flight.hora_salida_itinerario)}
+                                </span>
+                              </div>
                             </div>
                             
+                            {/* Línea de Llegada */}
+                            <div className="flex flex-col gap-0.5 border-t border-slate-100 pt-1">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Llegada</span>
+                              <div className="flex items-center justify-between text-[13px]">
+                                <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Llegada Itinerario">
+                                  {formatTime(flight.hora_llegada_itinerario)}
+                                </span>
+                                <span className="material-symbols-outlined text-[14px] text-slate-300 mx-1">arrow_right_alt</span>
+                                <span className="font-bold text-slate-800" title="Llegada Real">
+                                  {formatTime(isLlegada ? flight.hora_llegada_real : flight.hora_llegada_itinerario)}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-1">
                             {(() => {
                               const realStr = isLlegada ? flight.hora_llegada_real : flight.hora_salida_real;
                               const itinStr = flight.hora_itinerario || realStr;
@@ -878,6 +897,7 @@ export default function TablasDiariasClient({
                                 </>
                               );
                             })()}
+                          </div>
                           </div>
                         </td>
                         <td className="px-4 py-3">

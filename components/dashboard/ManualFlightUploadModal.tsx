@@ -16,9 +16,11 @@ interface Props {
 export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const [activeTab, setActiveTab] = useState<'image' | 'upload' | 'manual'>('image');
   const [loading, setLoading] = useState(false);
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
   const [fileData, setFileData] = useState<ManualFlightInput[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
   const todayStr = new Date(todayPanama).toISOString().split('T')[0];
@@ -70,7 +72,19 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
     if (!file) return;
     
     setLoading(true);
+    setLoadingSeconds(0);
+    // Start a timer to show elapsed time
+    loadingTimerRef.current = setInterval(() => {
+      setLoadingSeconds(prev => prev + 1);
+    }, 1000);
     const toastId = toast.loading("Analizando imagen con IA...");
+    
+    const stopTimer = () => {
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+    };
     
     try {
       const reader = new FileReader();
@@ -79,22 +93,42 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
         try {
           const flights = await parseItineraryImage(base64Image, targetDate, selectedAirline);
           if (flights && flights.length > 0) {
-            setFileData(flights as any); // Reusing fileData for parsed flights
+            setFileData(flights as any);
             toast.success(`Se encontraron ${flights.length} vuelos en la imagen.`, { id: toastId });
           } else {
             toast.error("No se encontraron vuelos válidos en la imagen.", { id: toastId });
           }
         } catch (error: any) {
-          toast.error(error.message, { id: toastId });
+          const isTimeout = (error.message || "").includes(">35s") || (error.message || "").includes("sobrecargada");
+          toast.error(
+            isTimeout
+              ? "La IA tardó demasiado. Gemini está sobrecargado — espera 1-2 minutos e intenta de nuevo."
+              : error.message,
+            { id: toastId, duration: 8000 }
+          );
         } finally {
+          stopTimer();
           setLoading(false);
         }
       };
       reader.readAsDataURL(file);
     } catch (e) {
       toast.error("Error leyendo la imagen", { id: toastId });
+      stopTimer();
       setLoading(false);
     }
+  };
+
+  const handleCancelAnalysis = () => {
+    if (loadingTimerRef.current) {
+      clearInterval(loadingTimerRef.current);
+      loadingTimerRef.current = null;
+    }
+    setLoading(false);
+    setLoadingSeconds(0);
+    toast.dismiss();
+    // Reset the file input so the same file can be selected again
+    if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
   const processParsedData = (data: any[]) => {
@@ -177,7 +211,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-surface/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl bg-surface-container-lowest rounded-[28px] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-2xl bg-surface-container-lowest rounded-[28px] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[92vh]">
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/20">
@@ -205,8 +239,19 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                   </p>
                 </div>
               </div>
-              <div className="bg-surface-container rounded-2xl border border-outline-variant/30 flex flex-col flex-1 overflow-hidden">
-                <div className="overflow-y-auto flex-1 min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {/* Barra de resumen + indicador de scroll */}
+              <div className="flex items-center justify-between px-3 py-2 bg-surface-container-high rounded-xl border border-outline-variant/20">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-primary">airplane_ticket</span>
+                  <span className="text-[12px] font-bold text-on-surface">{fileData.length} vuelos · {fileData[0]?.flightDate?.substring(0,7)}</span>
+                </div>
+                <div className="flex items-center gap-1 text-on-surface-variant/60">
+                  <span className="material-symbols-outlined text-[14px]">swipe_vertical</span>
+                  <span className="text-[11px]">Desliza para ver todos</span>
+                </div>
+              </div>
+              <div className="bg-surface-container rounded-2xl border border-outline-variant/30 flex flex-col overflow-hidden" style={{ maxHeight: '420px' }}>
+                <div className="overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'thin', scrollbarColor: 'var(--md-sys-color-outline-variant) transparent' }}>
                   <table className="w-full text-left text-sm relative">
                     <thead className="bg-surface-container-high text-on-surface-variant font-label-sm uppercase sticky top-0 z-10 shadow-sm border-b border-outline-variant/20">
                       <tr>
@@ -359,25 +404,53 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                     <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} className="h-10 px-3 bg-surface-container-high rounded-lg border border-outline-variant/30 text-sm focus:ring-1 focus:ring-primary" />
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-on-surface-variant text-sm flex gap-3">
-                    <span className="material-symbols-outlined text-purple-500">auto_awesome</span>
+                  <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-on-surface-variant text-sm flex gap-3">
+                    <span className="material-symbols-outlined text-blue-500">document_scanner</span>
                     <p>
-                      Sube una foto o pantallazo del itinerario. La Inteligencia Artificial analizará la imagen y extraerá automáticamente los vuelos estructurados, sin importar el formato.
+                      {selectedAirline === 'copa'
+                        ? <><strong>Copa Airlines (Mensual):</strong> Sube la foto del itinerario. El sistema leerá el mes de la <strong>Fecha de Referencia</strong> y cargará automáticamente todos los vuelos del mes usando el motor OCR local — sin internet ni IA. 🛫 B738</>  
+                        : <><strong>Air Panama (Diario):</strong> Sube la hoja de vuelos del día. El motor OCR local analizará la imagen y extraerá los vuelos (número, ruta, hora, tripulación) — sin internet ni IA. 🛫</>  
+                      }
                     </p>
                   </div>
                   
                   <div 
-                    className={`w-full h-32 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${loading ? 'border-primary/50 bg-primary/5' : 'border-outline-variant hover:bg-surface-container hover:border-primary'}`}
+                    className={`w-full border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all ${
+                      loading
+                        ? 'border-primary/50 bg-primary/5 py-6'
+                        : 'h-32 border-outline-variant hover:bg-surface-container hover:border-primary cursor-pointer'
+                    }`}
                     onClick={() => !loading && imageInputRef.current?.click()}
                   >
                     {loading ? (
-                      <span className="material-symbols-outlined text-3xl text-primary animate-spin">sync</span>
+                      <>
+                        <span className="material-symbols-outlined text-3xl text-primary animate-spin">sync</span>
+                        <span className="font-label-md font-bold text-on-surface">Procesando imagen...</span>
+                        <span className="text-xs text-on-surface-variant">
+                          {loadingSeconds < 35
+                            ? `${loadingSeconds}s — máx. 35s`
+                            : "Puede demorar un poco más..."}
+                        </span>
+                        {/* Barra de progreso */}
+                        <div className="w-48 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all duration-1000"
+                            style={{ width: `${Math.min((loadingSeconds / 35) * 100, 100)}%` }}
+                          />
+                        </div>
+                        <button
+                          onClick={(ev) => { ev.stopPropagation(); handleCancelAnalysis(); }}
+                          className="mt-2 px-4 py-1.5 rounded-full border border-rose-300 text-rose-500 text-xs font-bold hover:bg-rose-50 transition-colors"
+                        >
+                          Cancelar análisis
+                        </button>
+                      </>
                     ) : (
-                      <span className="material-symbols-outlined text-3xl text-on-surface-variant">add_photo_alternate</span>
+                      <>
+                        <span className="material-symbols-outlined text-3xl text-on-surface-variant">add_photo_alternate</span>
+                        <span className="font-label-md font-bold text-on-surface">Click para subir fotografía</span>
+                      </>
                     )}
-                    <span className="font-label-md font-bold text-on-surface">
-                      {loading ? 'Procesando con IA...' : 'Click para subir fotografía'}
-                    </span>
                     <input type="file" className="hidden" ref={imageInputRef} accept="image/png, image/jpeg, image/jpg, image/webp" onChange={handleImageUpload} />
                   </div>
                 </div>
