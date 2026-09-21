@@ -7,7 +7,19 @@ const supabase = createClient(
 );
 
 async function run() {
-  const { data, error } = await supabase.from('api_configurations').select('*');
-  console.log("DB Configs:", data);
+  const panamaTimeStr = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
+  const targetDate = new Date(panamaTimeStr).toISOString().split('T')[0];
+
+  console.log(`Borrando vuelos del día: ${targetDate}`);
+  const { data, error } = await supabase
+    .from('manual_flights_log')
+    .delete()
+    .eq('flightDate', targetDate);
+    
+  if (error) {
+    console.error("Error al borrar:", error);
+  } else {
+    console.log("Vuelos borrados exitosamente.");
+  }
 }
 run();

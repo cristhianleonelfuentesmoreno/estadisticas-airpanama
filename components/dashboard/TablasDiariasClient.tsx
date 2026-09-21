@@ -81,7 +81,7 @@ export default function TablasDiariasClient({
     fecha: currentDateStr,
     hora_itinerario: '',
     hora_real: '',
-    estado_final: 'LLEGÓ',
+    estado_final: 'ARRIBO',
     pasajeros_abordo: 0,
     capacidad_total: 78,
     avion: 'DH8D'
@@ -146,7 +146,7 @@ export default function TablasDiariasClient({
   }, [initialData, viewType]);
 
   const totalFlights = activeDataList.length;
-  const aTiempo = activeDataList.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
+  const aTiempo = activeDataList.filter(f => f.estado_final === "ARRIBO" || f.estado_final === "CUMPLIDO").length;
 
   const filteredData = useMemo(() => {
     return activeDataList.filter(flight => {
@@ -466,7 +466,7 @@ export default function TablasDiariasClient({
 
         // Calcular estado básico basado en retraso (>15 mins = DEMORADO)
         const diffMins = (realDate.getTime() - itinDate.getTime()) / 60000;
-        let estadoFinal = 'LLEGÓ';
+        let estadoFinal = 'ARRIBO';
         if (diffMins > 15) estadoFinal = 'DEMORADO';
 
         const record: any = {
@@ -1081,7 +1081,7 @@ export default function TablasDiariasClient({
                     value={editFormData.estado_final}
                     onChange={(e) => setEditFormData({...editFormData, estado_final: e.target.value})}
                   >
-                    <option value="LLEGÓ">Llegó</option>
+                    <option value="ARRIBO">Arribo</option>
                     <option value="CUMPLIDO">Cumplido</option>
                     <option value="DEMORADO">Demorado</option>
                     <option value="DESVIADO">Desviado</option>
@@ -1186,7 +1186,7 @@ export default function TablasDiariasClient({
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.estado_final} onChange={(e) => setAddFormData({...addFormData, estado_final: e.target.value})} required>
-                      <option value="LLEGÓ">Llegó</option>
+                      <option value="ARRIBO">Arribo</option>
                       <option value="CUMPLIDO">Cumplido</option>
                       <option value="DEMORADO">Demorado</option>
                       <option value="DESVIADO">Desviado</option>

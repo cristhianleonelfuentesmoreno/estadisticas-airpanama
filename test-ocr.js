@@ -4,7 +4,7 @@ async function run() {
   const worker = await createWorker('eng');
   
   // Use the image the user uploaded
-  const imagePath = '/Users/cristhianf3193/.gemini/antigravity-ide/brain/ad606c44-e35b-4bea-ada1-816aa78a9f2b/.user_uploaded/media_1790003625213.jpg';
+  const imagePath = '/Users/cristhianf3193/.gemini/antigravity-ide/brain/ad606c44-e35b-4bea-ada1-816aa78a9f2b/.user_uploaded/media_1790008732914.png';
   
   console.log("Running OCR on:", imagePath);
   

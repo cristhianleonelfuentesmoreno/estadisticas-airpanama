@@ -23,6 +23,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
   const todayStr = new Date(todayPanama).toISOString().split('T')[0];
   const [targetDate, setTargetDate] = useState(todayStr);
+  const [selectedAirline, setSelectedAirline] = useState<'airpanama' | 'copa'>('airpanama');
 
   // Manual Form State
   const [fNum, setFNum] = useState("");
@@ -76,7 +77,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
       reader.onloadend = async () => {
         const base64Image = reader.result as string;
         try {
-          const flights = await parseItineraryImage(base64Image, targetDate);
+          const flights = await parseItineraryImage(base64Image, targetDate, selectedAirline);
           if (flights && flights.length > 0) {
             setFileData(flights as any); // Reusing fileData for parsed flights
             toast.success(`Se encontraron ${flights.length} vuelos en la imagen.`, { id: toastId });
@@ -193,34 +194,45 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
 
         {/* Confirmation Screen */}
         {fileData.length > 0 ? (
-          <div className="flex flex-col h-full">
-            <div className="p-6 overflow-y-auto max-h-[60vh] flex flex-col gap-4">
-              <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20 text-on-surface flex items-start gap-3">
+          <div className="flex flex-col h-full overflow-hidden">
+            <div className="p-6 flex flex-col gap-4 flex-1 overflow-hidden">
+              <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20 text-on-surface flex items-start gap-3 flex-shrink-0">
                 <span className="material-symbols-outlined text-primary text-2xl">fact_check</span>
                 <div>
                   <h3 className="font-label-lg font-bold text-primary mb-1">Confirmación de Vuelos</h3>
                   <p className="text-sm text-on-surface-variant">
-                    Se han detectado <strong>{fileData.length}</strong> vuelos válidos. A continuación se muestran los primeros {Math.min(fileData.length, 10)} para que verifiques que el formato es correcto antes de importarlos a la base de datos.
+                    Se han detectado <strong>{fileData.length}</strong> vuelos válidos. Revisa y edita cualquier dato en la tabla (vuelo, tripulación, pasajeros) si el escáner cometió algún error, antes de importarlos.
                   </p>
                 </div>
               </div>
-
-              <div className="bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/30">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-surface-container-high text-on-surface-variant font-label-sm uppercase">
-                    <tr>
-                      <th className="px-4 py-3">Aerolínea</th>
-                      <th className="px-4 py-3">Vuelo</th>
-                      <th className="px-4 py-3">Ruta</th>
-                      <th className="px-4 py-3">Avión</th>
-                      <th className="px-4 py-3">Horario</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-outline-variant/20">
-                    {fileData.slice(0, 10).map((f, i) => (
-                      <tr key={i} className="hover:bg-surface-container-highest transition-colors">
-                        <td className="px-4 py-3 font-medium text-on-surface">{f.airline}</td>
-                        <td className="px-4 py-3 text-on-surface-variant">{f.flightNumber}</td>
+              <div className="bg-surface-container rounded-2xl border border-outline-variant/30 flex flex-col flex-1 overflow-hidden">
+                <div className="overflow-y-auto flex-1 min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <table className="w-full text-left text-sm relative">
+                    <thead className="bg-surface-container-high text-on-surface-variant font-label-sm uppercase sticky top-0 z-10 shadow-sm border-b border-outline-variant/20">
+                      <tr>
+                        <th className="px-4 py-3 bg-surface-container-high">Vuelo</th>
+                        <th className="px-4 py-3 bg-surface-container-high">Ruta</th>
+                        <th className="px-4 py-3 bg-surface-container-high">Avión</th>
+                        <th className="px-4 py-3 bg-surface-container-high">Tripulación</th>
+                        <th className="px-4 py-3 bg-surface-container-high">Capacidad</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/20">
+                      {fileData.map((f, i) => (
+                        <tr key={i} className="hover:bg-surface-container-highest transition-colors">
+                          <td className="px-4 py-3 text-on-surface-variant font-medium">
+                            <input 
+                            type="text" 
+                            value={f.flightNumber} 
+                            onChange={(e) => {
+                              const newData = [...fileData];
+                              newData[i].flightNumber = e.target.value;
+                              setFileData(newData);
+                            }}
+                            className="w-16 bg-transparent border-b border-outline-variant/30 focus:border-primary focus:outline-none"
+                          />
+                          <div className="text-xs text-on-surface-variant/70 font-normal mt-1">{f.departureTimeLocal}</div>
+                        </td>
                         <td className="px-4 py-3">
                           <span className="bg-surface-variant/50 px-2 py-0.5 rounded text-xs">{f.origin}</span>
                           <span className="mx-2 text-on-surface-variant/50">→</span>
@@ -236,22 +248,43 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                             <span className="italic opacity-50">-</span>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-on-surface-variant text-xs">
+                          <input 
+                            type="text" 
+                            value={f.pilot || ''} 
+                            onChange={(e) => {
+                              const newData = [...fileData];
+                              newData[i].pilot = e.target.value;
+                              setFileData(newData);
+                            }}
+                            className="w-full min-w-[120px] max-w-[150px] bg-transparent border-b border-outline-variant/30 focus:border-primary focus:outline-none"
+                            placeholder="Desconocida"
+                          />
+                        </td>
                         <td className="px-4 py-3 text-on-surface-variant">
-                          {f.departureTimeLocal} - {f.arrivalTimeLocal}
+                          <div className="flex items-center gap-1">
+                            <input 
+                              type="number" 
+                              value={f.paxCount !== undefined ? f.paxCount : ''} 
+                              onChange={(e) => {
+                                const newData = [...fileData];
+                                newData[i].paxCount = e.target.value ? parseInt(e.target.value, 10) : 0;
+                                setFileData(newData);
+                              }}
+                              className="w-12 text-center bg-surface-container-highest rounded border border-outline-variant/30 focus:border-primary focus:outline-none text-on-surface"
+                            />
+                            {f.paxMax && <span className="text-on-surface-variant/70 text-xs">/ {f.paxMax}</span>}
+                          </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
-                {fileData.length > 10 && (
-                  <div className="p-3 text-center text-xs text-on-surface-variant bg-surface-container-high/50 italic">
-                    ... y {fileData.length - 10} vuelos más ocultos para resumir.
-                  </div>
-                )}
+                  </table>
+                </div>
               </div>
             </div>
 
-            <div className="p-6 border-t border-outline-variant/20 flex justify-end gap-3 bg-surface-container-low rounded-b-[28px] mt-auto">
+            <div className="p-6 border-t border-outline-variant/20 flex justify-end gap-3 bg-surface-container-low rounded-b-[28px] mt-auto flex-shrink-0">
               <button 
                 onClick={() => setFileData([])}
                 className="px-6 py-2.5 rounded-full font-label-md font-bold text-error hover:bg-error/10 transition-colors"
@@ -299,6 +332,24 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
               
               {activeTab === 'image' && (
                 <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3">
+                    <label className="text-xs font-bold text-on-surface-variant uppercase">Aerolínea de la Imagen</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedAirline('airpanama')}
+                        className={`flex-1 py-2 px-4 rounded-xl border ${selectedAirline === 'airpanama' ? 'bg-primary/10 border-primary text-primary font-bold' : 'border-outline-variant/30 text-on-surface-variant'}`}
+                      >
+                        Air Panama (Diario)
+                      </button>
+                      <button
+                        onClick={() => setSelectedAirline('copa')}
+                        className={`flex-1 py-2 px-4 rounded-xl border ${selectedAirline === 'copa' ? 'bg-primary/10 border-primary text-primary font-bold' : 'border-outline-variant/30 text-on-surface-variant'}`}
+                      >
+                        Copa Airlines (Mensual)
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-3 bg-surface-container p-4 rounded-xl border border-white/5">
                     <span className="material-symbols-outlined text-primary">calendar_month</span>
                     <div className="flex flex-col flex-1">

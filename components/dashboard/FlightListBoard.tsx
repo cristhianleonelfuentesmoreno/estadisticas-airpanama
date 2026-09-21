@@ -58,14 +58,14 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   });
 
   // 2. Sort Flights
-  // Priority: 1. EN VUELO, 2. ABORDANDO / A TIEMPO, 3. LLEGÓ
+  // Priority: 1. EN VUELO, 2. ABORDANDO / A TIEMPO, 3. ARRIBO
   const getStatusPriority = (status: FlightData['status']) => {
     switch (status) {
       case 'EN VUELO': return 1;
       case 'ABORDANDO': return 2;
       case 'PROGRAMADO': return 3;
       case 'RETRASADO': return 3;
-      case 'LLEGÓ': return 4;
+      case 'ARRIBO': return 4;
       default: return 5;
     }
   };
@@ -74,7 +74,13 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
     const pA = getStatusPriority(a.status);
     const pB = getStatusPriority(b.status);
     if (pA !== pB) return pA - pB;
-    // Secondary sort by departure time
+    
+    // Si ambos vuelos ya llegaron, ordenar por hora de llegada más reciente primero (descendente)
+    if (a.status === 'ARRIBO' && b.status === 'ARRIBO') {
+      return new Date(b.arrivalTime).getTime() - new Date(a.arrivalTime).getTime();
+    }
+    
+    // Secondary sort by departure time ascendente (más temprano primero)
     return new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime();
   });
 
@@ -102,25 +108,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
                   className="bg-transparent border-none outline-none font-label-sm text-on-surface font-bold focus:ring-0 cursor-pointer"
                 />
               </div>
-              
-              {/* Dest Filter */}
-              <div className="hidden sm:flex items-center gap-2 ml-2 bg-surface-container-low rounded-lg p-1 border border-white/5">
-                <button 
-                  onClick={() => setDestinationFilter('TODOS')}
-                  className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${destinationFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
-                >
-                  Todos
-                </button>
-                {uniqueDests.map(dest => (
-                  <button 
-                    key={dest}
-                    onClick={() => setDestinationFilter(dest)}
-                    className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${destinationFilter === dest ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
-                  >
-                    {dest}
-                  </button>
-                ))}
-              </div>
+
 
             {isAdmin && (
               <button
@@ -158,6 +146,26 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
               </div>
             </div>
             
+            {/* Rutas Filter (Desktop & Mobile) */}
+            <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit max-w-full overflow-x-auto scrollbar-hide">
+              <span className="text-on-surface-variant text-[11px] font-bold px-2 uppercase tracking-wider whitespace-nowrap">Rutas:</span>
+              <button 
+                onClick={() => setDestinationFilter('TODOS')}
+                className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors whitespace-nowrap ${destinationFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
+              >
+                Todos
+              </button>
+              {uniqueDests.map(dest => (
+                <button 
+                  key={dest}
+                  onClick={() => setDestinationFilter(dest)}
+                  className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors whitespace-nowrap ${destinationFilter === dest ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
+                >
+                  {dest}
+                </button>
+              ))}
+            </div>
+
             {/* Airline Filter (Desktop & Mobile) */}
             <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit">
               <span className="text-on-surface-variant text-[11px] font-bold px-2 uppercase tracking-wider">Aerolínea:</span>
@@ -187,7 +195,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
               >
                 Todos
               </button>
-              {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'LLEGÓ'].map(status => (
+              {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'ARRIBO'].map(status => (
                 <button 
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -208,24 +216,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
           </button>
         </div>
 
-        {/* Mobile Dest Filter (visible only on small screens) */}
-        <div className="sm:hidden flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          <button 
-            onClick={() => setDestinationFilter('TODOS')}
-            className={`whitespace-nowrap px-3 py-1.5 text-label-sm font-bold rounded-md border ${destinationFilter === 'TODOS' ? 'bg-secondary text-on-secondary border-secondary' : 'bg-surface-container text-on-surface border-white/5'}`}
-          >
-            Todos
-          </button>
-          {uniqueDests.map(dest => (
-            <button 
-              key={dest}
-              onClick={() => setDestinationFilter(dest)}
-              className={`whitespace-nowrap px-3 py-1.5 text-label-sm font-bold rounded-md border ${destinationFilter === dest ? 'bg-secondary text-on-secondary border-secondary' : 'bg-surface-container text-on-surface border-white/5'}`}
-            >
-              {dest}
-            </button>
-          ))}
-        </div>
+
 
         {/* Flight Cards */}
         <div className="flex flex-col gap-space-sm">
@@ -304,7 +295,7 @@ function FlightCard({ flight }: { flight: FlightData }) {
   let badgeClass = 'text-primary border-primary/20 bg-primary-container/10';
   if (localStatus === 'RETRASADO') {
     badgeClass = 'text-error border-error/20 bg-error-container/10';
-  } else if (localStatus === 'LLEGÓ') {
+  } else if (localStatus === 'ARRIBO') {
     badgeClass = 'text-on-surface-variant border-white/10 bg-surface-container-high';
   } else if (localStatus === 'EN VUELO') {
     badgeClass = 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10';
@@ -320,7 +311,7 @@ function FlightCard({ flight }: { flight: FlightData }) {
   const arrTimeStr = aTime.toLocaleTimeString('es-PA', timeOpts);
 
   // Plane color based on status
-  const planeColorClass = localStatus === 'LLEGÓ' ? 'text-primary' : 'text-error';
+  const planeColorClass = localStatus === 'ARRIBO' ? 'text-primary' : 'text-error';
   // Progress clamping
   const progressPercent = Math.min(Math.max(flight.progress, 0), 100);
 

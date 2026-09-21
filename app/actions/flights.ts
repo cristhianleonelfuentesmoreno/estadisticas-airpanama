@@ -13,7 +13,7 @@ export interface FlightData {
   arrivalTime: string;
   departureTimeLocal: string;
   arrivalTimeLocal: string;
-  status: 'PROGRAMADO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'LLEGÓ';
+  status: 'PROGRAMADO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'ARRIBO';
   gate: string;
   pilot: string;
   paxCount: number;
@@ -181,7 +181,7 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
     } else if (elapsedMs >= totalDurationMs) {
       // Ya llegó
       progress = 100;
-      status = 'LLEGÓ';
+      status = 'ARRIBO';
     } else {
       // Está en vuelo
       progress = Math.floor((elapsedMs / totalDurationMs) * 100);
@@ -196,7 +196,7 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
     const prefix = flight.airline === 'Copa Airlines' ? 'CM-' : '7P-';
 
     return {
-      id: flight.num,
+      id: `${flight.num}-${flight.dep}`,
       flightNumber: `${prefix}${flight.num}`,
       aircraft: flight.type,
       aircraftReg: flight.reg,
@@ -239,7 +239,7 @@ export async function saveCompletedMalekFlights() {
   const supabase = getAdminSupabase();
 
   const flights = await getUpcomingFlights();
-  const arrivedMalekFlights = flights.filter(f => f.destination === 'DAV' && f.status === 'LLEGÓ');
+  const arrivedMalekFlights = flights.filter(f => f.destination === 'DAV' && f.status === 'ARRIBO');
 
   if (arrivedMalekFlights.length === 0) return { success: true, count: 0 };
 
@@ -319,7 +319,7 @@ export async function saveCompletedMalekDepartures() {
   const supabase = getAdminSupabase();
 
   const flights = await getUpcomingFlights();
-  const departedMalekFlights = flights.filter(f => f.origin === 'DAV' && f.status === 'LLEGÓ');
+  const departedMalekFlights = flights.filter(f => f.origin === 'DAV' && f.status === 'ARRIBO');
 
   if (departedMalekFlights.length === 0) return { success: true, count: 0 };
 

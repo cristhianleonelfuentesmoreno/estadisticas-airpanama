@@ -76,7 +76,7 @@ export default function DashboardPage() {
         setFactorOcup(totalMax > 0 ? ((totalPax / totalMax) * 100).toFixed(1) : "0.0");
         
         // Puntualidad (OTP - On Time Performance)
-        const aTiempo = combined.filter(f => f.estado_final === 'LLEGÓ' || f.estado_final === 'CUMPLIDO').length;
+        const aTiempo = combined.filter(f => f.estado_final === 'ARRIBO' || f.estado_final === 'CUMPLIDO').length;
         setOtpPercent(completados > 0 ? ((aTiempo / completados) * 100).toFixed(1) : "0.0");
       } catch (e) {
         console.error("Error fetching metrics:", e);
@@ -132,9 +132,9 @@ export default function DashboardPage() {
 <span className="font-label-sm text-label-sm" suppressHydrationWarning>{currentTime}</span>
 </div>
 </div>
-<div className="grid grid-cols-2 gap-space-sm"><Link href="/dashboard/diario" className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm active:scale-95 transition-all hover:bg-primary/90"><span className="material-symbols-outlined text-[18px] text-emerald-400">upload_file</span><span className="">+ Subir Diarios</span></Link><Link href="/dashboard/mensual" className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-surface-container-lowest text-secondary font-label-md text-label-md font-bold ring-1 ring-secondary/30 shadow-sm active:scale-95 transition-all hover:bg-secondary-container/15"><span className="material-symbols-outlined text-[18px] text-secondary">event_note</span><span className="">+ Reg. Mensual</span></Link></div>
+
 {/*  Executive KPI Grid  */}
-<div className="grid grid-cols-2 gap-space-sm">
+<div className="grid grid-cols-1 gap-space-sm">
 {/*  Vuelos Completados  */}
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
@@ -146,19 +146,6 @@ export default function DashboardPage() {
 <div className="mt-space-xs">
 <span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{vuelosCompletados}</span>
 <span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Día en curso (Air Panama)</span>
-</div>
-</div>
-{/*  Puntualidad (OTP)  */}
-<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
-<div className="flex items-center justify-between">
-<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">Puntualidad OTP</span>
-<span className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
-<span className="material-symbols-outlined text-[16px]">verified</span>
-</span>
-</div>
-<div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{otpPercent}%</span>
-<span className="font-label-sm text-label-sm text-emerald-600 block mt-1 font-bold">Vuelos a Tiempo</span>
 </div>
 </div>
 {/*  Pax en Tránsito  */}
@@ -174,19 +161,7 @@ export default function DashboardPage() {
 <span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Llegaron y viajaron hoy</span>
 </div>
 </div>
-{/*  Factor de Ocupación  */}
-<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
-<div className="flex items-center justify-between">
-<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">Factor Ocupación</span>
-<span className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
-<span className="material-symbols-outlined text-[16px]">pie_chart</span>
-</span>
-</div>
-<div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{factorOcup}%</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Promedio de cabina</span>
-</div>
-</div>
+
 </div>
 
 {/*  Panel de Decisión de Vuelos (TAF)  */}

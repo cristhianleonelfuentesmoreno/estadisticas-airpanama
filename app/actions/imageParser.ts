@@ -2,7 +2,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { getApiConfigs } from "./apiConfig";
-import { createWorker } from "tesseract.js";
+import { createWorker, PSM } from "tesseract.js";
 
 export interface ParsedFlight {
   flightNumber: string;
@@ -15,7 +15,32 @@ export interface ParsedFlight {
   aircraft?: string;
   aircraftReg?: string;
   paxCount?: number;
+  pilot?: string;
+  paxMax?: number;
 }
+
+// Diccionario de capacidades máximas de la flota de Air Panama
+// Diccionario de capacidades máximas de la flota de Air Panama
+const AIRCRAFT_CAPACITY_MAP: Record<string, number> = {
+  'FK50': 50,
+  'DH8D': 74,
+  'C-208': 12,
+  'C208': 12, // Por si el OCR se come el guión
+};
+
+// Diccionario de tiempos de ruta promedio en minutos para vuelos de Air Panama (Modo Offline)
+const ROUTE_TIMES_MAP: Record<string, number> = {
+  'PAC-DAV': 55,
+  'DAV-PAC': 55,
+  'PAC-BOC': 55,
+  'BOC-PAC': 55,
+  'PAC-CHX': 60,
+  'CHX-PAC': 60,
+  'BOC-DAV': 40,
+  'DAV-BOC': 40,
+  'CHX-BOC': 30,
+  'BOC-CHX': 30,
+};
 
 // Fallback OCR parser for Air Panama itineraries
 async function parseWithOCR(base64Data: string, targetDateStr: string): Promise<ParsedFlight[]> {
@@ -27,12 +52,14 @@ async function parseWithOCR(base64Data: string, targetDateStr: string): Promise<
   await worker.terminate();
 
   console.log("OCR completado, buscando patrones de vuelos y aviones...");
+  console.log("TEXTO CRUDO OCR:", text);
   
   const flights: ParsedFlight[] = [];
   const lines = text.split('\n');
   
   let currentAircraft = '';
   let currentReg = '';
+  let currentPaxMax = 0;
 
   for (const line of lines) {
     // Buscar modelo de avión al inicio (ej: DH8D, FK50, C-208) seguido por la hora
@@ -43,6 +70,9 @@ async function parseWithOCR(base64Data: string, targetDateStr: string): Promise<
         currentReg = val;
       } else {
         currentAircraft = val;
+        currentReg = ''; // <-- Limpiar la matrícula vieja al cambiar de avión
+        // Asignar capacidad de la flota si existe
+        currentPaxMax = AIRCRAFT_CAPACITY_MAP[val] || 0;
       }
     } else {
       // Buscar matrícula (HP-XXXX) al inicio seguido por la hora
@@ -60,18 +90,43 @@ async function parseWithOCR(base64Data: string, targetDateStr: string): Promise<
       const route = flightMatch[3];
       const [origin, dest] = route.split('-');
 
-      // Intentar extraer los pasajeros al final de la línea
-      const paxMatch = line.match(/\b(\d{1,3})\s*$/);
-      const paxCount = paxMatch ? parseInt(paxMatch[1], 10) : undefined;
+      // Obtener el resto de la línea después de la ruta para extraer la tripulación y los pasajeros
+      const restOfLine = line.substring(flightMatch.index! + flightMatch[0].length).trim();
+
+      // Intentar extraer los pasajeros buscando la última secuencia de números en la línea
+      // Esto ignora puntos, basura, y letras rotas al final.
+      const paxMatches = restOfLine.match(/\d+/g);
+      let paxCount = undefined;
       
-      // Calcular hora de llegada estimada (Salida + 1 hora) dado que la tabla física solo tiene salida
+      if (paxMatches && paxMatches.length > 0) {
+        const lastMatch = paxMatches[paxMatches.length - 1];
+        paxCount = parseInt(lastMatch, 10);
+      }
+      
+      // Lo que queda antes del último número (o todo si no hay número) es la tripulación
+      let pilot = restOfLine;
+      if (paxMatches && paxMatches.length > 0) {
+        const lastMatchStr = paxMatches[paxMatches.length - 1];
+        const lastIndex = restOfLine.lastIndexOf(lastMatchStr);
+        pilot = restOfLine.substring(0, lastIndex).trim();
+      }
+      
+      // Limpiar texto basura del final del piloto (a veces saca 'Si', 'No', etc.)
+      pilot = pilot.replace(/\b(Si|No|Pax)\b.*$/i, '').replace(/[^a-zA-Z\s/]+$/, '').trim();
+
+      // Calcular hora de llegada estimada basada en ROUTE_TIMES_MAP (Modo Offline)
       let arrivalTimeLocal = "00:00";
       try {
         const [hours, minutes] = time.split(':').map(Number);
         const dateObj = new Date();
         dateObj.setHours(hours, minutes, 0, 0);
-        // Sumar 1 hora
-        dateObj.setHours(dateObj.getHours() + 1);
+        
+        // Buscar tiempo estimado, default a 60 min si la ruta no está en el mapa
+        const routeKey = `${origin}-${dest}`;
+        const flightDurationMins = ROUTE_TIMES_MAP[routeKey] || 60;
+        
+        dateObj.setMinutes(dateObj.getMinutes() + flightDurationMins);
+        
         const arrHours = String(dateObj.getHours()).padStart(2, '0');
         const arrMins = String(dateObj.getMinutes()).padStart(2, '0');
         arrivalTimeLocal = `${arrHours}:${arrMins}`;
@@ -89,7 +144,9 @@ async function parseWithOCR(base64Data: string, targetDateStr: string): Promise<
         flightDate: targetDateStr,
         aircraft: currentAircraft,
         aircraftReg: currentReg,
-        paxCount
+        paxCount,
+        pilot: pilot || undefined,
+        paxMax: currentPaxMax || undefined
       });
     }
   }
@@ -101,103 +158,19 @@ async function parseWithOCR(base64Data: string, targetDateStr: string): Promise<
   return flights;
 }
 
-export async function parseItineraryImage(base64Image: string, targetDateStr: string): Promise<ParsedFlight[]> {
+export async function parseItineraryImage(base64Image: string, targetDateStr: string, airline: string = 'airpanama'): Promise<ParsedFlight[]> {
   try {
-    const configs = await getApiConfigs();
-    const geminiConfig = configs.gemini;
-
-    if (!geminiConfig?.is_active || !geminiConfig?.api_key) {
-      throw new Error("La API de Google Gemini no está configurada o está desactivada en la Gestión de APIs.");
-    }
-
-    const ai = new GoogleGenAI({ apiKey: geminiConfig.api_key.trim() });
-
     const base64Data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-
-    const prompt = `
-      Actúa como un analista de datos aeronáuticos experto. 
-      Analiza la imagen adjunta, que contiene un itinerario de vuelos.
-      Extrae los vuelos y devuélvelos en formato JSON puro (sin formato markdown \`\`\`json) que consista en un array de objetos con esta estructura exacta:
-      [{
-        "flightNumber": "El número de vuelo (ej: 013, 018)",
-        "origin": "Código IATA de origen de 3 letras (ej: PTY, DAV, PAC, BOC)",
-        "destination": "Código IATA de destino de 3 letras",
-        "departureTimeLocal": "Hora de salida en formato HH:mm (24 horas)",
-        "arrivalTimeLocal": "Hora de llegada en formato HH:mm (24 horas)",
-        "airline": "Nombre de la aerolínea deducido de la imagen (ej: 'Copa Airlines', 'Air Panama')",
-        "flightDate": "Fecha del vuelo en formato YYYY-MM-DD",
-        "aircraft": "Modelo del avión si aparece (ej: DH8D, FK50, C-208)",
-        "aircraftReg": "Matrícula del avión si aparece (ej: HP-1997, HP-1891)",
-        "paxCount": "Número de pasajeros si aparece bajo la columna INFORMACION u otra, solo el número"
-      }]
-      Reglas:
-      1. Ignora vuelos que no tengan sentido o sean puro texto de relleno.
-      2. Siempre devuelve SOLO un JSON válido, ningún texto adicional antes o después.
-      3. Asegúrate de formatear la hora en HH:mm (ejemplo: "06:30", "19:15").
-      4. Si no puedes detectar el código IATA, trata de inferirlo por la ciudad (ej: Tocumen = PTY, Albrook = PAC, David = DAV, Bocas = BOC).
-      5. IMPORTANTE: Si la imagen NO indica explícitamente una fecha clara para una fila, usa la siguiente fecha por defecto: "${targetDateStr}". Si la imagen es un itinerario mensual y especifica el día del mes, calcula la fecha completa asumiendo que el mes y año son los más cercanos a hoy, y pon esa fecha exacta en 'flightDate'.
-
-    `;
-
-    // Función para ejecutar con timeout
-    const withTimeout = (promise: Promise<any>, ms: number) => {
-      let timeoutId: any;
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error(`TIMEOUT_${ms}`)), ms);
-      });
-      return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
-    };
-
-    try {
-      let response;
-      try {
-        console.log("Intentando con gemini-3.5-flash...");
-        response = await withTimeout(ai.models.generateContent({
-            model: 'gemini-3.5-flash',
-            contents: [
-                prompt,
-                { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
-            ]
-        }), 10000); // 10 segundos máximo
-      } catch (primaryError: any) {
-        console.warn("Fallo en gemini-3.5-flash:", primaryError.message);
-        
-        // Si hay timeout, 503, 504 o cualquier error de demanda, pasamos a 3.6
-        console.log("Intentando con gemini-3.6-flash...");
-        response = await withTimeout(ai.models.generateContent({
-            model: 'gemini-3.6-flash',
-            contents: [
-                prompt,
-                { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
-            ]
-        }), 10000); // 10 segundos máximo
-      }
-
-      if (!response || !response.text) {
-        throw new Error("La IA no devolvió ningún contenido");
-      }
-
-      const jsonStr = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
-      
-      try {
-        const flights: ParsedFlight[] = JSON.parse(jsonStr);
-        return flights;
-      } catch (parseError) {
-        console.error("JSON inválido de IA:", jsonStr);
-        throw new Error("La IA devolvió un formato inválido. Por favor intenta de nuevo.");
-      }
-    } catch (e: any) {
-      console.warn("Fallo total de las IAs o Timeout excedido. Activando Plan de Respaldo Local OCR...", e.message);
-      // Fallback a OCR Local
-      try {
-        return await parseWithOCR(base64Data, targetDateStr);
-      } catch (ocrError: any) {
-        console.error("Fallo también el OCR Local:", ocrError);
-        throw new Error(`Los servidores de Google están saturados y el sistema OCR local no pudo leer la imagen correctamente. Asegúrate de que la imagen sea nítida, o sube un Excel.`);
-      }
+    
+    if (airline === 'copa') {
+      throw new Error("El motor OCR para imágenes de Copa Airlines está en desarrollo. Por favor sube el itinerario mensual de Copa usando un archivo Excel.");
     }
+
+    // Usamos exclusivamente el OCR local por ser más rápido, gratuito e independiente de internet para Air Panama
+    console.log("Iniciando análisis de imagen con motor OCR interno para Air Panama...");
+    return await parseWithOCR(base64Data, targetDateStr);
   } catch (error: any) {
     console.error("Error en parseItineraryImage:", error);
-    throw new Error(error.message || "Error al procesar la imagen con inteligencia artificial.");
+    throw new Error(error.message || "Error al procesar la imagen con el motor interno.");
   }
 }
