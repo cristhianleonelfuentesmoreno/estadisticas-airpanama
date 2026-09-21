@@ -25,7 +25,7 @@ export interface FlightData {
   trackingLink?: string;
 }
 
-export async function getUpcomingFlights(): Promise<FlightData[]> {
+export async function getUpcomingFlights(targetDate?: string): Promise<FlightData[]> {
   const now = new Date(); // Obtenemos la hora local del dispositivo
 
   // Función para convertir la hora del itinerario ("13:30") a un objeto Date del día de hoy
@@ -36,8 +36,8 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
     return date;
   };
 
-  const { getManualFlightsForToday } = await import('./manualFlights');
-  const manualFlights = await getManualFlightsForToday();
+  const { getManualFlightsForDate } = await import('./manualFlights');
+  const manualFlights = await getManualFlightsForDate(targetDate);
   
   // El itinerario real transcrito directamente de la imagen + Simulados de Copa (como fallback si la BD está vacía o no existe)
   let itinerary = manualFlights.map(f => ({
@@ -56,27 +56,6 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
     airline: f.airline
   }));
 
-  if (itinerary.length === 0) {
-    itinerary = [
-      // --- AIR PANAMA: AVION DH8D HP-1997 ---
-      { num: '670', dep: '07:00', arr: '08:15', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'MARIO RODRIGUEZ/ EDUARDO HERRERA', pax: 25, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-      { num: '671', dep: '08:30', arr: '09:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'IRIS PEREIRA/ BIANCA HIDALGO', pax: 34, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-      { num: '970', dep: '16:15', arr: '17:30', ori: 'PAC', oriName: 'Marcos A. Gelabert', des: 'DAV', desName: 'David (Malek)', pilot: 'MARIO RODRIGUEZ/ EDUARDO HERRERA', pax: 16, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-      { num: '971', dep: '17:30', arr: '18:45', ori: 'DAV', oriName: 'David (Malek)', des: 'PAC', desName: 'Marcos A. Gelabert', pilot: 'YESSICA QUINTERO/ KRYSTEL CEDEÑO', pax: 59, max: 78, type: 'DH8D', reg: 'HP-1997', airline: 'Air Panama' },
-  
-      // --- AIR PANAMA: AVION C-208 HP-1993 (Tramos DAV) ---
-      { num: '693', dep: '10:50', arr: '11:30', ori: 'BOC', oriName: 'Bocas del Toro', des: 'DAV', desName: 'David (Malek)', pilot: 'JORGE CANO/ JERRY WAITE', pax: 4, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-      { num: '692', dep: '11:55', arr: '12:35', ori: 'DAV', oriName: 'David (Malek)', des: 'BOC', desName: 'Bocas del Toro', pilot: 'JORGE CANO/ JERRY WAITE', pax: 4, max: 12, type: 'C-208', reg: 'HP-1993', airline: 'Air Panama' },
-  
-      // --- COPA AIRLINES ---
-      { num: '013', dep: '06:30', arr: '07:45', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 140, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
-      { num: '011', dep: '08:26', arr: '09:39', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 155, max: 160, type: 'B738', reg: 'HP-1530CMP', airline: 'Copa Airlines' },
-      { num: '017', dep: '07:55', arr: '09:10', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 145, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
-      { num: '018', dep: '09:50', arr: '11:03', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 130, max: 160, type: 'B738', reg: 'HP-1532CMP', airline: 'Copa Airlines' },
-      { num: '028', dep: '17:53', arr: '19:17', ori: 'PTY', oriName: 'Tocumen', des: 'DAV', desName: 'David (Malek)', pilot: 'CAP. COPA', pax: 135, max: 160, type: 'B738', reg: 'HP-1534CMP', airline: 'Copa Airlines' },
-      { num: '030', dep: '19:57', arr: '21:10', ori: 'DAV', oriName: 'David (Malek)', des: 'PTY', desName: 'Tocumen', pilot: 'CAP. COPA', pax: 150, max: 160, type: 'B738', reg: 'HP-1534CMP', airline: 'Copa Airlines' },
-    ];
-  }
 
   // 1. Fetch API Configs
   const { getApiConfigs } = await import('./apiConfig');

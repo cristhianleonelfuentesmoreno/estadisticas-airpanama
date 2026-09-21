@@ -26,19 +26,23 @@ export type ManualFlightInput = {
   flightDate: string; // YYYY-MM-DD
 };
 
-export async function getManualFlightsForToday(): Promise<ManualFlightInput[]> {
+export async function getManualFlightsForDate(dateStr?: string): Promise<ManualFlightInput[]> {
   try {
     const supabase = getAdminSupabase();
-    // Ajustar a la hora de Panamá
-    const now = new Date();
-    const panamaTimeStr = now.toLocaleString("en-US", { timeZone: "America/Panama" });
-    const panamaDate = new Date(panamaTimeStr);
-    const today = panamaDate.toISOString().split('T')[0];
+    
+    let targetDate = dateStr;
+    if (!targetDate) {
+      // Ajustar a la hora de Panamá si no se pasa fecha
+      const now = new Date();
+      const panamaTimeStr = now.toLocaleString("en-US", { timeZone: "America/Panama" });
+      const panamaDate = new Date(panamaTimeStr);
+      targetDate = panamaDate.toISOString().split('T')[0];
+    }
     
     const { data, error } = await supabase
       .from('manual_flights_log')
       .select('*')
-      .eq('flightDate', today);
+      .eq('flightDate', targetDate);
 
     if (error || !data) {
       return [];
@@ -63,13 +67,43 @@ export async function addManualFlight(flight: ManualFlightInput) {
 }
 
 export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
+  if (flights.length === 0) return true;
+
   const supabase = getAdminSupabase();
-  const { error } = await supabase
+  
+  // Extraer las fechas únicas de los vuelos a subir
+  const uniqueDates = Array.from(new Set(flights.map(f => f.flightDate)));
+  
+  // Buscar vuelos existentes para esas fechas
+  const { data: existingFlights, error: fetchError } = await supabase
     .from('manual_flights_log')
-    .insert(flights);
-    
-  if (error) {
-    throw new Error(error.message);
+    .select('flightNumber, flightDate')
+    .in('flightDate', uniqueDates);
+
+  if (fetchError) {
+    throw new Error(fetchError.message);
   }
+
+  // Filtrar los vuelos que ya existen
+  const newFlights = flights.filter(newFlight => {
+    return !existingFlights.some(existing => 
+      existing.flightNumber === newFlight.flightNumber && 
+      existing.flightDate === newFlight.flightDate
+    );
+  });
+
+  if (newFlights.length === 0) {
+    return true; // Ya todos existen
+  }
+
+  // Insertar solo los nuevos
+  const { error: insertError } = await supabase
+    .from('manual_flights_log')
+    .insert(newFlights);
+    
+  if (insertError) {
+    throw new Error(insertError.message);
+  }
+  
   return true;
 }

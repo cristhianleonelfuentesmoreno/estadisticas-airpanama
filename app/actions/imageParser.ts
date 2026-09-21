@@ -12,7 +12,7 @@ export interface ParsedFlight {
   airline: string;
 }
 
-export async function parseItineraryImage(base64Image: string): Promise<ParsedFlight[]> {
+export async function parseItineraryImage(base64Image: string, targetDateStr: string): Promise<ParsedFlight[]> {
   try {
     const configs = await getApiConfigs();
     const geminiConfig = configs.gemini;
@@ -21,9 +21,8 @@ export async function parseItineraryImage(base64Image: string): Promise<ParsedFl
       throw new Error("La API de Google Gemini no está configurada o está desactivada en la Gestión de APIs.");
     }
 
-    const ai = new GoogleGenAI({ apiKey: geminiConfig.api_key });
+    const ai = new GoogleGenAI({ apiKey: geminiConfig.api_key.trim() });
 
-    // Extraer solo la parte base64 (quitar el prefijo data:image/jpeg;base64,)
     const base64Data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
     const prompt = `
@@ -36,17 +35,20 @@ export async function parseItineraryImage(base64Image: string): Promise<ParsedFl
         "destination": "Código IATA de destino de 3 letras",
         "departureTimeLocal": "Hora de salida en formato HH:mm (24 horas)",
         "arrivalTimeLocal": "Hora de llegada en formato HH:mm (24 horas)",
-        "airline": "Nombre de la aerolínea deducido de la imagen (ej: 'Copa Airlines', 'Air Panama')"
+        "airline": "Nombre de la aerolínea deducido de la imagen (ej: 'Copa Airlines', 'Air Panama')",
+        "flightDate": "Fecha del vuelo en formato YYYY-MM-DD"
       }]
       Reglas:
       1. Ignora vuelos que no tengan sentido o sean puro texto de relleno.
       2. Siempre devuelve SOLO un JSON válido, ningún texto adicional antes o después.
       3. Asegúrate de formatear la hora en HH:mm (ejemplo: "06:30", "19:15").
       4. Si no puedes detectar el código IATA, trata de inferirlo por la ciudad (ej: Tocumen = PTY, Albrook = PAC, David = DAV, Bocas = BOC).
+      5. IMPORTANTE: Si la imagen NO indica explícitamente una fecha clara para una fila, usa la siguiente fecha por defecto: "${targetDateStr}". Si la imagen es un itinerario mensual y especifica el día del mes, calcula la fecha completa asumiendo que el mes y año son los más cercanos a hoy, y pon esa fecha exacta en 'flightDate'.
+
     `;
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: [
             prompt,
             {

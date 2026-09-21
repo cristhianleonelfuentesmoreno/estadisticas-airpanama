@@ -9,17 +9,34 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   const [loading, setLoading] = useState(true);
   
   // Filter & Modal State
+  const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
+  const todayStr = new Date(todayPanama).toISOString().split('T')[0];
+  const [boardDate, setBoardDate] = useState<string>(todayStr);
+
   const [destinationFilter, setDestinationFilter] = useState<string>('TODOS');
   const [airlineFilter, setAirlineFilter] = useState<string>('TODOS');
   const [statusFilter, setStatusFilter] = useState<string>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [apiStatuses, setApiStatuses] = useState<Record<string, boolean>>({
+    flightradar24: false,
+    flightaware: false
+  });
 
   useEffect(() => {
     async function loadData() {
+      setLoading(true);
       try {
-        const data = await getUpcomingFlights();
+        const { getApiConfigs } = await import('@/app/actions/apiConfig');
+        const [data, configs] = await Promise.all([
+          getUpcomingFlights(boardDate),
+          getApiConfigs()
+        ]);
         setFlights(data);
+        setApiStatuses({
+          flightradar24: configs.flightradar24?.is_active ?? false,
+          flightaware: configs.flightaware?.is_active ?? false
+        });
       } catch (err) {
         console.error("Error loading flights:", err);
       } finally {
@@ -30,7 +47,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
     loadData();
     const interval = setInterval(loadData, 300000);
     return () => clearInterval(interval);
-  }, []);
+  }, [boardDate]);
 
   // 1. Filter Flights
   const filteredFlights = flights.filter(f => {
@@ -64,15 +81,6 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   // 3. Limit visible flights on the dashboard (e.g., top 12)
   const visibleFlights = sortedFlights.slice(0, 12);
 
-  if (loading) {
-    return (
-      <div className="bg-surface-container-lowest rounded-2xl p-space-md border border-white/5 shadow-sm animate-pulse flex flex-col gap-4">
-        <div className="h-6 bg-surface-container-low rounded w-1/4"></div>
-        <div className="h-32 bg-surface-container-low rounded-xl"></div>
-      </div>
-    );
-  }
-
   // Get unique destinations and airlines for the filters
   const uniqueDests = Array.from(new Set(flights.map(f => f.destination)));
   const uniqueAirlines = Array.from(new Set(flights.map(f => f.airline)));
@@ -85,11 +93,14 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Próximos Vuelos</h2>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container rounded-full border border-white/5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="font-label-sm text-label-sm font-bold text-on-surface-variant">
-                  Hoy, {new Date().toLocaleDateString('es-PA', { day: 'numeric', month: 'short' })}
-                </span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container rounded-lg border border-white/5 shadow-sm">
+                <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
+                <input 
+                  type="date" 
+                  value={boardDate}
+                  onChange={(e) => setBoardDate(e.target.value)}
+                  className="bg-transparent border-none outline-none font-label-sm text-on-surface font-bold focus:ring-0 cursor-pointer"
+                />
               </div>
               
               {/* Dest Filter */}
@@ -121,17 +132,30 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
               </button>
             )}
 
-              {/* Source API Link */}
-              <a 
-                href="https://www.flightradar24.com/data/airlines/7p-pnc" 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant hover:text-secondary hover:underline transition-colors ml-2 border border-white/5 bg-surface-container-low px-2 py-1 rounded-md"
-                title="Ir a la fuente de datos"
-              >
-                <span className="material-symbols-outlined text-[14px]">public</span>
-                FlightRadar24
-              </a>
+              {/* Source API Links */}
+              <div className="flex items-center gap-2 ml-2">
+                <a 
+                  href="https://www.flightradar24.com/data/airlines/7p-pnc" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 font-label-sm text-label-sm text-on-surface-variant hover:text-secondary transition-colors border border-white/5 bg-surface-container-low px-3 py-1.5 rounded-lg shadow-sm"
+                  title="Ir a FlightRadar24 (Air Panama)"
+                >
+                  <span className={`material-symbols-outlined text-[16px] ${apiStatuses.flightradar24 ? 'text-emerald-500 animate-[spin_4s_linear_infinite]' : 'text-on-surface-variant/50'}`}>public</span>
+                  FlightRadar24
+                </a>
+                
+                <a 
+                  href="https://es.flightaware.com/live/fleet/CMP" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 font-label-sm text-label-sm text-on-surface-variant hover:text-secondary transition-colors border border-white/5 bg-surface-container-low px-3 py-1.5 rounded-lg shadow-sm"
+                  title="Ir a FlightAware (Copa Airlines)"
+                >
+                  <span className={`material-symbols-outlined text-[16px] ${apiStatuses.flightaware ? 'text-emerald-500 animate-[spin_4s_linear_infinite]' : 'text-on-surface-variant/50'}`}>public</span>
+                  FlightAware
+                </a>
+              </div>
             </div>
             
             {/* Airline Filter (Desktop & Mobile) */}
@@ -396,7 +420,11 @@ function FlightCard({ flight }: { flight: FlightData }) {
         
         <div className="flex items-center gap-1.5">
           <span className="material-symbols-outlined text-[18px]">group</span>
-          {flight.paxCount}/{flight.paxMax} Pax {flight.paxCount === flight.paxMax ? "(Lleno)" : ""}
+          {flight.paxCount > 0 ? (
+            <>{flight.paxCount}/{flight.paxMax} Pax {flight.paxCount === flight.paxMax ? "(Lleno)" : ""}</>
+          ) : (
+            <>CAP. {flight.paxMax} Pax</>
+          )}
         </div>
       </div>
 
