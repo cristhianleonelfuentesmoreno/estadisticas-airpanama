@@ -110,11 +110,20 @@ export function ApiManagementWidget() {
                   <label className="font-label-md font-bold text-on-surface-variant">API Key</label>
                   <input 
                     type="password"
+                    autoComplete="new-password"
+                    name="fa_api_key_ignore"
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    spellCheck="false"
                     value={faKey}
                     onChange={(e) => setFaKey(e.target.value)}
                     placeholder="h5ky5A5GsPXo..."
                     className="w-full h-12 px-4 rounded-xl bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 ring-primary/20 placeholder:text-on-surface-variant/50"
                   />
+                  <div className="flex items-center gap-1.5 mt-1 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
+                    <span className="material-symbols-outlined text-[16px] text-emerald-600">monitoring</span>
+                    <span className="font-label-sm text-xs text-emerald-700 dark:text-emerald-400 font-medium">Consumo estimado: ~$4.20 / $5.00 mensuales (Caché optimizada)</span>
+                  </div>
                 </div>
               </div>
 
@@ -137,11 +146,20 @@ export function ApiManagementWidget() {
                   <label className="font-label-md font-bold text-on-surface-variant">API Key</label>
                   <input 
                     type="password"
+                    autoComplete="new-password"
+                    name="fr_api_key_ignore"
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    spellCheck="false"
                     value={frKey}
                     onChange={(e) => setFrKey(e.target.value)}
                     placeholder="01a0c440-1e8f..."
                     className="w-full h-12 px-4 rounded-xl bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 ring-primary/20 placeholder:text-on-surface-variant/50"
                   />
+                  <div className="flex items-center gap-1.5 mt-1 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
+                    <span className="material-symbols-outlined text-[16px] text-emerald-600">monitoring</span>
+                    <span className="font-label-sm text-xs text-emerald-700 dark:text-emerald-400 font-medium">Consumo estimado: ~26,000 / 60,000 créditos (Caché optimizada)</span>
+                  </div>
                 </div>
               </div>
 

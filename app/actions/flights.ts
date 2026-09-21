@@ -100,7 +100,7 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
         try {
           const fetchConfig = {
             headers: { 'x-apikey': faConfig.api_key },
-            next: { revalidate: 1800 }
+            next: { revalidate: 3600 } // 1 hora de caché (mantiene el costo mensual de ~$4.20 USD)
           };
           const [depRes, arrRes] = await Promise.all([
             fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/departures', fetchConfig),
@@ -127,7 +127,7 @@ export async function getUpcomingFlights(): Promise<FlightData[]> {
               'Accept-Version': 'v1',
               'Authorization': `Bearer ${fr24Config.api_key}`
             },
-            next: { revalidate: 1800 }
+            next: { revalidate: 900 } // 15 minutos (consume ~26,000 créditos mensuales de tus 60,000 disponibles)
           };
           const res = await fetch('https://fr24api.flightradar24.com/api/live/flight-positions/full?airports=MPDA', fetchConfig);
           if (res.ok) {

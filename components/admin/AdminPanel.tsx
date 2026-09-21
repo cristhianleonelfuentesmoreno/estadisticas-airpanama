@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { SettingsWidget } from "./SettingsWidget";
 import { ApiManagementWidget } from "./ApiManagementWidget";
-import { ManualFlightUploadWidget } from "./ManualFlightUploadWidget";
 import { DispositivosPanel } from "./DispositivosPanel";
 import { AuditoriaPanel } from "./AuditoriaPanel";
 
@@ -114,10 +113,9 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       {/* ========================================= */}
       {/* WIDGET DE CONFIGURACIÓN Y APIs            */}
       {/* ========================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <SettingsWidget />
         <ApiManagementWidget />
-        <ManualFlightUploadWidget />
       </div>
 
       {/* ========================================= */}
