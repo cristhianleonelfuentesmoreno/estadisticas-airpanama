@@ -29,8 +29,8 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
     setBoardDate(d.toISOString().split('T')[0]);
   };
 
-  const [destinationFilter, setDestinationFilter] = useState<string>('TODOS');
-  const [airlineFilter, setAirlineFilter] = useState<string>('TODOS');
+  const [destinationFilter, setDestinationFilter] = useState<string>('DAV');
+  const [airlineFilter, setAirlineFilter] = useState<string>('Air Panama');
   const [statusFilter, setStatusFilter] = useState<string>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
@@ -310,7 +310,7 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
   const [loadingAction, setLoadingAction] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const handleAction = async (actionType: 'DESPEGAR' | 'ATERRIZAR' | 'CANCELAR') => {
+  const handleAction = async (actionType: 'DESPEGAR' | 'ATERRIZAR' | 'CANCELAR' | 'RESTABLECER') => {
     if (!flight.manualLogId) {
       toast.error("Este vuelo no se puede editar (no tiene ID manual)");
       return;
@@ -326,6 +326,8 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
         payload = { status_override: 'ARRIBÓ', actual_arrival_time: nowTime };
       } else if (actionType === 'CANCELAR') {
         payload = { status_override: 'CANCELADO' };
+      } else if (actionType === 'RESTABLECER') {
+        payload = { status_override: null, actual_departure_time: null, actual_arrival_time: null };
       }
 
       await updateFlightStatusOverride(flight.manualLogId, payload);
@@ -519,6 +521,18 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
             >
               <span className="material-symbols-outlined text-[14px]">flight_land</span>
               Aterrizó
+            </button>
+          )}
+
+          {flight.statusOverride && (
+            <button 
+              onClick={() => handleAction('RESTABLECER')}
+              disabled={loadingAction}
+              className="px-3 py-1.5 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-md text-xs font-bold transition-colors flex items-center gap-1"
+              title="Restablecer horas y estado a los del itinerario original"
+            >
+              <span className="material-symbols-outlined text-[14px]">undo</span>
+              Restablecer
             </button>
           )}
         </div>

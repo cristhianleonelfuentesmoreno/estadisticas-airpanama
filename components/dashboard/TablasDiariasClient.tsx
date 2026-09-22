@@ -112,7 +112,7 @@ export default function TablasDiariasClient({
 
   const loadPendingAudit = async () => {
     try {
-      const data = await getUpcomingFlights(currentDateStr);
+      const data = await getUpcomingFlights('TODOS');
       const pendingAudit = data.filter(f => 
         (f.origin === 'DAV' || f.destination === 'DAV') &&
         (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived
@@ -371,11 +371,11 @@ export default function TablasDiariasClient({
     e.preventDefault();
     const isLlegada = addFormData.type === 'llegadas';
     
-    // Create correct Date objects
-    const itinSalida = new Date(`${addFormData.fecha}T${addFormData.hora_itinerario_salida || '00:00'}:00-05:00`);
-    const realSalida = new Date(`${addFormData.fecha}T${addFormData.hora_real_salida || addFormData.hora_itinerario_salida || '00:00'}:00-05:00`);
-    const itinLlegada = new Date(`${addFormData.fecha}T${addFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
-    const realLlegada = new Date(`${addFormData.fecha}T${addFormData.hora_real_llegada || addFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
+    // Create correct Date objects (Using real time for both real and itin)
+    const realSalida = new Date(`${addFormData.fecha}T${addFormData.hora_real_salida || '00:00'}:00-05:00`);
+    const itinSalida = realSalida;
+    const realLlegada = new Date(`${addFormData.fecha}T${addFormData.hora_real_llegada || '00:00'}:00-05:00`);
+    const itinLlegada = realLlegada;
     
     const record: any = {
       fecha: addFormData.fecha,
@@ -1282,8 +1282,8 @@ export default function TablasDiariasClient({
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Tipo de Operación</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.type} onChange={(e) => setAddFormData({...addFormData, type: e.target.value as any})} required>
-                      <option value="llegadas">Llegada a Malek</option>
-                      <option value="salidas">Salida de Malek</option>
+                      <option value="llegadas">Llegada</option>
+                      <option value="salidas">Salida</option>
                     </select>
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
@@ -1354,14 +1354,14 @@ export default function TablasDiariasClient({
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="flex-1 flex flex-col gap-1.5 hidden">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
                       Hora Itin. Salida (HH:MM)
                     </label>
                     <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.hora_itinerario_salida} onChange={(e) => setAddFormData({...addFormData, hora_itinerario_salida: e.target.value})} />
                   </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="flex-1 flex flex-col gap-1.5 w-1/2">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
                       Hora Real Salida (HH:MM)
                     </label>
@@ -1371,14 +1371,14 @@ export default function TablasDiariasClient({
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="flex-1 flex flex-col gap-1.5 hidden">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
                       Hora Itin. Llegada (HH:MM)
                     </label>
                     <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.hora_itinerario_llegada} onChange={(e) => setAddFormData({...addFormData, hora_itinerario_llegada: e.target.value})} />
                   </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="flex-1 flex flex-col gap-1.5 w-1/2">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
                       Hora Real Llegada (HH:MM)
                     </label>
@@ -1499,7 +1499,7 @@ export default function TablasDiariasClient({
       {/* Flight Audit Modal */}
       {isAuditModalOpen && (
         <FlightAuditBoard 
-          initialDate={currentDateStr} 
+          initialDate={currentDateStr}
           onClose={() => { 
             setIsAuditModalOpen(false); 
             loadPendingAudit(); 

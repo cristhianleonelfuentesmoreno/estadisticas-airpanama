@@ -120,7 +120,7 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
     const prefix = flight.airline === 'Copa Airlines' ? 'CM-' : '7P-';
 
     const result: FlightData = {
-      id: `${flight.num}-${flight.dep}`,
+      id: `${flight.num}-${flight.date}-${flight.dep}`,
       flightNumber: `${prefix}${flight.num}`,
       aircraft: flight.type,
       aircraftReg: flight.reg,
@@ -191,7 +191,8 @@ export async function saveCompletedMalekFlights() {
       numero_vuelo: f.flightNumber,
       origen: f.origin,
       hora_itinerario: `${today}T${f.arrivalTimeLocal}:00-05:00`,
-      hora_real_llegada: `${today}T${f.arrivalTimeLocal}:00-05:00`,
+      hora_real_llegada: `${today}T${f.actualArrivalTime || f.arrivalTimeLocal}:00-05:00`,
+      hora_llegada_real: `${today}T${f.actualArrivalTime || f.arrivalTimeLocal}:00-05:00`,
       estado_final: 'PENDIENTE',
       pasajeros_abordo: f.paxCount,
       capacidad_total: f.paxMax
@@ -299,7 +300,8 @@ export async function saveCompletedMalekDepartures() {
       numero_vuelo: f.flightNumber,
       destino: f.destination,
       hora_itinerario: `${today}T${f.departureTimeLocal}:00-05:00`,
-      hora_real_salida: `${today}T${f.departureTimeLocal}:00-05:00`,
+      hora_real_salida: `${today}T${f.actualDepartureTime || f.departureTimeLocal}:00-05:00`,
+      hora_salida_real: `${today}T${f.actualDepartureTime || f.departureTimeLocal}:00-05:00`,
       estado_final: 'PENDIENTE',
       pasajeros_abordo: f.paxCount,
       capacidad_total: f.paxMax

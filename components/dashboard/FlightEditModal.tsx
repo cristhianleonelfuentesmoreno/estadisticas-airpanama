@@ -13,26 +13,35 @@ export function FlightEditModal({
   onSuccess: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const formatTimeForInput = (timeStr?: string) => {
+    if (!timeStr) return '';
+    const match = timeStr.match(/(\d{1,2}):(\d{2})/);
+    if (match) {
+      return `${match[1].padStart(2, '0')}:${match[2]}`;
+    }
+    return timeStr;
+  };
+
   const [formData, setFormData] = useState({
-    flight_number: flight.flightNumber.replace(/^(CM-|7P-)/, ''), // Remove prefix if any
+    flightNumber: flight.flightNumber.replace(/^(CM-|7P-)/, ''), // Remove prefix if any
     origin: flight.origin,
     destination: flight.destination,
-    departure_time_local: flight.departureTimeLocal,
-    arrival_time_local: flight.arrivalTimeLocal,
-    actual_departure_time: flight.actualDeparture || flight.departureTimeLocal,
-    actual_arrival_time: flight.actualArrival || flight.arrivalTimeLocal,
+    departureTimeLocal: formatTimeForInput(flight.departureTimeLocal),
+    arrivalTimeLocal: formatTimeForInput(flight.arrivalTimeLocal),
+    actual_departure_time: formatTimeForInput(flight.actualDepartureTime || flight.departureTimeLocal),
+    actual_arrival_time: formatTimeForInput(flight.actualArrivalTime || flight.arrivalTimeLocal),
     aircraft: flight.aircraft,
-    aircraft_reg: flight.aircraftReg,
+    aircraftReg: flight.aircraftReg || '',
     pilot: flight.pilot || '',
-    pax_count: flight.paxCount,
-    pax_max: flight.paxMax
+    paxCount: flight.paxCount,
+    paxMax: flight.paxMax
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'pax_count' || name === 'pax_max' ? parseInt(value) || 0 : value
+      [name]: name === 'paxCount' || name === 'paxMax' ? parseInt(value) || 0 : value
     }));
   };
 
@@ -104,11 +113,11 @@ export function FlightEditModal({
           <div className="grid grid-cols-2 gap-space-sm">
             <label className="flex flex-col gap-1">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Salida Estimada</span>
-              <input name="departure_time_local" type="time" value={formData.departure_time_local} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
+              <input name="departureTimeLocal" type="time" value={formData.departureTimeLocal} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Llegada Estimada</span>
-              <input name="arrival_time_local" type="time" value={formData.arrival_time_local} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
+              <input name="arrivalTimeLocal" type="time" value={formData.arrivalTimeLocal} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
             </label>
           </div>
 
@@ -130,18 +139,18 @@ export function FlightEditModal({
             </label>
             <label className="flex flex-col gap-1">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Matrícula</span>
-              <input name="aircraft_reg" value={formData.aircraft_reg} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
+              <input name="aircraftReg" value={formData.aircraftReg} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
             </label>
           </div>
 
           <div className="grid grid-cols-2 gap-space-sm">
             <label className="flex flex-col gap-1">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Pax Bordo</span>
-              <input name="pax_count" type="number" value={formData.pax_count} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
+              <input name="paxCount" type="number" value={formData.paxCount} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Capacidad Máx</span>
-              <input name="pax_max" type="number" value={formData.pax_max} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
+              <input name="paxMax" type="number" value={formData.paxMax} onChange={handleChange} required className="h-10 px-3 rounded-md bg-surface-container-low border border-outline-variant/30 text-on-surface font-medium focus:outline-none focus:border-primary" />
             </label>
           </div>
 
