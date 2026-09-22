@@ -160,7 +160,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
         destinationName: String(row.desName || row.destinationName || ''),
         departureTimeLocal: String(row.dep || row.departureTimeLocal || ''),
         arrivalTimeLocal: String(row.arr || row.arrivalTimeLocal || ''),
-        airline: String(row.airline || 'Air Panama'),
+        airline: String(row.airline || (selectedAirline === 'airpanama' ? 'Air Panama' : 'Copa Airlines')),
         pilot: String(row.pilot || ''),
         paxCount: Number(row.pax || row.paxCount || 0),
         paxMax: Number(row.max || row.paxMax || 0),
@@ -481,6 +481,24 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                       <span className="text-xs text-on-surface-variant/70">Aplica a todos los vuelos si el archivo no tiene columna 'date'</span>
                     </div>
                     <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} className="h-10 px-3 bg-surface-container-high rounded-lg border border-outline-variant/30 text-sm focus:ring-1 focus:ring-primary" />
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <label className="text-xs font-bold text-on-surface-variant uppercase">Aerolínea Predeterminada</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedAirline('airpanama')}
+                        className={`flex-1 py-2 px-4 rounded-xl border ${selectedAirline === 'airpanama' ? 'bg-primary/10 border-primary text-primary font-bold' : 'border-outline-variant/30 text-on-surface-variant'}`}
+                      >
+                        Air Panama
+                      </button>
+                      <button
+                        onClick={() => setSelectedAirline('copa')}
+                        className={`flex-1 py-2 px-4 rounded-xl border ${selectedAirline === 'copa' ? 'bg-primary/10 border-primary text-primary font-bold' : 'border-outline-variant/30 text-on-surface-variant'}`}
+                      >
+                        Copa Airlines
+                      </button>
+                    </div>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-primary-container/20 border border-primary/20 text-on-surface-variant text-sm flex gap-3">

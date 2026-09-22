@@ -10,6 +10,7 @@ const getAdminSupabase = () => {
 };
 
 export type ManualFlightInput = {
+  id?: string;
   flightNumber: string;
   aircraft: string;
   aircraftReg: string;
@@ -24,6 +25,10 @@ export type ManualFlightInput = {
   paxCount: number;
   paxMax: number;
   flightDate: string; // YYYY-MM-DD
+  actual_departure_time?: string;
+  actual_arrival_time?: string;
+  status_override?: string; // 'EN VUELO', 'ARRIBO', 'CANCELADO', etc.
+  is_archived?: boolean;
 };
 
 export async function getManualFlightsForDate(dateStr?: string): Promise<ManualFlightInput[]> {
@@ -105,5 +110,40 @@ export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
     throw new Error(insertError.message);
   }
   
+  return true;
+}
+
+export async function updateFlightStatusOverride(id: string, override: { status_override?: string | null; actual_departure_time?: string | null; actual_arrival_time?: string | null }) {
+  const supabase = getAdminSupabase();
+  const { error } = await supabase
+    .from('manual_flights_log')
+    .update(override)
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
+export async function archiveFlight(id: string) {
+  const supabase = getAdminSupabase();
+  const { error } = await supabase
+    .from('manual_flights_log')
+    .update({ is_archived: true })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
+export async function updateFlightDetails(id: string, updates: Partial<ManualFlightInput>) {
+  const supabase = getAdminSupabase();
+  
+  // Clean up undefined/id fields
+  const payload = { ...updates };
+  delete payload.id;
+  
+  const { error } = await supabase
+    .from('manual_flights_log')
+    .update(payload)
+    .eq('id', id);
+  if (error) throw new Error(error.message);
   return true;
 }

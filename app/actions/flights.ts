@@ -13,7 +13,7 @@ export interface FlightData {
   arrivalTime: string;
   departureTimeLocal: string;
   arrivalTimeLocal: string;
-  status: 'PROGRAMADO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'ARRIBO';
+  status: 'PROGRAMADO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'ARRIBO' | 'CANCELADO';
   gate: string;
   pilot: string;
   paxCount: number;
@@ -22,6 +22,11 @@ export interface FlightData {
   airline: string; // <-- Nuevo campo para diferenciar
   progress: number; // 0 to 100
   durationStr: string;
+  manualLogId?: string;
+  actualDepartureTime?: string;
+  actualArrivalTime?: string;
+  statusOverride?: string;
+  isArchived?: boolean;
 }
 
 export async function getUpcomingFlights(targetDate?: string): Promise<FlightData[]> {
@@ -52,7 +57,12 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
     max: f.paxMax,
     type: f.aircraft,
     reg: f.aircraftReg,
-    airline: f.airline
+    airline: f.airline,
+    manualLogId: f.id,
+    actualDeparture: f.actual_departure_time,
+    actualArrival: f.actual_arrival_time,
+    statusOverride: f.status_override,
+    isArchived: f.is_archived
   }));
 
 
@@ -72,7 +82,17 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
     let progress = 0;
     let status: FlightData['status'] = 'PROGRAMADO';
 
-      if (elapsedMs < 0) {
+      if (flight.actualArrival || flight.statusOverride === 'ARRIBO') {
+        progress = 100;
+        status = 'ARRIBO';
+      } else if (flight.statusOverride === 'CANCELADO') {
+        progress = 0;
+        status = 'CANCELADO';
+      } else if (flight.actualDeparture || flight.statusOverride === 'EN VUELO') {
+        // En vuelo por acción manual
+        progress = Math.min(100, Math.max(0, Math.floor((elapsedMs / totalDurationMs) * 100)));
+        status = 'EN VUELO';
+      } else if (elapsedMs < 0) {
         // Falta tiempo para que salga
         progress = 0;
         // Si falta menos de 30 mins, está abordando
@@ -82,11 +102,11 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
           status = 'PROGRAMADO';
         }
       } else if (elapsedMs >= totalDurationMs) {
-        // Ya llegó
+        // Ya llegó por tiempo estimado
         progress = 100;
         status = 'ARRIBO';
       } else {
-        // Está en vuelo
+        // Está en vuelo por tiempo estimado
         progress = Math.floor((elapsedMs / totalDurationMs) * 100);
         status = 'EN VUELO';
       }
@@ -119,7 +139,12 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
       flightType: 'REGULAR',
       airline: flight.airline,
       progress,
-      durationStr
+      durationStr,
+      manualLogId: flight.manualLogId,
+      actualDepartureTime: flight.actualDeparture,
+      actualArrivalTime: flight.actualArrival,
+      statusOverride: flight.statusOverride,
+      isArchived: flight.isArchived
     };
 
     return result;

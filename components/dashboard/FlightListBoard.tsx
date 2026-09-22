@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 import { ManualFlightUploadModal } from "./ManualFlightUploadModal";
-import { addMultipleManualFlights } from "@/app/actions/manualFlights";
+import { addMultipleManualFlights, updateFlightStatusOverride } from "@/app/actions/manualFlights";
 import { toast } from "sonner";
 
 export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
@@ -68,8 +68,9 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
       case 'ABORDANDO': return 2;
       case 'PROGRAMADO': return 3;
       case 'RETRASADO': return 3;
-      case 'ARRIBO': return 4;
-      default: return 5;
+      case 'CANCELADO': return 4;
+      case 'ARRIBO': return 5;
+      default: return 6;
     }
   };
 
@@ -205,7 +206,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
               >
                 Todos
               </button>
-              {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'ARRIBO'].map(status => (
+              {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'ARRIBO', 'CANCELADO'].map(status => (
                 <button 
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -231,7 +232,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
         {/* Flight Cards */}
         <div className="flex flex-col gap-space-sm">
           {visibleFlights.map(flight => (
-            <FlightCard key={flight.id} flight={flight} />
+            <FlightCard key={flight.id} flight={flight} isAdmin={isAdmin} onRefresh={() => setBoardDate(d => d + " ")} />
           ))}
           {sortedFlights.length > 12 && (
           <div className="text-center pt-2 pb-4">
@@ -274,7 +275,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
             {/* Modal Content - Scrollable list of all sorted flights */}
             <div className="p-space-md overflow-y-auto flex flex-col gap-space-sm bg-surface">
               {sortedFlights.map(flight => (
-                <FlightCard key={flight.id} flight={flight} />
+                <FlightCard key={flight.id} flight={flight} isAdmin={isAdmin} onRefresh={() => setBoardDate(d => d + " ")} />
               ))}
             </div>
           </div>
@@ -303,8 +304,37 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   );
 }
 
-function FlightCard({ flight }: { flight: FlightData }) {
+function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmin?: boolean, onRefresh?: () => void }) {
   const localStatus = flight.status;
+  const [loadingAction, setLoadingAction] = useState(false);
+
+  const handleAction = async (actionType: 'DESPEGAR' | 'ATERRIZAR' | 'CANCELAR') => {
+    if (!flight.manualLogId) {
+      toast.error("Este vuelo no se puede editar (no tiene ID manual)");
+      return;
+    }
+    setLoadingAction(true);
+    try {
+      const nowTime = new Date().toLocaleTimeString('en-US', { timeZone: 'America/Panama', hour12: false, hour: '2-digit', minute: '2-digit' });
+      
+      let payload = {};
+      if (actionType === 'DESPEGAR') {
+        payload = { status_override: 'EN VUELO', actual_departure_time: nowTime };
+      } else if (actionType === 'ATERRIZAR') {
+        payload = { status_override: 'ARRIBO', actual_arrival_time: nowTime };
+      } else if (actionType === 'CANCELAR') {
+        payload = { status_override: 'CANCELADO' };
+      }
+
+      await updateFlightStatusOverride(flight.manualLogId, payload);
+      toast.success(`Vuelo ${actionType} correctamente`);
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      toast.error(err.message || "Error al actualizar");
+    } finally {
+      setLoadingAction(false);
+    }
+  };
 
   // Determine status badge styling based on localStatus
   let badgeClass = 'text-primary border-primary/20 bg-primary-container/10';
@@ -316,6 +346,8 @@ function FlightCard({ flight }: { flight: FlightData }) {
     badgeClass = 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10';
   } else if (localStatus === 'PROGRAMADO') {
     badgeClass = 'text-amber-500 border-amber-500/20 bg-amber-500/10';
+  } else if (localStatus === 'CANCELADO') {
+    badgeClass = 'text-error border-error/20 bg-error/10 line-through';
   }
 
   // Format times
@@ -420,6 +452,45 @@ function FlightCard({ flight }: { flight: FlightData }) {
           )}
         </div>
       </div>
+
+      {/* Admin Action Bar */}
+      {isAdmin && flight.manualLogId && !flight.isArchived && (
+        <div className="mt-2 flex items-center justify-end gap-2 pt-3 border-t border-white/5">
+          <span className="text-[10px] text-on-surface-variant uppercase tracking-wider mr-auto font-bold">Admin Actions</span>
+          
+          {localStatus !== 'CANCELADO' && localStatus !== 'ARRIBO' && (
+            <button 
+              onClick={() => handleAction('CANCELAR')}
+              disabled={loadingAction}
+              className="px-3 py-1.5 bg-error/10 text-error hover:bg-error/20 rounded-md text-xs font-bold transition-colors"
+            >
+              Cancelar
+            </button>
+          )}
+          
+          {(localStatus === 'PROGRAMADO' || localStatus === 'ABORDANDO' || localStatus === 'RETRASADO') && (
+            <button 
+              onClick={() => handleAction('DESPEGAR')}
+              disabled={loadingAction}
+              className="px-4 py-1.5 bg-emerald-500 text-white rounded-md text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[14px]">flight_takeoff</span>
+              Despegar
+            </button>
+          )}
+
+          {localStatus === 'EN VUELO' && (
+            <button 
+              onClick={() => handleAction('ATERRIZAR')}
+              disabled={loadingAction}
+              className="px-4 py-1.5 bg-primary text-on-primary rounded-md text-xs font-bold shadow-sm hover:bg-primary/90 transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[14px]">flight_land</span>
+              Aterrizó
+            </button>
+          )}
+        </div>
+      )}
 
     </div>
   );

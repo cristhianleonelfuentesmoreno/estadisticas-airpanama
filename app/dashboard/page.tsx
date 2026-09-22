@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { FlightDecisionBoard } from "@/components/dashboard/FlightDecisionBoard";
 import { FlightListBoard } from "@/components/dashboard/FlightListBoard";
+import { FlightAuditBoard } from "@/components/dashboard/FlightAuditBoard";
 import { getUpcomingFlights } from "@/app/actions/flights";
 
 export default function DashboardPage() {
@@ -172,6 +173,7 @@ export default function DashboardPage() {
 {/*  Scheduled Flight Feed  */}
 <div className="pt-space-xs pb-space-lg">
 <FlightListBoard isAdmin={isAdmin} />
+<FlightAuditBoard isAdmin={isAdmin} />
 </div>
 </div>
 {/*  Interactive Modal Drawer for Quick Flight Log (Micro-Interaction)  */}
