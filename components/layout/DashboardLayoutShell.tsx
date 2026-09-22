@@ -183,19 +183,14 @@ export default function DashboardLayoutShell({
               </Link>
             )}
             
-            <div className="flex items-center gap-space-xs pl-1 py-1">
-              {avatarUrl ? (
-                <img 
-                  alt="Profile" 
-                  className="w-8 h-8 rounded-full object-cover ring-1 ring-white/20" 
-                  src={avatarUrl} 
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-white font-bold text-xs ring-1 ring-white/20 uppercase">
-                  {userName ? userName.charAt(0) : (userEmail ? userEmail.charAt(0) : "U")}
-                </div>
-              )}
-            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              aria-label="Recargar página"
+              title="Recargar página"
+              className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-white ring-1 ring-white/20 active:scale-95 transition-all shadow-sm mx-1"
+            >
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
             <button 
               onClick={handleLogout}
               aria-label="Cerrar sesión" 
