@@ -34,6 +34,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   const [statusFilter, setStatusFilter] = useState<string>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   useEffect(() => {
     async function loadData() {
@@ -51,7 +52,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
     loadData();
     const interval = setInterval(loadData, 300000);
     return () => clearInterval(interval);
-  }, [boardDate]);
+  }, [boardDate, refreshCounter]);
 
   // 1. Filter Flights
   const filteredFlights = flights.filter(f => {
@@ -230,10 +231,9 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
 
 
 
-        {/* Flight Cards */}
         <div className="flex flex-col gap-space-sm">
           {visibleFlights.map(flight => (
-            <FlightCard key={flight.id} flight={flight} isAdmin={isAdmin} onRefresh={() => setBoardDate(d => d + " ")} />
+            <FlightCard key={flight.id} flight={flight} isAdmin={isAdmin} onRefresh={() => setRefreshCounter(c => c + 1)} />
           ))}
           {sortedFlights.length > 12 && (
           <div className="text-center pt-2 pb-4">
