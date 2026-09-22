@@ -134,7 +134,7 @@ export default function DashboardPage() {
 </div>
 
 {/*  Executive KPI Grid  */}
-<div className="grid grid-cols-1 gap-space-sm">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-space-sm">
 {/*  Vuelos Completados  */}
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
