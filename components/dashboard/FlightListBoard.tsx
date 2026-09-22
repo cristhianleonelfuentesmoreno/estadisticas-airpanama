@@ -14,6 +14,19 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
   const todayStr = new Date(todayPanama).toISOString().split('T')[0];
   const [boardDate, setBoardDate] = useState<string>(todayStr);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePrevDay = () => {
+    const d = new Date(boardDate);
+    d.setUTCDate(d.getUTCDate() - 1);
+    setBoardDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(boardDate);
+    d.setUTCDate(d.getUTCDate() + 1);
+    setBoardDate(d.toISOString().split('T')[0]);
+  };
 
   const [destinationFilter, setDestinationFilter] = useState<string>('TODOS');
   const [airlineFilter, setAirlineFilter] = useState<string>('TODOS');
@@ -89,14 +102,45 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Próximos Vuelos</h2>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-container rounded-lg border border-white/5 shadow-sm">
-                <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
-                <input 
-                  type="date" 
-                  value={boardDate}
-                  onChange={(e) => setBoardDate(e.target.value)}
-                  className="bg-transparent border-none outline-none font-label-sm text-on-surface font-bold focus:ring-0 cursor-pointer"
-                />
+              <div className="flex items-center gap-1 bg-surface-container rounded-lg border border-white/5 shadow-sm p-1">
+                <button 
+                  onClick={handlePrevDay}
+                  className="w-8 h-8 hover:bg-surface-container-high rounded-md transition-colors text-on-surface-variant flex items-center justify-center"
+                  title="Día anterior"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                
+                <div 
+                  onClick={() => {
+                    if (dateInputRef.current) {
+                      try {
+                        dateInputRef.current.showPicker();
+                      } catch (e) {
+                        dateInputRef.current.focus();
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 h-8 cursor-pointer hover:bg-surface-container-high rounded-md transition-colors"
+                  title="Seleccionar fecha"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
+                  <input 
+                    ref={dateInputRef}
+                    type="date" 
+                    value={boardDate}
+                    onChange={(e) => setBoardDate(e.target.value)}
+                    className="bg-transparent border-none outline-none font-label-sm text-on-surface font-bold focus:ring-0 cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden p-0 w-[100px]"
+                  />
+                </div>
+
+                <button 
+                  onClick={handleNextDay}
+                  className="w-8 h-8 hover:bg-surface-container-high rounded-md transition-colors text-on-surface-variant flex items-center justify-center"
+                  title="Día siguiente"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
               </div>
 
 
