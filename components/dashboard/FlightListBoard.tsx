@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 import { ManualFlightUploadModal } from "./ManualFlightUploadModal";
-import { addMultipleManualFlights, updateFlightStatusOverride } from "@/app/actions/manualFlights";
+import { addMultipleManualFlights, updateFlightStatusOverride, deleteManualFlight } from "@/app/actions/manualFlights";
+import { FlightEditModal } from "./FlightEditModal";
 import { toast } from "sonner";
 
 export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
@@ -164,7 +165,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
                 onClick={() => setDestinationFilter('TODOS')}
                 className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors whitespace-nowrap ${destinationFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
               >
-                Todos
+                TODOS
               </button>
               {uniqueDests.map(dest => (
                 <button 
@@ -184,7 +185,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
                 onClick={() => setAirlineFilter('TODOS')}
                 className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${airlineFilter === 'TODOS' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
               >
-                Todas
+                TODAS
               </button>
               {uniqueAirlines.map(airline => (
                 <button 
@@ -192,7 +193,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
                   onClick={() => setAirlineFilter(airline)}
                   className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${airlineFilter === airline ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
                 >
-                  {airline}
+                  {airline.toUpperCase()}
                 </button>
               ))}
             </div>
@@ -204,7 +205,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
                 onClick={() => setStatusFilter('TODOS')}
                 className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${statusFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
               >
-                Todos
+                TODOS
               </button>
               {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'ARRIBÓ', 'CANCELADO'].map(status => (
                 <button 
@@ -307,6 +308,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
 function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmin?: boolean, onRefresh?: () => void }) {
   const localStatus = flight.status;
   const [loadingAction, setLoadingAction] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const handleAction = async (actionType: 'DESPEGAR' | 'ATERRIZAR' | 'CANCELAR') => {
     if (!flight.manualLogId) {
@@ -333,6 +335,22 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
       toast.error(err.message || "Error al actualizar");
     } finally {
       setLoadingAction(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!flight.manualLogId) return;
+    if (confirm("¿Estás seguro de que deseas eliminar este vuelo? Esta acción no se puede deshacer.")) {
+      setLoadingAction(true);
+      try {
+        await deleteManualFlight(flight.manualLogId);
+        toast.success("Vuelo eliminado correctamente");
+        if (onRefresh) onRefresh();
+      } catch (err: any) {
+        toast.error("Error al eliminar el vuelo: " + err.message);
+      } finally {
+        setLoadingAction(false);
+      }
     }
   };
 
@@ -388,11 +406,6 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-sm text-label-sm font-bold border uppercase whitespace-nowrap shadow-sm ${badgeClass}`}>
             <div className={`w-2 h-2 rounded-full ${dotClass}`}></div>
             {localStatus}
-          </div>
-          
-          <div className="ml-2 px-2.5 py-1 bg-surface-container-low border border-outline-variant/30 rounded-full font-label-sm text-label-sm font-bold text-on-surface-variant flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">fact_check</span>
-            Registrado
           </div>
         </div>
       </div>
@@ -461,18 +474,29 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
         </div>
       </div>
 
-      {/* Admin Action Bar */}
-      {isAdmin && flight.manualLogId && !flight.isArchived && (
+      {/* Actions Bar (Available to everyone) */}
+      {flight.manualLogId && !flight.isArchived && (
         <div className="mt-2 flex items-center justify-end gap-2 pt-3 border-t border-white/5">
-          <span className="text-[10px] text-on-surface-variant uppercase tracking-wider mr-auto font-bold">Admin Actions</span>
+          <span className="text-[10px] text-on-surface-variant uppercase tracking-wider mr-auto font-bold">Acciones</span>
           
+          <button 
+            onClick={() => setIsEditModalOpen(true)}
+            disabled={loadingAction}
+            className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface-variant rounded-md text-xs font-bold transition-colors flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-[14px]">edit</span>
+            Editar
+          </button>
+          
+          <div className="w-[1px] h-6 bg-surface-container-high mx-1"></div>
+
           {localStatus !== 'CANCELADO' && localStatus !== 'ARRIBÓ' && (
             <button 
               onClick={() => handleAction('CANCELAR')}
               disabled={loadingAction}
               className="px-3 py-1.5 bg-error/10 text-error hover:bg-error/20 rounded-md text-xs font-bold transition-colors"
             >
-              Cancelar
+              Vuelo Cancelado
             </button>
           )}
           
@@ -498,6 +522,16 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
             </button>
           )}
         </div>
+      )}
+
+      {isEditModalOpen && (
+        <FlightEditModal 
+          flight={flight}
+          onClose={() => setIsEditModalOpen(false)}
+          onSuccess={() => {
+            if (onRefresh) onRefresh();
+          }}
+        />
       )}
 
     </div>

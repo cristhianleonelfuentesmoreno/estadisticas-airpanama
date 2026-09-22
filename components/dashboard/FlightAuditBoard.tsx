@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
-import { archiveFlight, updateFlightDetails } from "@/app/actions/manualFlights";
+import { archiveFlight, updateFlightDetails, deleteManualFlight } from "@/app/actions/manualFlights";
+import { FlightEditModal } from "./FlightEditModal";
 
 export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingFlight, setEditingFlight] = useState<FlightData | null>(null);
 
   // We fetch all flights to see which ones are ARRIBÓ or CANCELADO but NOT archived.
   const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
@@ -20,6 +22,7 @@ export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
       const data = await getUpcomingFlights(boardDate);
       // Filtramos solo los vuelos que llegaron o fueron cancelados, y que NO están archivados
       const pendingAudit = data.filter(f => 
+        (f.origin === 'DAV' || f.destination === 'DAV') &&
         (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived
       );
       setFlights(pendingAudit);
@@ -31,10 +34,8 @@ export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
   };
 
   useEffect(() => {
-    if (isAdmin) {
-      loadData();
-    }
-  }, [isAdmin, boardDate]);
+    loadData();
+  }, [boardDate]);
 
   const handleArchive = async (id: string, manualLogId?: string) => {
     if (!manualLogId) {
@@ -60,7 +61,19 @@ export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  if (!isAdmin) return null;
+  const handleDelete = async (manualLogId?: string) => {
+    if (!manualLogId) return;
+    if (confirm("¿Estás seguro de que deseas eliminar este vuelo? Esta acción no se puede deshacer.")) {
+      try {
+        await deleteManualFlight(manualLogId);
+        toast.success("Vuelo eliminado correctamente");
+        loadData();
+      } catch (err: any) {
+        toast.error("Error al eliminar el vuelo: " + err.message);
+      }
+    }
+  };
+
   if (!loading && flights.length === 0) return null;
 
   return (
@@ -132,13 +145,31 @@ export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
                     </div>
                   </td>
                   <td className="py-3 text-right">
-                    <button 
-                      onClick={() => handleArchive(flight.id, flight.manualLogId)}
-                      className="px-4 py-1.5 bg-secondary text-on-secondary hover:bg-secondary/90 transition-colors rounded-md text-xs font-bold shadow-sm flex items-center justify-center gap-1 ml-auto"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">inventory_2</span>
-                      Archivar
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => setEditingFlight(flight)}
+                        className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface-variant rounded-md text-xs font-bold transition-colors flex items-center gap-1"
+                        title="Editar"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                        Editar
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(flight.manualLogId)}
+                        className="px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error rounded-md text-xs font-bold transition-colors flex items-center gap-1"
+                        title="Descartar"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                        Descartar
+                      </button>
+                      <button 
+                        onClick={() => handleArchive(flight.id, flight.manualLogId)}
+                        className="px-3 py-1.5 bg-secondary text-on-secondary hover:bg-secondary/90 transition-colors rounded-md text-xs font-bold shadow-sm flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                        Aprobado
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -146,6 +177,16 @@ export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
           </table>
         )}
       </div>
+
+      {editingFlight && (
+        <FlightEditModal 
+          flight={editingFlight}
+          onClose={() => setEditingFlight(null)}
+          onSuccess={() => {
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }

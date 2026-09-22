@@ -147,3 +147,13 @@ export async function updateFlightDetails(id: string, updates: Partial<ManualFli
   if (error) throw new Error(error.message);
   return true;
 }
+
+export async function deleteManualFlight(id: string) {
+  const supabase = getAdminSupabase();
+  const { error } = await supabase
+    .from('manual_flights_log')
+    .delete()
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+  return true;
+}
