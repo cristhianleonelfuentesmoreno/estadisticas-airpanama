@@ -61,7 +61,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   });
 
   // 2. Sort Flights
-  // Priority: 1. EN VUELO, 2. ABORDANDO / A TIEMPO, 3. ARRIBO
+  // Priority: 1. EN VUELO, 2. ABORDANDO / A TIEMPO, 3. ARRIBÓ
   const getStatusPriority = (status: FlightData['status']) => {
     switch (status) {
       case 'EN VUELO': return 1;
@@ -69,7 +69,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
       case 'PROGRAMADO': return 3;
       case 'RETRASADO': return 3;
       case 'CANCELADO': return 4;
-      case 'ARRIBO': return 5;
+      case 'ARRIBÓ': return 5;
       default: return 6;
     }
   };
@@ -79,8 +79,8 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
     const pB = getStatusPriority(b.status);
     if (pA !== pB) return pA - pB;
     
-    // Si ambos vuelos ya llegaron, ordenar por hora de llegada más reciente primero (descendente)
-    if (a.status === 'ARRIBO' && b.status === 'ARRIBO') {
+    // Secondary sort for ARRIBÓ: most recently arrived at top (descending actualArrivalTime)
+    if (a.status === 'ARRIBÓ' && b.status === 'ARRIBÓ') {
       return new Date(b.arrivalTime).getTime() - new Date(a.arrivalTime).getTime();
     }
     
@@ -206,7 +206,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
               >
                 Todos
               </button>
-              {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'ARRIBO', 'CANCELADO'].map(status => (
+              {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'ARRIBÓ', 'CANCELADO'].map(status => (
                 <button 
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -321,7 +321,7 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
       if (actionType === 'DESPEGAR') {
         payload = { status_override: 'EN VUELO', actual_departure_time: nowTime };
       } else if (actionType === 'ATERRIZAR') {
-        payload = { status_override: 'ARRIBO', actual_arrival_time: nowTime };
+        payload = { status_override: 'ARRIBÓ', actual_arrival_time: nowTime };
       } else if (actionType === 'CANCELAR') {
         payload = { status_override: 'CANCELADO' };
       }
@@ -340,7 +340,7 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
   let badgeClass = 'text-primary border-primary/20 bg-primary-container/10';
   if (localStatus === 'RETRASADO') {
     badgeClass = 'text-error border-error/20 bg-error-container/10';
-  } else if (localStatus === 'ARRIBO') {
+  } else if (localStatus === 'ARRIBÓ') {
     badgeClass = 'text-on-surface-variant border-white/10 bg-surface-container-high';
   } else if (localStatus === 'EN VUELO') {
     badgeClass = 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10';
@@ -358,9 +358,17 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
   const arrTimeStr = aTime.toLocaleTimeString('es-PA', timeOpts);
 
   // Plane color based on status
-  const planeColorClass = localStatus === 'ARRIBO' ? 'text-primary' : 'text-error';
+  const planeColorClass = localStatus === 'ARRIBÓ' ? 'text-primary' : 'text-error';
   // Progress clamping
   const progressPercent = Math.min(Math.max(flight.progress, 0), 100);
+
+  // Dot styling
+  let dotClass = 'bg-current';
+  if (localStatus === 'EN VUELO') {
+    dotClass = 'bg-current animate-pulse';
+  } else if (localStatus === 'ARRIBÓ') {
+    dotClass = flight.isArchived ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse';
+  }
 
   return (
     <div className="bg-surface-container-lowest rounded-xl p-space-md border border-white/5 shadow-sm flex flex-col gap-space-md hover:border-white/10 transition-colors">
@@ -378,7 +386,7 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
           
           {/* Status Badge */}
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-sm text-label-sm font-bold border uppercase whitespace-nowrap shadow-sm ${badgeClass}`}>
-            <div className={`w-2 h-2 rounded-full bg-current ${localStatus === 'EN VUELO' ? 'animate-pulse' : ''}`}></div>
+            <div className={`w-2 h-2 rounded-full ${dotClass}`}></div>
             {localStatus}
           </div>
           
@@ -458,7 +466,7 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
         <div className="mt-2 flex items-center justify-end gap-2 pt-3 border-t border-white/5">
           <span className="text-[10px] text-on-surface-variant uppercase tracking-wider mr-auto font-bold">Admin Actions</span>
           
-          {localStatus !== 'CANCELADO' && localStatus !== 'ARRIBO' && (
+          {localStatus !== 'CANCELADO' && localStatus !== 'ARRIBÓ' && (
             <button 
               onClick={() => handleAction('CANCELAR')}
               disabled={loadingAction}

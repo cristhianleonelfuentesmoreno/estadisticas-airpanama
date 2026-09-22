@@ -27,7 +27,7 @@ export type ManualFlightInput = {
   flightDate: string; // YYYY-MM-DD
   actual_departure_time?: string;
   actual_arrival_time?: string;
-  status_override?: string; // 'EN VUELO', 'ARRIBO', 'CANCELADO', etc.
+  status_override?: string; // 'EN VUELO', 'ARRIBÓ', 'CANCELADO', etc.
   is_archived?: boolean;
 };
 

@@ -985,7 +985,7 @@ export default function TablasDiariasClient({
                         <td className="px-4 py-3">
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800">
                             <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                            {flight.estado_final === 'LLEGÓ' ? 'ARRIBO' : flight.estado_final}
+                            {flight.estado_final === 'LLEGÓ' ? 'ARRIBÓ' : flight.estado_final}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">

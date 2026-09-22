@@ -13,7 +13,7 @@ export interface FlightData {
   arrivalTime: string;
   departureTimeLocal: string;
   arrivalTimeLocal: string;
-  status: 'PROGRAMADO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'ARRIBO' | 'CANCELADO';
+  status: 'PROGRAMADO' | 'ABORDANDO' | 'RETRASADO' | 'EN VUELO' | 'ARRIBÓ' | 'CANCELADO';
   gate: string;
   pilot: string;
   paxCount: number;
@@ -32,12 +32,12 @@ export interface FlightData {
 export async function getUpcomingFlights(targetDate?: string): Promise<FlightData[]> {
   const now = new Date(); // Obtenemos la hora local del dispositivo
 
-  const parseTime = (timeStr: string) => {
-    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+  const parseTime = (timeStr: string, flightDateStr?: string) => {
+    const targetDateStr = flightDateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     // timeStr format is HH:MM or H:MM. Construct an ISO string for Panama time
     const [hours, mins] = timeStr.split(':');
     const paddedHours = hours.padStart(2, '0');
-    return new Date(`${todayStr}T${paddedHours}:${mins}:00-05:00`);
+    return new Date(`${targetDateStr}T${paddedHours}:${mins}:00-05:00`);
   };
 
   const { getManualFlightsForDate } = await import('./manualFlights');
@@ -46,6 +46,7 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
   // El itinerario real transcrito directamente de la imagen + Simulados de Copa (como fallback si la BD está vacía o no existe)
   let itinerary = manualFlights.map(f => ({
     num: f.flightNumber,
+    date: f.flightDate,
     dep: f.departureTimeLocal,
     arr: f.arrivalTimeLocal,
     ori: f.origin,
@@ -68,8 +69,8 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
 
 
   const flights: FlightData[] = itinerary.map((flight) => {
-    let depDate = parseTime(flight.dep);
-    let arrDate = parseTime(flight.arr);
+    let depDate = parseTime(flight.dep, flight.date);
+    let arrDate = parseTime(flight.arr, flight.date);
     
     if (arrDate < depDate) {
       arrDate.setDate(arrDate.getDate() + 1);
@@ -82,9 +83,9 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
     let progress = 0;
     let status: FlightData['status'] = 'PROGRAMADO';
 
-      if (flight.actualArrival || flight.statusOverride === 'ARRIBO') {
+      if (flight.actualArrival || flight.statusOverride === 'ARRIBÓ') {
         progress = 100;
-        status = 'ARRIBO';
+        status = 'ARRIBÓ';
       } else if (flight.statusOverride === 'CANCELADO') {
         progress = 0;
         status = 'CANCELADO';
@@ -104,7 +105,7 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
       } else if (elapsedMs >= totalDurationMs) {
         // Ya llegó por tiempo estimado
         progress = 100;
-        status = 'ARRIBO';
+        status = 'ARRIBÓ';
       } else {
         // Está en vuelo por tiempo estimado
         progress = Math.floor((elapsedMs / totalDurationMs) * 100);
@@ -168,7 +169,7 @@ export async function saveCompletedMalekFlights() {
   const supabase = getAdminSupabase();
 
   const flights = await getUpcomingFlights();
-  const arrivedMalekFlights = flights.filter(f => f.destination === 'DAV' && f.status === 'ARRIBO');
+  const arrivedMalekFlights = flights.filter(f => f.destination === 'DAV' && f.status === 'ARRIBÓ');
 
   if (arrivedMalekFlights.length === 0) return { success: true, count: 0 };
 
@@ -277,7 +278,7 @@ export async function saveCompletedMalekDepartures() {
   const supabase = getAdminSupabase();
 
   const flights = await getUpcomingFlights();
-  const departedMalekFlights = flights.filter(f => f.origin === 'DAV' && f.status === 'ARRIBO');
+  const departedMalekFlights = flights.filter(f => f.origin === 'DAV' && f.status === 'ARRIBÓ');
 
   if (departedMalekFlights.length === 0) return { success: true, count: 0 };
 

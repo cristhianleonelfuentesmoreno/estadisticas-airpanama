@@ -21,7 +21,7 @@ async function restoreTodayCorrectly() {
       origen: 'PTY',
       hora_itinerario: `${today}T08:50:00-05:00`,
       hora_llegada_real: `${today}T08:50:00-05:00`,
-      estado_final: 'ARRIBO',
+      estado_final: 'ARRIBÓ',
       pasajeros_abordo: 145,
       capacidad_total: 160
     },
@@ -32,7 +32,7 @@ async function restoreTodayCorrectly() {
       origen: 'PAC',
       hora_itinerario: `${today}T09:45:00-05:00`,
       hora_llegada_real: `${today}T09:45:00-05:00`,
-      estado_final: 'ARRIBO',
+      estado_final: 'ARRIBÓ',
       pasajeros_abordo: 21,
       capacidad_total: 78
     },
@@ -43,7 +43,7 @@ async function restoreTodayCorrectly() {
       origen: 'PTY',
       hora_itinerario: `${today}T11:20:00-05:00`,
       hora_llegada_real: `${today}T11:20:00-05:00`,
-      estado_final: 'ARRIBO',
+      estado_final: 'ARRIBÓ',
       pasajeros_abordo: 130,
       capacidad_total: 160
     }
@@ -60,7 +60,7 @@ async function restoreTodayCorrectly() {
       destino: 'PTY',
       hora_itinerario: `${today}T09:20:00-05:00`,
       hora_salida_real: `${today}T09:20:00-05:00`,
-      estado_final: 'ARRIBO',
+      estado_final: 'ARRIBÓ',
       pasajeros_abordo: 155,
       capacidad_total: 160
     },
@@ -71,7 +71,7 @@ async function restoreTodayCorrectly() {
       destino: 'PAC',
       hora_itinerario: `${today}T09:45:00-05:00`,
       hora_salida_real: `${today}T09:45:00-05:00`,
-      estado_final: 'ARRIBO',
+      estado_final: 'ARRIBÓ',
       pasajeros_abordo: 70,
       capacidad_total: 78
     },
@@ -82,7 +82,7 @@ async function restoreTodayCorrectly() {
       destino: 'PTY',
       hora_itinerario: `${today}T12:00:00-05:00`,
       hora_salida_real: `${today}T12:00:00-05:00`,
-      estado_final: 'ARRIBO',
+      estado_final: 'ARRIBÓ',
       pasajeros_abordo: 120,
       capacidad_total: 160
     }

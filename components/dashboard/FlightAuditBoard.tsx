@@ -9,7 +9,7 @@ export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // We fetch all flights to see which ones are ARRIBO or CANCELADO but NOT archived.
+  // We fetch all flights to see which ones are ARRIBÓ or CANCELADO but NOT archived.
   const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
   const todayStr = new Date(todayPanama).toISOString().split('T')[0];
   const [boardDate, setBoardDate] = useState<string>(todayStr);
@@ -20,7 +20,7 @@ export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
       const data = await getUpcomingFlights(boardDate);
       // Filtramos solo los vuelos que llegaron o fueron cancelados, y que NO están archivados
       const pendingAudit = data.filter(f => 
-        (f.status === 'ARRIBO' || f.status === 'CANCELADO') && !f.isArchived
+        (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived
       );
       setFlights(pendingAudit);
     } catch (err) {

@@ -77,7 +77,7 @@ export default function DashboardPage() {
         setFactorOcup(totalMax > 0 ? ((totalPax / totalMax) * 100).toFixed(1) : "0.0");
         
         // Puntualidad (OTP - On Time Performance)
-        const aTiempo = combined.filter(f => f.estado_final === 'ARRIBO' || f.estado_final === 'CUMPLIDO').length;
+        const aTiempo = combined.filter(f => f.estado_final === 'ARRIBÓ' || f.estado_final === 'CUMPLIDO').length;
         setOtpPercent(completados > 0 ? ((aTiempo / completados) * 100).toFixed(1) : "0.0");
       } catch (e) {
         console.error("Error fetching metrics:", e);
