@@ -405,13 +405,14 @@ export async function deleteSalidaMalek(id: string) {
 
 export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salidas') {
   const supabase = getAdminSupabase();
-  const table = type === 'llegadas' ? 'llegadas_malek_historico' : 'salidas_malek_historico';
+  const table = 'manual_flights_log';
   
   const dates = [...new Set(data.map(d => d.fecha))];
   const { data: existing, error: fetchError } = await supabase
     .from(table)
-    .select('id, fecha, numero_vuelo')
-    .in('fecha', dates);
+    .select('id, fecha, numero_vuelo, is_llegada')
+    .in('fecha', dates)
+    .eq('is_llegada', type === 'llegadas');
 
   if (fetchError) {
     return { success: false, error: fetchError.message };
@@ -424,10 +425,34 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
 
   for (const d of data) {
     const key = `${d.fecha}_${d.numero_vuelo}`;
-    if (existingMap.has(key)) {
-      toUpdate.push({ id: existingMap.get(key), ...d });
+    
+    // Mapeo seguro hacia el nuevo esquema
+    const isLlegada = type === 'llegadas';
+    const mappedRecord: any = {
+       fecha: d.fecha,
+       aerolinea: d.aerolinea,
+       numero_vuelo: d.numero_vuelo,
+       origen: isLlegada ? (d.origen || 'PAC') : 'DAV',
+       destino: isLlegada ? 'DAV' : (d.destino || 'PAC'),
+       estado_final: d.estado_final || 'LLEGÓ',
+       pasajeros_abordo: d.pasajeros_abordo || 0,
+       capacidad_total: d.capacidad_total || (d.aerolinea === 'Air Panama' ? 78 : 160),
+       is_llegada: isLlegada,
+       avion: d.avion || (d.aerolinea === 'Air Panama' ? 'F50' : 'B738')
+    };
+
+    if (isLlegada) {
+       mappedRecord.hora_itinerario_llegada = d.hora_itinerario_llegada || d.hora_itinerario;
+       mappedRecord.hora_real_llegada = d.hora_real_llegada;
     } else {
-      newData.push(d);
+       mappedRecord.hora_itinerario_salida = d.hora_itinerario_salida || d.hora_itinerario;
+       mappedRecord.hora_real_salida = d.hora_real_salida;
+    }
+
+    if (existingMap.has(key)) {
+      toUpdate.push({ id: existingMap.get(key), ...mappedRecord });
+    } else {
+      newData.push(mappedRecord);
     }
   }
 
