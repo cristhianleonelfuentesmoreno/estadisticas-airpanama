@@ -69,6 +69,10 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
+  const [showLogPassword, setShowLogPassword] = useState(false);
   const [logEmail, setLogEmail] = useState("");
   const [logPassword, setLogPassword] = useState("");
   const router = useRouter();
@@ -199,7 +203,8 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regEmail || !regPassword || !regName) return toast.error("Todos los campos son obligatorios.");
+    if (!regEmail || !regPassword || !regName || !regConfirmPassword) return toast.error("Todos los campos son obligatorios.");
+    if (regPassword !== regConfirmPassword) return toast.error("Las contraseñas no coinciden.");
     
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
@@ -324,7 +329,21 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
           <form className="form-inputs" onSubmit={handleRegister} suppressHydrationWarning>
             <input type="text" placeholder="Nombre completo" value={regName} onChange={e => setRegName(e.target.value)} required suppressHydrationWarning />
             <input type="email" placeholder="Correo electrónico" value={regEmail} onChange={e => setRegEmail(e.target.value)} required suppressHydrationWarning />
-            <input type="password" placeholder="Contraseña" value={regPassword} onChange={e => setRegPassword(e.target.value)} required minLength={6} suppressHydrationWarning />
+            
+            <div className="password-wrapper">
+              <input type={showRegPassword ? "text" : "password"} placeholder="Contraseña" value={regPassword} onChange={e => setRegPassword(e.target.value)} required minLength={6} suppressHydrationWarning />
+              <button type="button" className="password-toggle" onClick={() => setShowRegPassword(!showRegPassword)}>
+                <span className="material-symbols-outlined text-[18px]">{showRegPassword ? "visibility_off" : "visibility"}</span>
+              </button>
+            </div>
+            
+            <div className="password-wrapper">
+              <input type={showRegConfirmPassword ? "text" : "password"} placeholder="Confirmar Contraseña" value={regConfirmPassword} onChange={e => setRegConfirmPassword(e.target.value)} required minLength={6} suppressHydrationWarning />
+              <button type="button" className="password-toggle" onClick={() => setShowRegConfirmPassword(!showRegConfirmPassword)}>
+                <span className="material-symbols-outlined text-[18px]">{showRegConfirmPassword ? "visibility_off" : "visibility"}</span>
+              </button>
+            </div>
+            
             <button className="submit-btn" type="submit" disabled={loading}>
               {loading ? "PROCESANDO..." : "REGISTRARSE"}
             </button>
@@ -346,7 +365,14 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
           <p>O usa tu cuenta local</p>
           <form className="form-inputs" onSubmit={handleLogin} suppressHydrationWarning>
             <input type="email" placeholder="Correo electrónico" value={logEmail} onChange={e => setLogEmail(e.target.value)} required suppressHydrationWarning />
-            <input type="password" placeholder="Contraseña" value={logPassword} onChange={e => setLogPassword(e.target.value)} required suppressHydrationWarning />
+            
+            <div className="password-wrapper">
+              <input type={showLogPassword ? "text" : "password"} placeholder="Contraseña" value={logPassword} onChange={e => setLogPassword(e.target.value)} required suppressHydrationWarning />
+              <button type="button" className="password-toggle" onClick={() => setShowLogPassword(!showLogPassword)}>
+                <span className="material-symbols-outlined text-[18px]">{showLogPassword ? "visibility_off" : "visibility"}</span>
+              </button>
+            </div>
+            
             <Link href="/forgot-password" style={{ paddingTop: 6, marginBottom: 7, fontSize: '0.85rem', color: '#666', textDecoration: 'none', textAlign: 'left' }}>
               ¿Olvidaste tu contraseña?
             </Link>
