@@ -181,7 +181,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-space-xs pt-space-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-xs pt-space-xs">
           <button 
             onClick={() => handleDateChange(initialYear - 1, initialMonth, initialRange)}
             className="flex items-center justify-between px-space-sm py-2 bg-surface-container-low rounded-lg text-left hover:bg-surface-container transition-colors border border-black/5"

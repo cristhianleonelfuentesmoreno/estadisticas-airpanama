@@ -128,11 +128,45 @@ export async function updateFlightStatusOverride(id: string, override: { status_
 
 export async function archiveFlight(id: string) {
   const supabase = getAdminSupabase();
+
+  // Obtener detalles del vuelo manual para actualizar el histórico correspondiente
+  const { data: manualFlight, error: fetchErr } = await supabase
+    .from('manual_flights_log')
+    .select('*')
+    .eq('id', id)
+    .single();
+    
+  if (fetchErr) throw new Error(fetchErr.message);
+
   const { error } = await supabase
     .from('manual_flights_log')
     .update({ is_archived: true })
     .eq('id', id);
   if (error) throw new Error(error.message);
+
+  // Actualizar la tabla histórica para que deje de estar "PENDIENTE"
+  let finalStatusArrival = 'LLEGÓ';
+  let finalStatusDeparture = 'CUMPLIDO';
+  
+  if (manualFlight.status_override === 'CANCELADO') {
+    finalStatusArrival = 'CANCELADO';
+    finalStatusDeparture = 'CANCELADO';
+  }
+
+  if (manualFlight.destination === 'DAV') {
+    await supabase
+      .from('llegadas_malek_historico')
+      .update({ estado_final: finalStatusArrival })
+      .eq('numero_vuelo', manualFlight.flightNumber)
+      .eq('fecha', manualFlight.flightDate);
+  } else if (manualFlight.origin === 'DAV') {
+    await supabase
+      .from('salidas_malek_historico')
+      .update({ estado_final: finalStatusDeparture })
+      .eq('numero_vuelo', manualFlight.flightNumber)
+      .eq('fecha', manualFlight.flightDate);
+  }
+
   return true;
 }
 

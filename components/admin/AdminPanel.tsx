@@ -119,155 +119,181 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       </div>
 
       {/* ========================================= */}
-      {/* TARJETA DE RESUMEN E HISTÓRICO            */}
+      {/* TARJETAS DE RESUMEN Y MONITOREO           */}
       {/* ========================================= */}
-      <div className="bg-surface-container-lowest rounded-3xl p-6 md:p-8 shadow-sm border border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-primary-container text-on-primary flex items-center justify-center">
-            <span className="material-symbols-outlined text-3xl">group</span>
-          </div>
-          <div>
-            <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Gestión de Usuarios</h2>
-            <p className="font-body-md text-body-md text-on-surface-variant mt-1">{users.length} en plantilla total</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4 md:gap-8 bg-surface-container-low p-4 rounded-2xl md:bg-transparent md:p-0 md:rounded-none">
-          <div className="flex flex-col">
-            <span className="font-label-sm text-[10px] md:text-xs font-bold text-on-surface-variant uppercase tracking-wider">Activos</span>
-            <span className="font-headline-md text-headline-md font-bold text-on-surface mt-1">{activos}</span>
-          </div>
-          <div className="flex flex-col border-l border-outline-variant/30 pl-4 md:pl-8">
-            <span className="font-label-sm text-[10px] md:text-xs font-bold text-on-surface-variant uppercase tracking-wider">Pendientes</span>
-            <span className="font-headline-md text-headline-md font-bold text-secondary mt-1">{pendientes}</span>
-          </div>
-          <div className="flex flex-col border-l border-outline-variant/30 pl-4 md:pl-8">
-            <span className="font-label-sm text-[10px] md:text-xs font-bold text-on-surface-variant uppercase tracking-wider">Admins</span>
-            <span className="font-headline-md text-headline-md font-bold text-primary mt-1">{administradores}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================= */}
-      {/* VISTA DESKTOP (Tabla)                     */}
-      {/* ========================================= */}
-      <div className="hidden md:block bg-surface-container-lowest rounded-3xl shadow-sm border border-outline-variant/30 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-              <tr className="bg-surface-container-low text-on-surface-variant font-label-md text-label-md border-b border-outline-variant/30 uppercase tracking-wider">
-                <th className="p-5 font-semibold">Usuario</th>
-                <th className="p-5 font-semibold text-center">Estado</th>
-                <th className="p-5 font-semibold">Rol</th>
-                <th className="p-5 font-semibold">Cargo</th>
-                <th className="p-5 font-semibold text-right">Acción</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/20">
-              {(showAllUsers ? users : users.slice(0, 5)).map(user => (
-                <tr key={user.id} className="hover:bg-surface-container-lowest/50 transition-colors group">
-                  <td className="p-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-11 h-11 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-bold text-sm shadow-sm">
-                        {user.nombre ? user.nombre.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-label-md text-label-md text-on-surface font-bold">
-                          {user.nombre || "Sin Nombre"}
-                        </div>
-                        <div className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
-                          {user.email}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-5 text-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${user.status === 'aprobado' ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-variant text-on-surface-variant'}`}>
-                      {user.status === 'aprobado' ? 'Activo' : 'Pendiente'}
-                    </span>
-                  </td>
-                  <td className="p-5 font-label-md text-on-surface capitalize">
-                    {user.role}
-                  </td>
-                  <td className="p-5 font-label-md text-on-surface">
-                    {user.cargo || <span className="text-on-surface-variant/50 italic">Sin asignar</span>}
-                  </td>
-                  <td className="p-5 text-right">
-                    <button 
-                      onClick={() => openEditModal(user)}
-                      className="px-4 py-2 bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm font-bold rounded-full transition-colors flex items-center gap-2 ml-auto"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">edit</span>
-                      Editar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ========================================= */}
-      {/* VISTA MÓVIL (Tarjetas)                    */}
-      {/* ========================================= */}
-      <div className="md:hidden flex flex-col gap-4">
-        {(showAllUsers ? users : users.slice(0, 5)).map(user => (
-          <div key={user.id} className="bg-surface-container-lowest rounded-3xl p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-4 relative">
-            <div className="flex items-center gap-4 pr-10">
-              <div className="w-12 h-12 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
-                {user.nombre ? user.nombre.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+        {/* Card 1: Gestión de Usuarios */}
+        <div className="flex flex-col bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-tertiary-fixed flex items-center justify-center text-primary">
+                <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-label-md text-label-md text-on-surface font-bold truncate">
-                  {user.nombre || "Sin Nombre"}
-                </div>
-                <div className="font-body-sm text-body-sm text-on-surface-variant truncate mt-0.5">
-                  {user.email}
-                </div>
-              </div>
-            </div>
-            
-            <button 
-              onClick={() => openEditModal(user)}
-              className="absolute top-5 right-5 w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface"
-            >
-              <span className="material-symbols-outlined text-[20px]">edit</span>
-            </button>
-
-            <div className="h-px w-full bg-outline-variant/20 my-1"></div>
-
-            <div className="flex justify-between items-center text-sm">
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Estado</span>
-                <span className={`font-semibold mt-0.5 ${user.status === 'aprobado' ? 'text-emerald-600' : 'text-on-surface-variant'}`}>
-                  {user.status === 'aprobado' ? 'Activo' : 'Pendiente'}
-                </span>
-              </div>
-              <div className="flex flex-col text-right">
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Rol / Cargo</span>
-                <span className="font-semibold text-on-surface mt-0.5 capitalize">
-                  {user.role} <span className="text-on-surface-variant opacity-50 mx-1">•</span> {user.cargo || 'Sin asignar'}
-                </span>
+                <span className="font-label-md text-label-md text-primary font-bold">Gestión de Usuarios</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant">{users.length} en plantilla total</span>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      {users.length > 5 && (
-        <div className="flex justify-center mt-2 mb-6">
-          <button 
-            onClick={() => setShowAllUsers(!showAllUsers)}
-            className="px-6 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md font-bold rounded-full transition-colors flex items-center gap-2 shadow-sm"
-          >
-            <span className="material-symbols-outlined text-[20px]">
-              {showAllUsers ? 'expand_less' : 'expand_more'}
+            <span className="px-2 py-0.5 rounded-full bg-surface-container-high font-label-sm text-label-sm text-primary font-bold">
+              {activos} activos
             </span>
-            {showAllUsers ? 'Ver menos' : `Mostrar todos (${users.length})`}
+          </div>
+          <div className="grid grid-cols-2 gap-2 my-space-md bg-surface-container-low p-2.5 rounded-lg">
+            <div className="flex flex-col">
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Admins</span>
+              <span className="font-headline-sm text-headline-sm font-bold text-primary">{administradores}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Pendientes</span>
+              <span className="font-headline-sm text-headline-sm font-bold text-secondary-container">{pendientes}</span>
+            </div>
+          </div>
+          <button className="w-full mt-auto flex items-center justify-center gap-1.5 py-2.5 px-space-sm rounded-lg bg-primary-container text-on-primary font-label-md text-label-md active:scale-95 transition-all opacity-50 cursor-not-allowed">
+            <span className="material-symbols-outlined text-[18px]">person_add</span>
+            + Nuevo Usuario & Permisos
           </button>
         </div>
-      )}
+
+        {/* Card 2: Monitoreo Activo */}
+        <div className="flex flex-col bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary-container">
+                <span className="material-symbols-outlined text-[20px]">dns</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-label-md text-label-md text-primary font-bold">Monitoreo Activo</span>
+                <span className="font-label-sm text-label-sm text-emerald-700 font-semibold">Salud 99.8% • En Línea</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed">
+              <span className="material-symbols-outlined text-[14px] text-secondary-container">security</span>
+              <span className="font-label-sm text-label-sm font-bold">Sin caídas 72h</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 my-space-md bg-surface-container-low p-2.5 rounded-lg">
+            <div className="flex flex-col">
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Incidentes Críticos</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-headline-sm text-headline-sm font-bold text-primary">0</span>
+                <span className="font-label-sm text-label-sm text-emerald-600 font-bold">Limpio</span>
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Latencia Nodo PAC</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-headline-sm text-headline-sm font-bold text-primary">42ms</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant">Óptima</span>
+              </div>
+            </div>
+            <div className="flex flex-col pt-1">
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Base Datos Ops</span>
+              <span className="font-label-md text-label-md font-semibold text-primary">Sync OK</span>
+            </div>
+            <div className="flex flex-col pt-1">
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Cifrado Sesiones</span>
+              <span className="font-label-md text-label-md font-semibold text-primary">AES-256</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-auto pt-1">
+            <span className="font-body-sm text-body-sm text-on-surface-variant">Gateway Meteorológico PAC</span>
+            <span className="font-label-sm text-label-sm text-secondary-container font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-secondary-container"></span>
+              1 aviso leve
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================= */}
+      {/* SECCIÓN 1: USUARIOS CONECTADOS             */}
+      {/* ========================================= */}
+      <section className="flex flex-col gap-space-sm mt-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px] text-primary-container">devices</span>
+            <h2 className="font-headline-sm text-headline-sm text-primary font-bold">
+              Dispositivos & Ubicación Activa
+            </h2>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-primary-container text-on-primary font-label-sm text-label-sm font-bold">
+            {users.length} Registros
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-space-xs">
+          {(showAllUsers ? users : users.slice(0, 5)).map(user => (
+            <article key={user.id} className="flex flex-col gap-2 p-3.5 rounded-xl bg-surface-container-lowest shadow-sm relative group cursor-pointer hover:bg-surface-container-lowest/80 transition-colors border border-transparent hover:border-outline-variant/30" onClick={() => openEditModal(user)}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-label-md text-label-md font-bold ${
+                    user.role === 'administrador' ? 'bg-primary-container text-on-primary' : 'bg-tertiary-container text-on-tertiary'
+                  }`}>
+                    {user.nombre ? user.nombre.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col min-w-0 pr-8">
+                    <span className="font-label-md text-label-md text-primary font-bold truncate">
+                      {user.nombre || "Sin Nombre"}
+                    </span>
+                    <span className="font-body-sm text-body-sm text-on-surface-variant truncate flex items-center gap-1">
+                      {user.email} <span className="opacity-50">•</span> <span className="capitalize">{user.role}</span>
+                    </span>
+                  </div>
+                </div>
+                {user.status === 'aprobado' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-label-sm text-label-sm font-semibold whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                    Activo
+                  </span>
+                ) : user.status === 'pendiente' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-label-sm text-label-sm font-semibold whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                    Pendiente
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm font-semibold whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                    Rechazado
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-body-sm">
+                  <span className="material-symbols-outlined text-[16px] text-secondary-container">badge</span>
+                  <span>{user.cargo || 'Sin asignar'}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-body-sm text-body-sm text-outline">
+                    {new Date(user.created_at).toLocaleDateString('es-PA')}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Edit Icon Overlay on Hover */}
+              <button 
+                className="absolute top-1/2 -translate-y-1/2 right-4 w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface opacity-0 md:group-hover:opacity-100 transition-opacity"
+                onClick={(e) => { e.stopPropagation(); openEditModal(user); }}
+              >
+                <span className="material-symbols-outlined text-[18px]">edit</span>
+              </button>
+            </article>
+          ))}
+        </div>
+        
+        {users.length > 5 && (
+          <div className="flex justify-center mt-2 mb-6">
+            <button 
+              onClick={() => setShowAllUsers(!showAllUsers)}
+              className="px-6 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-md font-bold rounded-full transition-colors flex items-center gap-2 shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[20px]">
+                {showAllUsers ? 'expand_less' : 'expand_more'}
+              </span>
+              {showAllUsers ? 'Ver menos' : `Mostrar todos (${users.length})`}
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* ========================================= */}
       {/* PANEL DE DISPOSITIVOS ACTIVOS             */}

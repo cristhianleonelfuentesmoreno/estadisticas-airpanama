@@ -698,7 +698,7 @@ export default function TablasDiariasClient({
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 shrink-0">
             <button onClick={() => setIsAddModalOpen(true)} className="flex-1 md:flex-none justify-center bg-emerald-500 hover:bg-emerald-400 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-emerald-400/50">
               <span className="material-symbols-outlined text-[18px]">add</span>
               <span className="text-[13px]">Agregar Vuelo</span>
@@ -717,115 +717,123 @@ export default function TablasDiariasClient({
           </div>
         </div>
 
-        {/* Llegadas / Salidas Toggle */}
-        <div className="flex items-center gap-1 md:gap-2 mt-2 bg-white/10 p-1.5 rounded-xl w-full md:w-fit border border-white/10 shadow-inner relative z-10 backdrop-blur-md overflow-x-auto hide-scrollbar">
-          <button 
-            onClick={() => setViewType('todos')}
-            className={`flex-1 md:flex-none justify-center px-3 md:px-5 py-2 rounded-lg text-[13px] md:text-sm font-bold transition-all flex items-center gap-1.5 ${viewType === 'todos' ? 'bg-white text-primary shadow-md' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-          >
-            <span className="material-symbols-outlined text-[16px] md:text-[18px]">swap_vert</span>
-            Todos
-          </button>
-          <button 
-            onClick={() => setViewType('llegadas')}
-            className={`flex-1 md:flex-none justify-center px-3 md:px-5 py-2 rounded-lg text-[13px] md:text-sm font-bold transition-all flex items-center gap-1.5 ${viewType === 'llegadas' ? 'bg-white text-primary shadow-md' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-          >
-            <span className="material-symbols-outlined text-[16px] md:text-[18px]">flight_land</span>
-            Llegadas
-          </button>
-          <button 
-            onClick={() => setViewType('salidas')}
-            className={`flex-1 md:flex-none justify-center px-3 md:px-5 py-2 rounded-lg text-[13px] md:text-sm font-bold transition-all flex items-center gap-1.5 ${viewType === 'salidas' ? 'bg-white text-primary shadow-md' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-          >
-            <span className="material-symbols-outlined text-[16px] md:text-[18px]">flight_takeoff</span>
-            Salidas
-          </button>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-3 relative z-10 w-full mt-2">
-          {/* Filters & Search */}
-          <div className="flex flex-col gap-3 w-full bg-white/5 p-3 rounded-2xl border border-white/10 backdrop-blur-md">
-            <div className="relative w-full">
-              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-                <span className="material-symbols-outlined text-[20px]">search</span>
-              </div>
-              <input 
-                className="w-full h-11 pl-10 pr-10 bg-white/10 text-white text-sm rounded-xl border border-white/20 placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white/20 transition-all shadow-inner"
-                placeholder="Buscar por vuelo, origen o aerolínea..." 
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button 
-                  className="absolute inset-y-0 right-2 w-8 h-8 my-auto flex items-center justify-center text-white/70 hover:text-white"
-                  onClick={() => setSearchQuery("")}
-                >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                </button>
-              )}
+        {/* ============================================== */}
+        {/* FILTROS REDISEÑADOS                            */}
+        {/* ============================================== */}
+        <div className="flex flex-col gap-3 mt-4 w-full relative z-10">
+          
+          <div className="flex flex-col md:flex-row gap-3">
+            {/* Fila 1: Toggle Todos/Llegadas/Salidas */}
+            <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shadow-inner w-full md:w-fit">
+              <button 
+                onClick={() => setViewType('todos')}
+                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewType === 'todos' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+              >
+                <span className="material-symbols-outlined text-[16px]">swap_vert</span>
+                Todos ({llegadasAprobadas.length + salidasAprobadas.length})
+              </button>
+              <button 
+                onClick={() => setViewType('llegadas')}
+                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewType === 'llegadas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+              >
+                <span className="material-symbols-outlined text-[16px]">flight_land</span>
+                Llegadas ({llegadasAprobadas.length})
+              </button>
+              <button 
+                onClick={() => setViewType('salidas')}
+                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewType === 'salidas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+              >
+                <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+                Salidas ({salidasAprobadas.length})
+              </button>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {/* Fila 2: Buscador */}
+          <div className="relative w-full">
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-white/50">
+              <span className="material-symbols-outlined text-[18px]">search</span>
+            </div>
+            <input 
+              className="w-full h-11 pl-10 pr-10 bg-white/5 backdrop-blur-md text-white text-sm font-medium rounded-xl border border-white/10 placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white/10 transition-all shadow-inner"
+              placeholder="Buscar por vuelo (ej: 7P-670), origen, destino IATA (PAC, DAV, BOC) o matrícula..." 
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button 
+                className="absolute inset-y-0 right-2 w-8 h-8 my-auto flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                onClick={() => setSearchQuery("")}
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            )}
+          </div>
+
+          {/* Fila 3: Operador + Date Picker */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
+            
+            {/* Operador Filters */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full lg:w-auto">
+              <span className="text-[11px] font-black text-white/50 uppercase tracking-widest mr-1">OPERADOR:</span>
               <button 
                 onClick={() => setActiveFilter("all")}
-                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'all' ? 'bg-white text-primary border-white shadow-md' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'all' ? 'bg-white text-primary border-white shadow-md' : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10 hover:text-white'}`}
               >
                 Todas ({activeDataList.length})
               </button>
               <button 
                 onClick={() => setActiveFilter("Air Panama")}
-                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'Air Panama' ? 'bg-red-600 text-white border-red-500 shadow-md' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'Air Panama' ? 'bg-red-600 text-white border-red-500 shadow-md' : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10 hover:text-white'}`}
               >
                 Air Panama
               </button>
               <button 
                 onClick={() => setActiveFilter("Copa Airlines")}
-                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'Copa Airlines' ? 'bg-[#0032A0] text-white border-[#0032A0] shadow-md' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'Copa Airlines' ? 'bg-[#0032A0] text-white border-[#0032A0] shadow-md' : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10 hover:text-white'}`}
               >
                 Copa Airlines
               </button>
             </div>
-          </div>
-        </div>
 
-        <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 flex flex-col gap-4 border border-white/10 mt-1 relative z-10 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button onClick={handlePrevDay} className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all border border-white/5">
-                <span className="material-symbols-outlined text-[20px]">chevron_left</span>
-              </button>
-              
-              <div 
-                className="flex items-center gap-2.5 px-4 py-2 bg-white/10 rounded-xl text-white relative cursor-pointer hover:bg-white/20 hover:scale-[1.02] transition-all border border-white/10 shadow-sm"
-                onClick={() => dateInputRef.current?.showPicker && dateInputRef.current.showPicker()}
-              >
-                <input 
-                  type="date"
-                  ref={dateInputRef}
-                  value={currentDateStr}
-                  onChange={handleDateChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                <span className="material-symbols-outlined text-white text-[18px] pointer-events-none drop-shadow-sm">calendar_today</span>
-                <span className="font-label-md text-[14px] font-black tracking-wide pointer-events-none drop-shadow-sm">
-                  {new Date(currentDateStr + "T12:00:00").toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
-                </span>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleToday(); }} 
-                  className={`text-[11px] px-2 py-0.5 rounded-md font-black uppercase ml-1 transition-all z-10 relative shadow-sm ${isToday ? 'bg-emerald-500 text-white' : 'bg-white/20 hover:bg-emerald-500'}`}
+            {/* Fecha y Controles a la derecha */}
+            <div className="flex items-center justify-end gap-2 shrink-0">
+              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shadow-sm backdrop-blur-md">
+                <button onClick={handlePrevDay} className="w-8 h-8 rounded-lg text-white/70 hover:bg-white/10 hover:text-white flex items-center justify-center transition-colors">
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                
+                <div 
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 text-white relative cursor-pointer hover:bg-white/20 transition-colors border border-transparent shadow-inner"
+                  onClick={() => dateInputRef.current?.showPicker && dateInputRef.current.showPicker()}
                 >
-                  Hoy
+                  <input 
+                    type="date"
+                    ref={dateInputRef}
+                    value={currentDateStr}
+                    onChange={handleDateChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <span className="material-symbols-outlined text-[16px] text-emerald-400">calendar_month</span>
+                  <span className="text-[13px] font-black uppercase tracking-wide pointer-events-none mt-0.5">
+                    {new Date(currentDateStr + "T12:00:00").toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleToday(); }} 
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-black uppercase ml-1 transition-all z-10 relative ${isToday ? 'bg-white text-primary' : 'bg-white/20 hover:bg-white/30 text-white'}`}
+                  >
+                    HOY
+                  </button>
+                </div>
+
+                <button onClick={handleNextDay} className="w-8 h-8 rounded-lg text-white/70 hover:bg-white/10 hover:text-white flex items-center justify-center transition-colors">
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
                 </button>
               </div>
 
-              <button onClick={handleNextDay} className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all border border-white/5">
-                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
-              </button>
             </div>
           </div>
-
-
         </div>
       </section>
       {/* Airtable Grid */}
@@ -857,10 +865,16 @@ export default function TablasDiariasClient({
                       )}
                     </div>
                   </th>
-                  <th className="px-4 py-3.5 min-w-[120px]">
+                  <th className="px-4 py-3.5 min-w-[130px]">
                     <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[15px]">schedule</span>
-                      <span>Itinerario ➔ Real (Retraso)</span>
+                      <span className="material-symbols-outlined text-[15px]">flight_takeoff</span>
+                      <span>Salida (Itin ➔ Real)</span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-3.5 min-w-[130px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">flight_land</span>
+                      <span>Llegada (Itin ➔ Real)</span>
                     </div>
                   </th>
                   <th className="px-4 py-3.5 min-w-[120px]">
@@ -869,20 +883,7 @@ export default function TablasDiariasClient({
                       <span>Ocupación</span>
                     </div>
                   </th>
-                  <th 
-                    className="px-4 py-3.5 min-w-[110px] cursor-pointer hover:bg-slate-100 transition-colors select-none"
-                    onClick={() => handleSort('estado')}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[15px]">flag</span>
-                      <span>Estado</span>
-                      {sortColumn === 'estado' && (
-                        <span className="material-symbols-outlined text-[14px] text-primary">
-                          {sortDirection === 'asc' ? 'arrow_downward' : 'arrow_upward'}
-                        </span>
-                      )}
-                    </div>
-                  </th>
+
                   <th className="px-4 py-3.5 min-w-[80px] text-center">
                     <span>Acción</span>
                   </th>
@@ -894,7 +895,7 @@ export default function TablasDiariasClient({
                     const paxCount = flight.pasajeros_abordo || 0;
                     const paxMax = flight.capacidad_total || 100;
                     const paxPct = Math.round((paxCount / paxMax) * 100);
-                    const isLlegada = !!flight.hora_real_llegada;
+                    const isLlegada = !!flight.origen;
 
                     return (
                       <tr key={flight.id} className="hover:bg-slate-50 transition-colors group">
@@ -918,68 +919,77 @@ export default function TablasDiariasClient({
                             <span className="text-primary">{isLlegada ? 'DAV' : flight.destino}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-2 w-[160px]">
-                            {/* Línea de Salida */}
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Salida</span>
-                              <div className="flex items-center justify-between text-[13px]">
-                                <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Salida Itinerario">
-                                  {formatTime(flight.hora_itinerario_salida)}
-                                </span>
-                                <span className="material-symbols-outlined text-[14px] text-slate-300 mx-1">arrow_right_alt</span>
-                                <span className="font-bold text-slate-800" title="Salida Real">
-                                  {formatTime(!isLlegada ? flight.hora_real_salida : flight.hora_itinerario_salida)}
-                                </span>
-                              </div>
+                        <td className="px-4 py-3 align-middle">
+                          <div className="flex flex-col gap-1.5 w-[130px]">
+                            <div className="flex items-center justify-between text-[13px]">
+                              <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Salida Itinerario">
+                                {formatTime(flight.hora_itinerario_salida)}
+                              </span>
+                              <span className="material-symbols-outlined text-[14px] text-slate-300 mx-1">arrow_right_alt</span>
+                              <span className="font-bold text-slate-800" title="Salida Real">
+                                {formatTime(!isLlegada ? flight.hora_real_salida : flight.hora_itinerario_salida)}
+                              </span>
                             </div>
                             
-                            {/* Línea de Llegada */}
-                            <div className="flex flex-col gap-0.5 border-t border-slate-100 pt-1">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Llegada</span>
-                              <div className="flex items-center justify-between text-[13px]">
-                                <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Llegada Itinerario">
-                                  {formatTime(flight.hora_itinerario_llegada)}
-                                </span>
-                                <span className="material-symbols-outlined text-[14px] text-slate-300 mx-1">arrow_right_alt</span>
-                                <span className="font-bold text-slate-800" title="Llegada Real">
-                                  {formatTime(isLlegada ? flight.hora_real_llegada : flight.hora_itinerario_llegada)}
-                                </span>
-                              </div>
-                            </div>
-                            
-                            <div className="mt-1">
                             {(() => {
-                              const realStr = isLlegada ? flight.hora_real_llegada : flight.hora_real_salida;
-                              const itinStr = isLlegada ? flight.hora_itinerario_llegada : flight.hora_itinerario_salida;
-                              const rDate = new Date(realStr || '');
-                              const iDate = new Date(itinStr || '');
-                              
+                              const rDate = new Date(flight.hora_real_salida || '');
+                              const iDate = new Date(flight.hora_itinerario_salida || '');
                               let diffMins = 0;
                               if (!isNaN(rDate.getTime()) && !isNaN(iDate.getTime())) {
                                 diffMins = Math.round((rDate.getTime() - iDate.getTime()) / 60000);
                               }
-                              
-                              const isDelayed = diffMins > 10; // Tolerancia 10 min
+                              const isDelayed = diffMins > 10;
                               const pct = isDelayed ? Math.min((diffMins / 60) * 100, 100) : 0;
-                              
                               return (
-                                <>
+                                <div>
                                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden flex">
-                                    <div 
-                                      className={`h-full rounded-full transition-all ${isDelayed ? 'bg-rose-500' : 'bg-emerald-400'}`} 
-                                      style={{ width: `${isDelayed ? pct : 100}%` }}
-                                    ></div>
+                                    <div className={`h-full rounded-full transition-all ${isDelayed ? 'bg-rose-500' : 'bg-emerald-400'}`} style={{ width: `${isDelayed ? pct : 100}%` }}></div>
                                   </div>
                                   <div className="flex justify-end mt-0.5">
                                     <span className={`text-[10px] font-bold ${isDelayed ? 'text-rose-600' : 'text-emerald-600'}`}>
                                       {isDelayed ? `+${diffMins}m retraso` : 'A Tiempo'}
                                     </span>
                                   </div>
-                                </>
+                                </div>
                               );
                             })()}
                           </div>
+                        </td>
+
+                        <td className="px-4 py-3 align-middle">
+                          <div className="flex flex-col gap-1.5 w-[130px]">
+                            <div className="flex items-center justify-between text-[13px]">
+                              <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Llegada Itinerario">
+                                {formatTime(flight.hora_itinerario_llegada)}
+                              </span>
+                              <span className="material-symbols-outlined text-[14px] text-slate-300 mx-1">arrow_right_alt</span>
+                              <span className="font-bold text-slate-800" title="Llegada Real">
+                                {formatTime(isLlegada ? flight.hora_real_llegada : flight.hora_itinerario_llegada)}
+                              </span>
+                            </div>
+
+                            {(() => {
+                              const rDate = new Date(flight.hora_real_llegada || '');
+                              const iDate = new Date(flight.hora_itinerario_llegada || '');
+                              let diffMins = 0;
+                              if (!isNaN(rDate.getTime()) && !isNaN(iDate.getTime())) {
+                                diffMins = Math.round((rDate.getTime() - iDate.getTime()) / 60000);
+                              }
+                              const isDelayed = diffMins > 10;
+                              const pct = isDelayed ? Math.min((diffMins / 60) * 100, 100) : 0;
+                              return (
+                                <div>
+                                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden flex">
+                                    <div className={`h-full rounded-full transition-all ${isDelayed ? 'bg-rose-500' : 'bg-emerald-400'}`} style={{ width: `${isDelayed ? pct : 100}%` }}></div>
+                                  </div>
+                                  <div className="flex justify-end mt-0.5">
+                                    <span className={`text-[10px] font-bold ${isDelayed ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                      {isDelayed ? `+${diffMins}m retraso` : 'A Tiempo'}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -991,12 +1001,7 @@ export default function TablasDiariasClient({
                             <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${paxPct}%` }}></div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-800">
-                            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                            {flight.estado_final === 'LLEGÓ' ? 'ARRIBÓ' : flight.estado_final}
-                          </span>
-                        </td>
+
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button 

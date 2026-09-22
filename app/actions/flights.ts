@@ -234,7 +234,11 @@ export async function getLlegadasMalek(dateStr?: string) {
     .eq('flightDate', today);
 
   const enhancedData = (data || []).map(flight => {
-    const manual = manualFlights?.find(m => m.flightNumber === flight.numero_vuelo);
+    const manual = manualFlights?.find(m => 
+      flight.numero_vuelo === m.flightNumber || 
+      flight.numero_vuelo === `7P-${m.flightNumber}` || 
+      flight.numero_vuelo === `CM-${m.flightNumber}`
+    );
     let depLocal = manual?.departureTimeLocal;
     let arrLocal = manual?.arrivalTimeLocal;
 
@@ -343,7 +347,11 @@ export async function getSalidasMalek(dateStr?: string) {
     .eq('flightDate', today);
 
   const enhancedData = (data || []).map(flight => {
-    const manual = manualFlights?.find(m => m.flightNumber === flight.numero_vuelo);
+    const manual = manualFlights?.find(m => 
+      flight.numero_vuelo === m.flightNumber || 
+      flight.numero_vuelo === `7P-${m.flightNumber}` || 
+      flight.numero_vuelo === `CM-${m.flightNumber}`
+    );
     let depLocal = manual?.departureTimeLocal;
     let arrLocal = manual?.arrivalTimeLocal;
 

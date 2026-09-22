@@ -267,7 +267,7 @@ export default function DashboardLayoutShell({
       {/* MAIN CONTENT CON EFECTO BLUR EN WEB       */}
       {/* ========================================= */}
       <main 
-        className={`flex flex-col relative w-full pt-16 pb-24 md:pt-28 md:pb-8 bg-surface flex-grow min-h-screen max-w-[1600px] mx-auto transition-all duration-500 ease-in-out ${
+        className={`flex flex-col relative w-full overflow-x-hidden pt-16 pb-24 md:pt-28 md:pb-8 bg-surface flex-grow min-h-screen max-w-[1600px] mx-auto transition-all duration-500 ease-in-out ${
           isMenuOpen ? "md:blur-md md:opacity-50" : ""
         }`}
       >
