@@ -698,21 +698,21 @@ export default function TablasDiariasClient({
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 shrink-0">
-            <button onClick={() => setIsAddModalOpen(true)} className="flex-1 md:flex-none justify-center bg-emerald-500 hover:bg-emerald-400 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-emerald-400/50">
+          <div className="grid grid-cols-2 md:flex md:items-center gap-2 w-full md:w-auto pb-1 shrink-0">
+            <button onClick={() => setIsAddModalOpen(true)} className="col-span-1 md:flex-none justify-center bg-emerald-500 hover:bg-emerald-400 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-emerald-400/50">
               <span className="material-symbols-outlined text-[18px]">add</span>
-              <span className="text-[13px]">Agregar Vuelo</span>
+              <span className="text-[12px] md:text-[13px] whitespace-nowrap">Agregar Vuelo</span>
             </button>
-            <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none justify-center bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
+            <button onClick={() => setIsImportModalOpen(true)} className="col-span-1 md:flex-none justify-center bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
               <span className="material-symbols-outlined text-[18px]">upload_file</span>
-              <span className="text-[13px]">Importar</span>
+              <span className="text-[12px] md:text-[13px]">Importar</span>
             </button>
             <button 
               onClick={() => setIsAuditModalOpen(true)} 
-              className={`flex-1 md:flex-none justify-center px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border transition-colors cursor-pointer text-white font-bold tracking-wide ${pendingAuditCount > 0 ? 'bg-amber-500 hover:bg-amber-400 border-amber-400/50 animate-[pulse_2s_infinite] shadow-amber-900/30' : 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20'}`}
+              className={`col-span-2 md:flex-none justify-center px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border transition-colors cursor-pointer text-white font-bold tracking-wide ${pendingAuditCount > 0 ? 'bg-amber-500 hover:bg-amber-400 border-amber-400/50 animate-[pulse_2s_infinite] shadow-amber-900/30' : 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20'}`}
             >
               <span className="material-symbols-outlined text-[18px]">{pendingAuditCount > 0 ? 'notification_important' : 'fact_check'}</span>
-              <span className="text-[13px]">Pendientes {pendingAuditCount > 0 && `(${pendingAuditCount})`}</span>
+              <span className="text-[12px] md:text-[13px]">Pendientes {pendingAuditCount > 0 && `(${pendingAuditCount})`}</span>
             </button>
           </div>
         </div>
@@ -727,24 +727,24 @@ export default function TablasDiariasClient({
             <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shadow-inner w-full md:w-fit">
               <button 
                 onClick={() => setViewType('todos')}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewType === 'todos' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-bold transition-all leading-tight ${viewType === 'todos' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
               >
-                <span className="material-symbols-outlined text-[16px]">swap_vert</span>
-                Todos ({llegadasAprobadas.length + salidasAprobadas.length})
+                <span className="material-symbols-outlined text-[18px] md:text-[16px]">swap_vert</span>
+                <span className="whitespace-nowrap">Todos ({llegadasAprobadas.length + salidasAprobadas.length})</span>
               </button>
               <button 
                 onClick={() => setViewType('llegadas')}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewType === 'llegadas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-bold transition-all leading-tight ${viewType === 'llegadas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
               >
-                <span className="material-symbols-outlined text-[16px]">flight_land</span>
-                Llegadas ({llegadasAprobadas.length})
+                <span className="material-symbols-outlined text-[18px] md:text-[16px]">flight_land</span>
+                <span className="whitespace-nowrap">Llegadas ({llegadasAprobadas.length})</span>
               </button>
               <button 
                 onClick={() => setViewType('salidas')}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewType === 'salidas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-bold transition-all leading-tight ${viewType === 'salidas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
               >
-                <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
-                Salidas ({salidasAprobadas.length})
+                <span className="material-symbols-outlined text-[18px] md:text-[16px]">flight_takeoff</span>
+                <span className="whitespace-nowrap">Salidas ({salidasAprobadas.length})</span>
               </button>
             </div>
           </div>
@@ -798,14 +798,14 @@ export default function TablasDiariasClient({
             </div>
 
             {/* Fecha y Controles a la derecha */}
-            <div className="flex items-center justify-end gap-2 shrink-0">
-              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shadow-sm backdrop-blur-md">
-                <button onClick={handlePrevDay} className="w-8 h-8 rounded-lg text-white/70 hover:bg-white/10 hover:text-white flex items-center justify-center transition-colors">
-                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            <div className="flex items-center justify-between md:justify-end gap-2 w-full md:w-auto shrink-0 mt-1 md:mt-0">
+              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 shadow-sm backdrop-blur-md w-full md:w-auto justify-between md:justify-start">
+                <button onClick={handlePrevDay} className="w-9 h-9 rounded-lg text-white/70 hover:bg-white/10 hover:text-white flex items-center justify-center transition-colors">
+                  <span className="material-symbols-outlined text-[20px]">chevron_left</span>
                 </button>
                 
                 <div 
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 text-white relative cursor-pointer hover:bg-white/20 transition-colors border border-transparent shadow-inner"
+                  className="flex flex-1 md:flex-none justify-center items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 text-white relative cursor-pointer hover:bg-white/20 transition-colors border border-transparent shadow-inner"
                   onClick={() => dateInputRef.current?.showPicker && dateInputRef.current.showPicker()}
                 >
                   <input 
@@ -827,8 +827,8 @@ export default function TablasDiariasClient({
                   </button>
                 </div>
 
-                <button onClick={handleNextDay} className="w-8 h-8 rounded-lg text-white/70 hover:bg-white/10 hover:text-white flex items-center justify-center transition-colors">
-                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                <button onClick={handleNextDay} className="w-9 h-9 rounded-lg text-white/70 hover:bg-white/10 hover:text-white flex items-center justify-center transition-colors">
+                  <span className="material-symbols-outlined text-[20px]">chevron_right</span>
                 </button>
               </div>
 
