@@ -173,7 +173,6 @@ export default function DashboardPage() {
 {/*  Scheduled Flight Feed  */}
 <div className="pt-space-xs pb-space-lg">
 <FlightListBoard isAdmin={isAdmin} />
-<FlightAuditBoard isAdmin={isAdmin} />
 </div>
 </div>
 {/*  Interactive Modal Drawer for Quick Flight Log (Micro-Interaction)  */}

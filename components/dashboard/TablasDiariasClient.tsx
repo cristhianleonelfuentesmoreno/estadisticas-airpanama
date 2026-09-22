@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords } from "@/app/actions/flights";
+import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords, getUpcomingFlights } from "@/app/actions/flights";
 import * as XLSX from 'xlsx';
+import { FlightAuditBoard } from "./FlightAuditBoard";
 
 interface MalekFlight {
   id: string;
@@ -79,6 +80,8 @@ export default function TablasDiariasClient({
   
   // Aprobacion state
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [pendingAuditCount, setPendingAuditCount] = useState(0);
 
   // Derivados de initialData para separar PENDIENTES
   const llegadasPendientes = useMemo(() => initialData.llegadas.filter(f => f.estado_final === 'PENDIENTE'), [initialData.llegadas]);
@@ -105,6 +108,25 @@ export default function TablasDiariasClient({
   const [importing, setImporting] = useState(false);
   const [importWorkbook, setImportWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<string | null>(null);
+
+  const loadPendingAudit = async () => {
+    try {
+      const data = await getUpcomingFlights(currentDateStr);
+      const pendingAudit = data.filter(f => 
+        (f.origin === 'DAV' || f.destination === 'DAV') &&
+        (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived
+      );
+      setPendingAuditCount(pendingAudit.length);
+    } catch (err) {
+      console.error("Error loading pending audit", err);
+    }
+  };
+
+  useEffect(() => {
+    loadPendingAudit();
+  }, [currentDateStr]);
+
   const [importResult, setImportResult] = useState<{show: boolean, type: 'success' | 'error', message: string}>({show: false, type: 'success', message: ''});
   const [flightToDelete, setFlightToDelete] = useState<MalekFlight | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -693,6 +715,13 @@ export default function TablasDiariasClient({
             <button onClick={() => setIsImportModalOpen(true)} className="flex-1 md:flex-none justify-center bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
               <span className="material-symbols-outlined text-[18px]">upload_file</span>
               <span className="text-[13px]">Importar</span>
+            </button>
+            <button 
+              onClick={() => setIsAuditModalOpen(true)} 
+              className={`flex-1 md:flex-none justify-center px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border transition-colors cursor-pointer text-white font-bold tracking-wide ${pendingAuditCount > 0 ? 'bg-amber-500 hover:bg-amber-400 border-amber-400/50 animate-[pulse_2s_infinite] shadow-amber-900/30' : 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20'}`}
+            >
+              <span className="material-symbols-outlined text-[18px]">{pendingAuditCount > 0 ? 'notification_important' : 'fact_check'}</span>
+              <span className="text-[13px]">Pendientes {pendingAuditCount > 0 && `(${pendingAuditCount})`}</span>
             </button>
           </div>
         </div>

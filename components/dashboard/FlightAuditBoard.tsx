@@ -6,15 +6,12 @@ import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 import { archiveFlight, updateFlightDetails, deleteManualFlight } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
 
-export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
+export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string; onClose: () => void }) {
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingFlight, setEditingFlight] = useState<FlightData | null>(null);
 
-  // We fetch all flights to see which ones are ARRIBÓ or CANCELADO but NOT archived.
-  const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
-  const todayStr = new Date(todayPanama).toISOString().split('T')[0];
-  const [boardDate, setBoardDate] = useState<string>(todayStr);
+  const [boardDate, setBoardDate] = useState<string>(initialDate);
 
   const loadData = async () => {
     setLoading(true);
@@ -77,116 +74,133 @@ export function FlightAuditBoard({ isAdmin }: { isAdmin: boolean }) {
   if (!loading && flights.length === 0) return null;
 
   return (
-    <div className="mt-space-lg flex flex-col gap-space-sm font-sans mb-8">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-error">fact_check</span>
-          <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Auditoría de Vuelos Pendientes de Cierre</h2>
-          <span className="bg-error text-white text-xs font-bold px-2 py-0.5 rounded-full">{flights.length}</span>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-surface w-full max-w-6xl rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-outline-variant/30 relative">
+        {/* Header with Close Button */}
+        <div className="absolute top-4 right-4 z-10">
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          <input 
-            type="date" 
-            value={boardDate} 
-            onChange={(e) => setBoardDate(e.target.value)}
-            className="text-xs px-2 py-1 bg-surface-container rounded-md border border-white/5"
-          />
-        </div>
-      </div>
 
-      <div className="bg-surface-container-lowest rounded-2xl border border-error/20 p-4 shadow-sm overflow-x-auto">
-        {loading ? (
-          <div className="text-center py-4 text-on-surface-variant animate-pulse">Cargando vuelos por auditar...</div>
-        ) : (
-          <table className="w-full text-left text-sm min-w-[700px]">
-            <thead className="text-on-surface-variant font-label-sm uppercase border-b border-outline-variant/30">
-              <tr>
-                <th className="pb-2 font-bold">Vuelo / Fecha</th>
-                <th className="pb-2 font-bold">Ruta</th>
-                <th className="pb-2 font-bold">Estado Final</th>
-                <th className="pb-2 font-bold">T. Real Salida/Llegada</th>
-                <th className="pb-2 font-bold">Pasajeros (PAX)</th>
-                <th className="pb-2 font-bold text-right">Acción</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/20">
-              {flights.map(flight => (
-                <tr key={flight.id} className="hover:bg-surface-container-highest transition-colors">
-                  <td className="py-3">
-                    <div className="font-bold text-on-surface">{flight.flightNumber}</div>
-                    <div className="text-xs text-on-surface-variant">{boardDate}</div>
-                  </td>
-                  <td className="py-3 text-on-surface-variant">
-                    {flight.origin} → {flight.destination}
-                  </td>
-                  <td className="py-3">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${flight.status === 'CANCELADO' ? 'bg-error/10 text-error' : 'bg-surface-container-high text-on-surface'}`}>
-                      {flight.status}
-                    </span>
-                  </td>
-                  <td className="py-3 text-xs text-on-surface-variant">
-                    Salida: {flight.actualDepartureTime || flight.departureTimeLocal} <br/>
-                    Llegada: {flight.actualArrivalTime || flight.arrivalTimeLocal}
-                  </td>
-                  <td className="py-3">
-                    <div className="flex items-center gap-1">
-                      <input 
-                        type="number" 
-                        defaultValue={flight.paxCount}
-                        onBlur={(e) => {
-                          const newPax = parseInt(e.target.value, 10);
-                          if (!isNaN(newPax) && newPax !== flight.paxCount && flight.manualLogId) {
-                            handleUpdatePax(flight.manualLogId, newPax);
-                          }
-                        }}
-                        className="w-16 bg-surface-container rounded border border-outline-variant/30 focus:border-primary text-center text-sm py-1"
-                      />
-                      <span className="text-xs text-on-surface-variant">/ {flight.paxMax}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button 
-                        onClick={() => setEditingFlight(flight)}
-                        className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface-variant rounded-md text-xs font-bold transition-colors flex items-center gap-1"
-                        title="Editar"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">edit</span>
-                        Editar
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(flight.manualLogId)}
-                        className="px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error rounded-md text-xs font-bold transition-colors flex items-center gap-1"
-                        title="Descartar"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">delete</span>
-                        Descartar
-                      </button>
-                      <button 
-                        onClick={() => handleArchive(flight.id, flight.manualLogId)}
-                        className="px-3 py-1.5 bg-secondary text-on-secondary hover:bg-secondary/90 transition-colors rounded-md text-xs font-bold shadow-sm flex items-center gap-1"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                        Aprobado
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="p-6 border-b border-outline-variant/50 bg-surface-container-lowest flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center border border-error/20">
+              <span className="material-symbols-outlined text-error text-[20px]">fact_check</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-headline-md font-bold text-on-surface flex items-center gap-2">
+                Auditoría de Vuelos Pendientes de Cierre
+                <span className="bg-error text-white text-xs px-2 py-0.5 rounded-full shadow-sm">{flights.length}</span>
+              </h2>
+              <p className="text-sm text-on-surface-variant mt-0.5">Revisa y aprueba los vuelos que ya han llegado o sido cancelados antes de guardarlos en el histórico definitivo.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-lg border border-outline-variant/50 mr-12">
+            <span className="text-on-surface-variant text-sm font-medium">{boardDate}</span>
+            <span className="material-symbols-outlined text-on-surface-variant text-[18px]">calendar_today</span>
+          </div>
+        </div>
+
+        <div className="p-6 overflow-y-auto flex-1 bg-surface-container-lowest">
+          <div className="bg-surface-container-lowest rounded-2xl border border-error/20 p-4 shadow-sm overflow-x-auto">
+            {loading ? (
+              <div className="text-center py-4 text-on-surface-variant animate-pulse">Cargando vuelos por auditar...</div>
+            ) : (
+              <table className="w-full text-left text-sm min-w-[700px]">
+                <thead className="text-on-surface-variant font-label-sm uppercase border-b border-outline-variant/30">
+                  <tr>
+                    <th className="pb-2 font-bold">Vuelo / Fecha</th>
+                    <th className="pb-2 font-bold">Ruta</th>
+                    <th className="pb-2 font-bold">Estado Final</th>
+                    <th className="pb-2 font-bold">T. Real Salida/Llegada</th>
+                    <th className="pb-2 font-bold">Pasajeros (PAX)</th>
+                    <th className="pb-2 font-bold text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/20">
+                  {flights.map(flight => (
+                    <tr key={flight.id} className="hover:bg-surface-container-highest transition-colors">
+                      <td className="py-3">
+                        <div className="font-bold text-on-surface">{flight.flightNumber}</div>
+                        <div className="text-xs text-on-surface-variant">{boardDate}</div>
+                      </td>
+                      <td className="py-3 text-on-surface-variant">
+                        {flight.origin} → {flight.destination}
+                      </td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${flight.status === 'CANCELADO' ? 'bg-error/10 text-error' : 'bg-surface-container-high text-on-surface'}`}>
+                          {flight.status}
+                        </span>
+                      </td>
+                      <td className="py-3 text-xs text-on-surface-variant">
+                        Salida: {flight.actualDepartureTime || flight.departureTimeLocal} <br/>
+                        Llegada: {flight.actualArrivalTime || flight.arrivalTimeLocal}
+                      </td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-1">
+                          <input 
+                            type="number" 
+                            defaultValue={flight.paxCount}
+                            onBlur={(e) => {
+                              const newPax = parseInt(e.target.value, 10);
+                              if (!isNaN(newPax) && newPax !== flight.paxCount && flight.manualLogId) {
+                                handleUpdatePax(flight.manualLogId, newPax);
+                              }
+                            }}
+                            className="w-16 bg-surface-container rounded border border-outline-variant/30 focus:border-primary text-center text-sm py-1"
+                          />
+                          <span className="text-xs text-on-surface-variant">/ {flight.paxMax}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => setEditingFlight(flight)}
+                            className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface-variant rounded-md text-xs font-bold transition-colors flex items-center gap-1"
+                            title="Editar"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                            Editar
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(flight.manualLogId)}
+                            className="px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error rounded-md text-xs font-bold transition-colors flex items-center gap-1"
+                            title="Descartar"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                            Descartar
+                          </button>
+                          <button 
+                            onClick={() => handleArchive(flight.id, flight.manualLogId)}
+                            className="px-3 py-1.5 bg-secondary text-on-secondary hover:bg-secondary/90 transition-colors rounded-md text-xs font-bold shadow-sm flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                            Aprobado
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {editingFlight && (
+          <FlightEditModal 
+            flight={editingFlight}
+            onClose={() => setEditingFlight(null)}
+            onSuccess={() => {
+              loadData();
+            }}
+          />
         )}
       </div>
-
-      {editingFlight && (
-        <FlightEditModal 
-          flight={editingFlight}
-          onClose={() => setEditingFlight(null)}
-          onSuccess={() => {
-            loadData();
-          }}
-        />
-      )}
     </div>
   );
 }
