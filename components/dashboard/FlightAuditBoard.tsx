@@ -99,9 +99,21 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
               <p className="text-sm text-on-surface-variant mt-0.5">Revisa y aprueba los vuelos que ya han llegado o sido cancelados antes de guardarlos en el histórico definitivo.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-lg border border-outline-variant/50 mr-12">
-            <span className="text-on-surface-variant text-sm font-medium">{boardDate}</span>
-            <span className="material-symbols-outlined text-on-surface-variant text-[18px]">calendar_today</span>
+          <div className="flex items-center gap-2 mr-12">
+            <button 
+              onClick={() => setBoardDate('TODOS')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm ${boardDate === 'TODOS' ? 'bg-secondary text-on-secondary border border-secondary' : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/50 hover:bg-surface-container'}`}
+            >
+              TODOS
+            </button>
+            <div className={`flex items-center px-3 py-1.5 rounded-lg border transition-colors ${boardDate !== 'TODOS' ? 'bg-surface-container border-outline-variant/70' : 'bg-surface-container-low border-outline-variant/50'}`}>
+              <input 
+                type="date"
+                value={boardDate === 'TODOS' ? '' : boardDate}
+                onChange={(e) => setBoardDate(e.target.value)}
+                className="bg-transparent border-none outline-none font-label-sm text-on-surface font-medium focus:ring-0 cursor-pointer p-0 w-[115px]"
+              />
+            </div>
           </div>
         </div>
 

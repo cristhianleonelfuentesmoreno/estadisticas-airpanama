@@ -33,7 +33,7 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
   const now = new Date(); // Obtenemos la hora local del dispositivo
 
   const parseTime = (timeStr: string, flightDateStr?: string) => {
-    const targetDateStr = flightDateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    const targetDateStr = (flightDateStr && flightDateStr !== 'TODOS') ? flightDateStr : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     // timeStr format is HH:MM or H:MM. Construct an ISO string for Panama time
     const [hours, mins] = timeStr.split(':');
     const paddedHours = hours.padStart(2, '0');

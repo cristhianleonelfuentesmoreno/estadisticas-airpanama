@@ -36,18 +36,21 @@ export async function getManualFlightsForDate(dateStr?: string): Promise<ManualF
     const supabase = getAdminSupabase();
     
     let targetDate = dateStr;
-    if (!targetDate) {
-      // Ajustar a la hora de Panamá si no se pasa fecha
-      const now = new Date();
-      const panamaTimeStr = now.toLocaleString("en-US", { timeZone: "America/Panama" });
-      const panamaDate = new Date(panamaTimeStr);
-      targetDate = panamaDate.toISOString().split('T')[0];
+    let query = supabase.from('manual_flights_log').select('*');
+    
+    if (targetDate !== 'TODOS') {
+      let filterDate = targetDate;
+      if (!filterDate) {
+        // Ajustar a la hora de Panamá si no se pasa fecha
+        const now = new Date();
+        const panamaTimeStr = now.toLocaleString("en-US", { timeZone: "America/Panama" });
+        const panamaDate = new Date(panamaTimeStr);
+        filterDate = panamaDate.toISOString().split('T')[0];
+      }
+      query = query.eq('flightDate', filterDate); // Using flightDate based on schema
     }
     
-    const { data, error } = await supabase
-      .from('manual_flights_log')
-      .select('*')
-      .eq('flightDate', targetDate);
+    const { data, error } = await query;
 
     if (error || !data) {
       return [];

@@ -1496,6 +1496,18 @@ export default function TablasDiariasClient({
           </div>
         </div>
       )}
+      {/* Flight Audit Modal */}
+      {isAuditModalOpen && (
+        <FlightAuditBoard 
+          initialDate={currentDateStr} 
+          onClose={() => { 
+            setIsAuditModalOpen(false); 
+            loadPendingAudit(); 
+            // Reload historical data so changes are visible instantly
+            window.location.reload(); 
+          }} 
+        />
+      )}
 
       {/* Pending Approval Modal */}
       {isPendingModalOpen && (
