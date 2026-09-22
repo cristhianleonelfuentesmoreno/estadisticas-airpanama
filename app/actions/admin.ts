@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "./audit";
 
@@ -57,6 +58,18 @@ export async function updateUserStatus(userId: string, status: "aprobado" | "pen
     .eq("id", userId);
 
   if (error) return { error: error.message };
+  
+  if (status === "aprobado") {
+    try {
+      const adminAuthClient = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SECRET_KEY!
+      );
+      await adminAuthClient.auth.admin.updateUserById(userId, { email_confirm: true });
+    } catch (err) {
+      console.error("Error auto-confirming email:", err);
+    }
+  }
   
   await logAdminAction(authData.user.id, userId, `cambió el estado a "${status}"`);
   
@@ -127,7 +140,6 @@ export async function updateUserName(userId: string, nombre: string | null) {
   return { success: true };
 }
 
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export async function deleteUserAction(userId: string) {
   const supabase = await createClient();
