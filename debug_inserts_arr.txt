@@ -1,0 +1,2 @@
+{"flightsToInsert":[{"fecha":"2026-09-21","aerolinea":"Copa Airlines","numero_vuelo":"CM-28","origen":"PTY","hora_itinerario":"2026-09-21T18:49:00-05:00","hora_llegada_real":"2026-09-21T18:49:00-05:00","estado_final":"LLEGÓ","pasajeros_abordo":0,"capacidad_total":160}]}
+{"flightsToInsert":[]}

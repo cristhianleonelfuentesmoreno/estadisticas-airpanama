@@ -20,35 +20,13 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   const [statusFilter, setStatusFilter] = useState<string>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [apiStatuses, setApiStatuses] = useState<Record<string, boolean>>({
-    flightradar24: false,
-    flightaware: false
-  });
-  
-  const [hiddenIrregularIds, setHiddenIrregularIds] = useState<string[]>([]);
-  const [isIrregularModalOpen, setIsIrregularModalOpen] = useState(false);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('hiddenIrregularFlights');
-      if (stored) setHiddenIrregularIds(JSON.parse(stored));
-    } catch(e) {}
-  }, []);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        const { getApiConfigs } = await import('@/app/actions/apiConfig');
-        const [data, configs] = await Promise.all([
-          getUpcomingFlights(boardDate),
-          getApiConfigs()
-        ]);
+        const data = await getUpcomingFlights(boardDate);
         setFlights(data);
-        setApiStatuses({
-          flightradar24: configs.flightradar24?.is_active ?? false,
-          flightaware: configs.flightaware?.is_active ?? false
-        });
       } catch (err) {
         console.error("Error loading flights:", err);
       } finally {
@@ -62,10 +40,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   }, [boardDate]);
 
   // 1. Filter Flights
-  const regularFlights = flights.filter(f => !f.isNonItinerary);
-  const irregularFlights = flights.filter(f => f.isNonItinerary && !hiddenIrregularIds.includes(f.id));
-
-  const filteredFlights = regularFlights.filter(f => {
+  const filteredFlights = flights.filter(f => {
     const passDest = destinationFilter === 'TODOS' || f.destination === destinationFilter || f.origin === destinationFilter;
     const passAirline = airlineFilter === 'TODOS' || f.airline === airlineFilter;
     const passStatus = statusFilter === 'TODOS' || f.status === statusFilter;
@@ -135,50 +110,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
               </button>
             )}
 
-              {/* Source API Links */}
-              <div className="flex items-center gap-2 ml-2">
-                <a 
-                  href="https://www.flightradar24.com/data/airlines/7p-pnc" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 font-label-sm text-label-sm text-on-surface-variant hover:text-secondary transition-colors border border-white/5 bg-surface-container-low px-3 py-1.5 rounded-lg shadow-sm"
-                  title="Ir a FlightRadar24 (Air Panama)"
-                >
-                  <span className={`material-symbols-outlined text-[16px] ${apiStatuses.flightradar24 ? 'text-emerald-500 animate-[spin_4s_linear_infinite]' : 'text-on-surface-variant/50'}`}>public</span>
-                  FlightRadar24
-                </a>
-                
-                <a 
-                  href="https://es.flightaware.com/live/fleet/CMP" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 font-label-sm text-label-sm text-on-surface-variant hover:text-secondary transition-colors border border-white/5 bg-surface-container-low px-3 py-1.5 rounded-lg shadow-sm"
-                  title="Ir a FlightAware (Copa Airlines)"
-                >
-                  <span className={`material-symbols-outlined text-[16px] ${apiStatuses.flightaware ? 'text-emerald-500 animate-[spin_4s_linear_infinite]' : 'text-on-surface-variant/50'}`}>public</span>
-                  FlightAware
-                </a>
-              </div>
             </div>
-
-            {/* Banner de Vuelos Irregulares */}
-            {irregularFlights.length > 0 && isAdmin && (
-              <div className="flex items-center justify-between p-3 bg-error/10 border border-error/20 rounded-xl mt-2 w-full animate-in fade-in slide-in-from-top-2">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-error text-[24px] animate-pulse">warning</span>
-                  <div className="flex flex-col">
-                    <span className="text-error font-bold text-[14px]">¡Alerta de Vuelo Irregular!</span>
-                    <span className="text-on-surface-variant text-[12px]">{irregularFlights.length} vuelo(s) detectado(s) en vivo que no están en el itinerario de hoy.</span>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setIsIrregularModalOpen(true)}
-                  className="px-4 py-1.5 bg-error text-on-error font-bold text-[13px] rounded-full hover:bg-error/90 transition-colors shadow-sm"
-                >
-                  Revisar
-                </button>
-              </div>
-            )}
             
             {/* Rutas Filter (Desktop & Mobile) */}
             <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit max-w-full overflow-x-auto scrollbar-hide">
@@ -322,95 +254,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
           />
         )}
 
-        {/* Modal de Vuelos Irregulares */}
-        {isIrregularModalOpen && (
-          <div className="fixed inset-0 z-[100] bg-surface/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl bg-surface-container-lowest rounded-[28px] flex flex-col shadow-2xl max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between p-6 border-b border-outline-variant/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-error/10 text-error flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[20px]">warning</span>
-                  </div>
-                  <h2 className="font-headline-md font-bold text-on-surface">Vuelos No Itinerados</h2>
-                </div>
-                <button onClick={() => setIsIrregularModalOpen(false)} className="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant transition-colors">
-                  <span className="material-symbols-outlined text-[20px]">close</span>
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto">
-                <p className="text-sm text-on-surface-variant mb-4">
-                  Estos vuelos han sido detectados en vivo por el radar hacia/desde David, pero no constan en el itinerario de hoy. Puedes aprobarlos para que se agreguen al sistema o descartarlos si son errores.
-                </p>
-                <div className="flex flex-col gap-3">
-                  {irregularFlights.map(flight => (
-                    <div key={flight.id} className="bg-surface-container rounded-xl p-4 border border-error/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-on-surface text-lg">{flight.flightNumber}</span>
-                        <span className="text-sm text-on-surface-variant">{flight.origin} → {flight.destination}</span>
-                        <span className="text-xs text-on-surface-variant/70">Aeronave: {flight.aircraft} {flight.aircraftReg} | Salida: {flight.departureTimeLocal}</span>
-                      </div>
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <button 
-                          onClick={() => {
-                            const newIds = [...hiddenIrregularIds, flight.id];
-                            setHiddenIrregularIds(newIds);
-                            localStorage.setItem('hiddenIrregularFlights', JSON.stringify(newIds));
-                            toast.success("Vuelo descartado.");
-                            if (irregularFlights.length === 1) setIsIrregularModalOpen(false);
-                          }}
-                          className="flex-1 sm:flex-none px-4 py-2 bg-surface-container-high text-on-surface-variant font-label-md font-bold rounded-lg hover:bg-surface-container-highest transition-colors"
-                        >
-                          Descartar
-                        </button>
-                        <button 
-                          onClick={async () => {
-                            try {
-                              setLoading(true);
-                              await addMultipleManualFlights([{
-                                flightNumber: flight.flightNumber.replace(/^(CM-|7P-)/, ''),
-                                aircraft: flight.aircraft,
-                                aircraftReg: flight.aircraftReg,
-                                origin: flight.origin,
-                                originName: flight.originName,
-                                destination: flight.destination,
-                                destinationName: flight.destinationName,
-                                departureTimeLocal: flight.departureTimeLocal,
-                                arrivalTimeLocal: flight.arrivalTimeLocal,
-                                airline: flight.airline,
-                                pilot: flight.pilot,
-                                paxCount: flight.paxCount,
-                                paxMax: flight.paxMax,
-                                flightDate: boardDate
-                              }]);
-                              toast.success("Vuelo aprobado y agregado al itinerario.");
-                              
-                              // Ocultarlo localmente para no mostrar el botón de nuevo
-                              const newIds = [...hiddenIrregularIds, flight.id];
-                              setHiddenIrregularIds(newIds);
-                              localStorage.setItem('hiddenIrregularFlights', JSON.stringify(newIds));
-                              
-                              const data = await getUpcomingFlights(boardDate);
-                              setFlights(data);
-                              
-                              if (irregularFlights.length === 1) setIsIrregularModalOpen(false);
-                            } catch (e: any) {
-                              toast.error(e.message);
-                            } finally {
-                              setLoading(false);
-                            }
-                          }}
-                          className="flex-1 sm:flex-none px-4 py-2 bg-primary text-on-primary font-label-md font-bold rounded-lg hover:bg-primary/90 transition-colors"
-                        >
-                          Aprobar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+
     </>
   );
 }
@@ -462,23 +306,10 @@ function FlightCard({ flight }: { flight: FlightData }) {
             {localStatus}
           </div>
           
-          {flight.trackingLink ? (
-            <a 
-              href={flight.trackingLink} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="ml-2 px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest border border-white/10 rounded-full font-label-sm text-label-sm font-bold text-secondary flex items-center gap-1 transition-colors"
-              title="Ver en Radar"
-            >
-              <span className="material-symbols-outlined text-[14px]">radar</span>
-              Radar
-            </a>
-          ) : (
-            <div className="ml-2 px-2.5 py-1 bg-surface-container-low border border-outline-variant/30 rounded-full font-label-sm text-label-sm font-bold text-on-surface-variant flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px]">fact_check</span>
-              Registrado
-            </div>
-          )}
+          <div className="ml-2 px-2.5 py-1 bg-surface-container-low border border-outline-variant/30 rounded-full font-label-sm text-label-sm font-bold text-on-surface-variant flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">fact_check</span>
+            Registrado
+          </div>
         </div>
       </div>
 

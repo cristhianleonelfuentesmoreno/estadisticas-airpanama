@@ -12,15 +12,14 @@ interface MalekFlight {
   numero_vuelo: string;
   origen: string;
   destino?: string;
-  hora_itinerario?: string;
-  hora_llegada_real?: string;
-  hora_salida_real?: string;
+  hora_itinerario_salida?: string;
+  hora_real_salida?: string;
+  hora_itinerario_llegada?: string;
+  hora_real_llegada?: string;
   estado_final: string;
   pasajeros_abordo: number;
   capacidad_total: number;
   avion?: string;
-  hora_salida_itinerario?: string;
-  hora_llegada_itinerario?: string;
 }
 
 const AIRCRAFT_MODELS = [
@@ -30,6 +29,22 @@ const AIRCRAFT_MODELS = [
   { id: 'B738', label: 'B738 (Copa)', cap: 160 },
   { id: 'B39M', label: 'B39M (Copa)', cap: 166 },
   { id: 'OTRO', label: 'Otro', cap: 100 },
+];
+
+const AIRPORTS = [
+  { code: 'DAV', name: 'DAV - Enrique Malek' },
+  { code: 'PAC', name: 'PAC - Albrook' },
+  { code: 'PTY', name: 'PTY - Tocumen' },
+  { code: 'BLB', name: 'BLB - Panamá Pacífico' },
+  { code: 'BOC', name: 'BOC - Isla Colón (Bocas)' },
+  { code: 'CHX', name: 'CHX - Changuinola' },
+  { code: 'SYQ', name: 'SYQ - Tobías Bolaños' },
+  { code: 'SJO', name: 'SJO - Juan Santamaría' }
+];
+
+const COMMON_FLIGHTS = [
+  "770", "771", "772", "773", "774", "775", "776", "777", "778", "779",
+  "011", "012", "015", "016", "019"
 ];
 
 export default function TablasDiariasClient({
@@ -62,7 +77,29 @@ export default function TablasDiariasClient({
   const router = useRouter();
   const dateInputRef = useRef<HTMLInputElement>(null);
   
-  // Modals state
+  // Aprobacion state
+  const [isPendingModalOpen, setIsPendingModalOpen] = useState(false);
+
+  // Derivados de initialData para separar PENDIENTES
+  const llegadasPendientes = useMemo(() => initialData.llegadas.filter(f => f.estado_final === 'PENDIENTE'), [initialData.llegadas]);
+  const llegadasAprobadas = useMemo(() => initialData.llegadas.filter(f => f.estado_final !== 'PENDIENTE'), [initialData.llegadas]);
+
+  const salidasPendientes = useMemo(() => initialData.salidas.filter(f => f.estado_final === 'PENDIENTE'), [initialData.salidas]);
+  const salidasAprobadas = useMemo(() => initialData.salidas.filter(f => f.estado_final !== 'PENDIENTE'), [initialData.salidas]);
+
+  const totalPendientes = llegadasPendientes.length + salidasPendientes.length;
+
+  const activeDataList = useMemo(() => {
+    if (viewType === 'llegadas') return llegadasAprobadas;
+    if (viewType === 'salidas') return salidasAprobadas;
+    
+    const combined = [...llegadasAprobadas, ...salidasAprobadas];
+    return combined.sort((a, b) => {
+      const timeA = new Date(a.hora_real_llegada || a.hora_real_salida || 0).getTime();
+      const timeB = new Date(b.hora_real_llegada || b.hora_real_salida || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [llegadasAprobadas, salidasAprobadas, viewType]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -81,8 +118,10 @@ export default function TablasDiariasClient({
     origen: '',
     destino: '',
     fecha: currentDateStr,
-    hora_itinerario: '',
-    hora_real: '',
+    hora_itinerario_salida: '',
+    hora_real_salida: '',
+    hora_itinerario_llegada: '',
+    hora_real_llegada: '',
     estado_final: 'LLEGÓ',
     pasajeros_abordo: 0,
     capacidad_total: 78,
@@ -97,8 +136,10 @@ export default function TablasDiariasClient({
     avion: "DH8D",
     origen: "",
     destino: "",
-    hora_itinerario: "",
-    hora_real: "",
+    hora_itinerario_salida: "",
+    hora_real_salida: "",
+    hora_itinerario_llegada: "",
+    hora_real_llegada: "",
     pasajeros_abordo: 0,
     capacidad_total: 0,
     estado_final: ""
@@ -135,24 +176,9 @@ export default function TablasDiariasClient({
 
   const isToday = currentDateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 
-  const activeDataList = useMemo(() => {
-    if (viewType === 'llegadas') return initialData.llegadas;
-    if (viewType === 'salidas') return initialData.salidas;
-    
-    const combined = [...initialData.llegadas, ...initialData.salidas];
-    return combined.sort((a, b) => {
-      const timeA = new Date(a.hora_llegada_real || a.hora_salida_real || 0).getTime();
-      const timeB = new Date(b.hora_llegada_real || b.hora_salida_real || 0).getTime();
-      return timeB - timeA;
-    });
-  }, [initialData, viewType]);
-
-  const totalFlights = activeDataList.length;
-  const aTiempo = activeDataList.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
-
   const filteredData = useMemo(() => {
     return activeDataList.filter(flight => {
-      const location = flight.hora_llegada_real ? flight.origen : flight.destino;
+      const location = flight.hora_real_llegada ? flight.origen : flight.destino;
       const matchSearch = 
         flight.numero_vuelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (location && location.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -164,12 +190,15 @@ export default function TablasDiariasClient({
     });
   }, [activeDataList, searchQuery, activeFilter]);
 
+  const totalFlights = filteredData.length;
+  const aTiempo = filteredData.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
+
   const sortedData = useMemo(() => {
     let sorted = [...filteredData];
     if (sortColumn === 'ruta') {
       sorted.sort((a, b) => {
-        const routeA = a.hora_llegada_real ? `${a.origen}-DAV` : `DAV-${a.destino}`;
-        const routeB = b.hora_llegada_real ? `${b.origen}-DAV` : `DAV-${b.destino}`;
+        const routeA = a.hora_real_llegada ? `${a.origen}-DAV` : `DAV-${a.destino}`;
+        const routeB = b.hora_real_llegada ? `${b.origen}-DAV` : `DAV-${b.destino}`;
         return sortDirection === 'asc' ? routeA.localeCompare(routeB) : routeB.localeCompare(routeA);
       });
     } else if (sortColumn === 'estado') {
@@ -215,7 +244,7 @@ export default function TablasDiariasClient({
 
   const openEditDrawer = (flight: MalekFlight) => {
     setEditingFlight(flight);
-    const timeValue = flight.hora_llegada_real ? flight.hora_llegada_real : flight.hora_salida_real;
+    const timeValue = flight.hora_real_llegada ? flight.hora_real_llegada : flight.hora_real_salida;
     
     setEditFormData({
       fecha: flight.fecha || "",
@@ -223,8 +252,10 @@ export default function TablasDiariasClient({
       numero_vuelo: flight.numero_vuelo || "",
       origen: flight.origen || "",
       destino: flight.destino || "",
-      hora_itinerario: toTimeStringForInput(flight.hora_itinerario),
-      hora_real: toTimeStringForInput(timeValue),
+      hora_itinerario_salida: toTimeStringForInput(flight.hora_itinerario_salida),
+      hora_real_salida: toTimeStringForInput(flight.hora_real_salida),
+      hora_itinerario_llegada: toTimeStringForInput(flight.hora_itinerario_llegada),
+      hora_real_llegada: toTimeStringForInput(flight.hora_real_llegada),
       pasajeros_abordo: flight.pasajeros_abordo || 0,
       capacidad_total: flight.capacidad_total || 78,
       avion: flight.avion || "DH8D",
@@ -237,27 +268,34 @@ export default function TablasDiariasClient({
     e.preventDefault();
     if (!editingFlight) return;
     
-    const isLlegada = !!editingFlight.hora_llegada_real;
+    const isLlegada = !!editingFlight.hora_real_llegada;
     
-    const itinDate = new Date(`${editFormData.fecha}T${editFormData.hora_itinerario}:00-05:00`);
-    const realDate = new Date(`${editFormData.fecha}T${editFormData.hora_real}:00-05:00`);
+    const itinSalida = new Date(`${editFormData.fecha}T${editFormData.hora_itinerario_salida || '00:00'}:00-05:00`);
+    const realSalida = new Date(`${editFormData.fecha}T${editFormData.hora_real_salida || editFormData.hora_itinerario_salida || '00:00'}:00-05:00`);
+    const itinLlegada = new Date(`${editFormData.fecha}T${editFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
+    const realLlegada = new Date(`${editFormData.fecha}T${editFormData.hora_real_llegada || editFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
 
     const updates: any = {
       fecha: editFormData.fecha,
       aerolinea: editFormData.aerolinea,
       numero_vuelo: editFormData.numero_vuelo,
-      hora_itinerario: itinDate.toISOString(),
       pasajeros_abordo: Number(editFormData.pasajeros_abordo),
       capacidad_total: Number(editFormData.capacidad_total),
-      estado_final: editFormData.estado_final
+      estado_final: editFormData.estado_final,
+      hora_itinerario_salida: itinSalida.toISOString(),
+      hora_real_salida: realSalida.toISOString(),
+      hora_itinerario_llegada: itinLlegada.toISOString(),
+      hora_real_llegada: realLlegada.toISOString()
     };
     
     if (isLlegada) {
       updates.origen = editFormData.origen;
-      updates.hora_llegada_real = realDate.toISOString();
+      updates.hora_itinerario = itinLlegada.toISOString();
+      updates.hora_real_llegada = realLlegada.toISOString();
     } else {
       updates.destino = editFormData.destino;
-      updates.hora_salida_real = realDate.toISOString();
+      updates.hora_itinerario = itinSalida.toISOString();
+      updates.hora_real_salida = realSalida.toISOString();
     }
 
     let res;
@@ -312,25 +350,32 @@ export default function TablasDiariasClient({
     const isLlegada = addFormData.type === 'llegadas';
     
     // Create correct Date objects
-    const itinDate = new Date(`${addFormData.fecha}T${addFormData.hora_itinerario}:00-05:00`);
-    const realDate = new Date(`${addFormData.fecha}T${addFormData.hora_real || addFormData.hora_itinerario}:00-05:00`);
+    const itinSalida = new Date(`${addFormData.fecha}T${addFormData.hora_itinerario_salida || '00:00'}:00-05:00`);
+    const realSalida = new Date(`${addFormData.fecha}T${addFormData.hora_real_salida || addFormData.hora_itinerario_salida || '00:00'}:00-05:00`);
+    const itinLlegada = new Date(`${addFormData.fecha}T${addFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
+    const realLlegada = new Date(`${addFormData.fecha}T${addFormData.hora_real_llegada || addFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
     
     const record: any = {
       fecha: addFormData.fecha,
       aerolinea: addFormData.aerolinea,
       numero_vuelo: addFormData.numero_vuelo,
-      hora_itinerario: itinDate.toISOString(),
       estado_final: addFormData.estado_final,
       pasajeros_abordo: Number(addFormData.pasajeros_abordo),
-      capacidad_total: Number(addFormData.capacidad_total)
+      capacidad_total: Number(addFormData.capacidad_total),
+      hora_itinerario_salida: itinSalida.toISOString(),
+      hora_real_salida: realSalida.toISOString(),
+      hora_itinerario_llegada: itinLlegada.toISOString(),
+      hora_real_llegada: realLlegada.toISOString()
     };
 
     if (isLlegada) {
       record.origen = addFormData.origen;
-      record.hora_llegada_real = realDate.toISOString();
+      record.hora_itinerario = itinLlegada.toISOString();
+      record.hora_real_llegada = realLlegada.toISOString();
     } else {
       record.destino = addFormData.destino;
-      record.hora_salida_real = realDate.toISOString();
+      record.hora_itinerario = itinSalida.toISOString();
+      record.hora_real_salida = realSalida.toISOString();
     }
 
     const res = await insertFlightRecords([record], addFormData.type);
@@ -486,11 +531,11 @@ export default function TablasDiariasClient({
 
         if (isLlegada) {
           record.origen = od;
-          record.hora_llegada_real = realDate.toISOString();
+          record.hora_real_llegada = realDate.toISOString();
           llegadasToInsert.push(record);
         } else {
           record.destino = od;
-          record.hora_salida_real = realDate.toISOString();
+          record.hora_real_salida = realDate.toISOString();
           salidasToInsert.push(record);
         }
       }
@@ -588,6 +633,29 @@ export default function TablasDiariasClient({
     XLSX.writeFile(wb, "Plantilla_AODB_Malek.xlsx");
   };
 
+  const handleApprovePending = async (id: string, type: string, pax: number, time: string, status: string) => {
+    const flight = [...llegadasPendientes, ...salidasPendientes].find(f => f.id === id);
+    if (!flight) return;
+    
+    const realDate = new Date(`${flight.fecha}T${time}:00-05:00`).toISOString();
+    
+    if (type === 'llegadas') {
+      await updateLlegadaMalek(id, {
+        hora_real_llegada: realDate,
+        pasajeros_abordo: pax,
+        estado_final: status
+      });
+    } else {
+      await updateSalidaMalek(id, {
+        hora_real_salida: realDate,
+        pasajeros_abordo: pax,
+        estado_final: status
+      });
+    }
+    
+    handleRefresh();
+  };
+
   return (
     <div className="flex flex-col w-full min-h-[calc(100vh-8rem)] relative">
       {/* Header Panel */}
@@ -597,14 +665,25 @@ export default function TablasDiariasClient({
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4"></div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-              <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">AODB Base</span>
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">AODB Base</span>
+              </div>
+              <h1 className="font-headline-md text-2xl md:text-3xl text-white font-black tracking-tight drop-shadow-sm">
+                Registro Histórico
+              </h1>
             </div>
-            <h1 className="font-headline-md text-2xl md:text-3xl text-white font-black tracking-tight drop-shadow-sm">
-              Registro Histórico
-            </h1>
+            {totalPendientes > 0 && (
+              <button 
+                onClick={() => setIsPendingModalOpen(true)}
+                className="ml-4 flex items-center gap-2 bg-red-600/90 hover:bg-red-500 text-white px-4 py-2 rounded-full font-medium shadow-lg shadow-red-900/30 transition-all border border-red-400/50 animate-[pulse_2s_infinite]"
+              >
+                <span className="material-symbols-outlined text-xl">notification_important</span>
+                {totalPendientes} Vuelos por Aprobar
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2 w-full md:w-auto">
             <button onClick={() => setIsAddModalOpen(true)} className="flex-1 md:flex-none justify-center bg-emerald-500 hover:bg-emerald-400 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-emerald-400/50">
@@ -641,6 +720,53 @@ export default function TablasDiariasClient({
             <span className="material-symbols-outlined text-[16px] md:text-[18px]">flight_takeoff</span>
             Salidas
           </button>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3 relative z-10 w-full mt-2">
+          {/* Filters & Search */}
+          <div className="flex flex-col gap-3 w-full bg-white/5 p-3 rounded-2xl border border-white/10 backdrop-blur-md">
+            <div className="relative w-full">
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+                <span className="material-symbols-outlined text-[20px]">search</span>
+              </div>
+              <input 
+                className="w-full h-11 pl-10 pr-10 bg-white/10 text-white text-sm rounded-xl border border-white/20 placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white/20 transition-all shadow-inner"
+                placeholder="Buscar por vuelo, origen o aerolínea..." 
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button 
+                  className="absolute inset-y-0 right-2 w-8 h-8 my-auto flex items-center justify-center text-white/70 hover:text-white"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <button 
+                onClick={() => setActiveFilter("all")}
+                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'all' ? 'bg-white text-primary border-white shadow-md' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+              >
+                Todas ({activeDataList.length})
+              </button>
+              <button 
+                onClick={() => setActiveFilter("Air Panama")}
+                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'Air Panama' ? 'bg-red-600 text-white border-red-500 shadow-md' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+              >
+                Air Panama
+              </button>
+              <button 
+                onClick={() => setActiveFilter("Copa Airlines")}
+                className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'Copa Airlines' ? 'bg-[#0032A0] text-white border-[#0032A0] shadow-md' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+              >
+                Copa Airlines
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4 flex flex-col gap-4 border border-white/10 mt-1 relative z-10 shadow-lg">
@@ -693,62 +819,9 @@ export default function TablasDiariasClient({
           </div>
         </div>
       </section>
-
-      {/* Filters & Search */}
-      <section className="px-4 pt-4 pb-2 flex flex-col gap-3">
-        <div className="relative w-full">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-            <span className="material-symbols-outlined text-[20px]">search</span>
-          </div>
-          <input 
-            className="w-full h-12 pl-10 pr-10 bg-white text-slate-800 text-sm rounded-xl shadow-sm border border-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="Buscar por vuelo, origen o aerolínea..." 
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button 
-              className="absolute inset-y-0 right-2 w-8 h-8 my-auto flex items-center justify-center text-slate-400 hover:text-slate-600"
-              onClick={() => setSearchQuery("")}
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 no-scrollbar">
-          <button 
-            onClick={() => setActiveFilter("all")}
-            className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold shadow-sm transition-all ${activeFilter === 'all' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-          >
-            Todas ({totalFlights})
-          </button>
-          <button 
-            onClick={() => setActiveFilter("Air Panama")}
-            className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold shadow-sm transition-all ${activeFilter === 'Air Panama' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-          >
-            Air Panama
-          </button>
-          <button 
-            onClick={() => setActiveFilter("Copa Airlines")}
-            className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold shadow-sm transition-all ${activeFilter === 'Copa Airlines' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-          >
-            Copa Airlines
-          </button>
-        </div>
-      </section>
-
       {/* Airtable Grid */}
-      <section className="px-4 flex flex-col gap-2 flex-1 pb-6 mt-2">
-        <div className="flex items-center justify-between px-1 text-slate-500 text-xs mb-1">
-          <span className="flex items-center gap-1 font-semibold text-slate-700">
-            <span className="material-symbols-outlined text-[16px] text-primary">grid_on</span>Vista Cuadrícula
-          </span>
-          <span className="flex items-center gap-1 font-medium text-slate-400">
-            <span className="material-symbols-outlined text-[15px]">swipe</span>Desliza horizontal
-          </span>
-        </div>
+      <section className="px-4 flex flex-col gap-2 flex-1 pb-6 mt-4">
+
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -812,7 +885,7 @@ export default function TablasDiariasClient({
                     const paxCount = flight.pasajeros_abordo || 0;
                     const paxMax = flight.capacidad_total || 100;
                     const paxPct = Math.round((paxCount / paxMax) * 100);
-                    const isLlegada = !!flight.hora_llegada_real;
+                    const isLlegada = !!flight.hora_real_llegada;
 
                     return (
                       <tr key={flight.id} className="hover:bg-slate-50 transition-colors group">
@@ -843,11 +916,11 @@ export default function TablasDiariasClient({
                               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Salida</span>
                               <div className="flex items-center justify-between text-[13px]">
                                 <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Salida Itinerario">
-                                  {formatTime(flight.hora_salida_itinerario)}
+                                  {formatTime(flight.hora_itinerario_salida)}
                                 </span>
                                 <span className="material-symbols-outlined text-[14px] text-slate-300 mx-1">arrow_right_alt</span>
                                 <span className="font-bold text-slate-800" title="Salida Real">
-                                  {formatTime(!isLlegada ? flight.hora_salida_real : flight.hora_salida_itinerario)}
+                                  {formatTime(!isLlegada ? flight.hora_real_salida : flight.hora_itinerario_salida)}
                                 </span>
                               </div>
                             </div>
@@ -857,19 +930,19 @@ export default function TablasDiariasClient({
                               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Llegada</span>
                               <div className="flex items-center justify-between text-[13px]">
                                 <span className="text-slate-400 font-medium line-through decoration-slate-300" title="Llegada Itinerario">
-                                  {formatTime(flight.hora_llegada_itinerario)}
+                                  {formatTime(flight.hora_itinerario_llegada)}
                                 </span>
                                 <span className="material-symbols-outlined text-[14px] text-slate-300 mx-1">arrow_right_alt</span>
                                 <span className="font-bold text-slate-800" title="Llegada Real">
-                                  {formatTime(isLlegada ? flight.hora_llegada_real : flight.hora_llegada_itinerario)}
+                                  {formatTime(isLlegada ? flight.hora_real_llegada : flight.hora_itinerario_llegada)}
                                 </span>
                               </div>
                             </div>
                             
                             <div className="mt-1">
                             {(() => {
-                              const realStr = isLlegada ? flight.hora_llegada_real : flight.hora_salida_real;
-                              const itinStr = flight.hora_itinerario || realStr;
+                              const realStr = isLlegada ? flight.hora_real_llegada : flight.hora_real_salida;
+                              const itinStr = isLlegada ? flight.hora_itinerario_llegada : flight.hora_itinerario_salida;
                               const rDate = new Date(realStr || '');
                               const iDate = new Date(itinStr || '');
                               
@@ -994,8 +1067,8 @@ export default function TablasDiariasClient({
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto">
-              <form className="flex flex-col gap-5" onSubmit={handleSaveEdit}>
+            <form className="flex flex-col flex-1 overflow-hidden" onSubmit={handleSaveEdit}>
+              <div className="p-6 overflow-y-auto flex flex-col gap-5">
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Fecha</label>
@@ -1037,40 +1110,67 @@ export default function TablasDiariasClient({
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
-                    <input 
+                    <input list="edit-flight-numbers"
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="text" required value={editFormData.numero_vuelo}
                       onChange={(e) => setEditFormData({...editFormData, numero_vuelo: e.target.value})}
                     />
+                    <datalist id="edit-flight-numbers">
+                      {COMMON_FLIGHTS.map(f => <option key={f} value={f} />)}
+                    </datalist>
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.hora_llegada_real ? 'Origen' : 'Destino'}</label>
-                    <input 
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.hora_real_llegada ? 'Origen' : 'Destino'}</label>
+                    <select 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      type="text" required 
-                      value={!!editingFlight.hora_llegada_real ? editFormData.origen : editFormData.destino}
-                      onChange={(e) => !!editingFlight.hora_llegada_real 
+                      required 
+                      value={!!editingFlight.hora_real_llegada ? editFormData.origen : editFormData.destino}
+                      onChange={(e) => !!editingFlight.hora_real_llegada 
                         ? setEditFormData({...editFormData, origen: e.target.value}) 
                         : setEditFormData({...editFormData, destino: e.target.value})}
+                    >
+                      <option value="">Seleccione...</option>
+                      {AIRPORTS.map(apt => (
+                        <option key={apt.code} value={apt.code}>{apt.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Itin. Salida</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="time" value={editFormData.hora_itinerario_salida}
+                      onChange={(e) => setEditFormData({...editFormData, hora_itinerario_salida: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real Salida</label>
+                    <input 
+                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      type="time" value={editFormData.hora_real_salida}
+                      onChange={(e) => setEditFormData({...editFormData, hora_real_salida: e.target.value})}
                     />
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Itin.</label>
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Itin. Llegada</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      type="time" required value={editFormData.hora_itinerario}
-                      onChange={(e) => setEditFormData({...editFormData, hora_itinerario: e.target.value})}
+                      type="time" value={editFormData.hora_itinerario_llegada}
+                      onChange={(e) => setEditFormData({...editFormData, hora_itinerario_llegada: e.target.value})}
                     />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real</label>
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real Llegada</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      type="time" required value={editFormData.hora_real}
-                      onChange={(e) => setEditFormData({...editFormData, hora_real: e.target.value})}
+                      type="time" value={editFormData.hora_real_llegada}
+                      onChange={(e) => setEditFormData({...editFormData, hora_real_llegada: e.target.value})}
                     />
                   </div>
                 </div>
@@ -1108,7 +1208,9 @@ export default function TablasDiariasClient({
                   </select>
                 </div>
 
-                <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-2">
+              </div>
+              <div className="p-6 border-t border-slate-100 bg-white shrink-0">
+                <div className="flex items-center gap-3">
                   <button 
                     className="flex-1 h-11 rounded-xl bg-slate-100 text-slate-600 font-bold active:scale-95 transition-transform" 
                     onClick={() => setIsDrawerOpen(false)} 
@@ -1124,8 +1226,8 @@ export default function TablasDiariasClient({
                     <span>Guardar Cambios</span>
                   </button>
                 </div>
-              </form>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1144,8 +1246,8 @@ export default function TablasDiariasClient({
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto">
-              <form onSubmit={handleAddFlightSubmit} className="flex flex-col gap-5">
+            <form onSubmit={handleAddFlightSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 overflow-y-auto flex flex-col gap-5">
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Tipo de Operación</label>
@@ -1190,17 +1292,25 @@ export default function TablasDiariasClient({
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
-                    <input type="text" placeholder="Ej: 7P-972" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                    <input list="add-flight-numbers" type="text" placeholder="Ej: 7P-972" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.numero_vuelo} onChange={(e) => setAddFormData({...addFormData, numero_vuelo: e.target.value})} required />
+                    <datalist id="add-flight-numbers">
+                      {COMMON_FLIGHTS.map(f => <option key={f} value={f} />)}
+                    </datalist>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{addFormData.type === 'llegadas' ? 'Origen' : 'Destino'}</label>
-                    <input type="text" placeholder="Ej: PAC" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.type === 'llegadas' ? addFormData.origen : addFormData.destino} 
-                      onChange={(e) => addFormData.type === 'llegadas' ? setAddFormData({...addFormData, origen: e.target.value}) : setAddFormData({...addFormData, destino: e.target.value})} required />
+                      onChange={(e) => addFormData.type === 'llegadas' ? setAddFormData({...addFormData, origen: e.target.value}) : setAddFormData({...addFormData, destino: e.target.value})} required>
+                      <option value="">Seleccione...</option>
+                      {AIRPORTS.map(apt => (
+                        <option key={apt.code} value={apt.code}>{apt.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
@@ -1216,14 +1326,35 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Itinerario (HH:MM)</label>
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                      Hora Itin. Salida (HH:MM)
+                    </label>
                     <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.hora_itinerario} onChange={(e) => setAddFormData({...addFormData, hora_itinerario: e.target.value})} required />
+                      value={addFormData.hora_itinerario_salida} onChange={(e) => setAddFormData({...addFormData, hora_itinerario_salida: e.target.value})} />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real (HH:MM)</label>
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                      Hora Real Salida (HH:MM)
+                    </label>
                     <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.hora_real} onChange={(e) => setAddFormData({...addFormData, hora_real: e.target.value})} required />
+                      value={addFormData.hora_real_salida} onChange={(e) => setAddFormData({...addFormData, hora_real_salida: e.target.value})} />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                      Hora Itin. Llegada (HH:MM)
+                    </label>
+                    <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.hora_itinerario_llegada} onChange={(e) => setAddFormData({...addFormData, hora_itinerario_llegada: e.target.value})} />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                      Hora Real Llegada (HH:MM)
+                    </label>
+                    <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
+                      value={addFormData.hora_real_llegada} onChange={(e) => setAddFormData({...addFormData, hora_real_llegada: e.target.value})} />
                   </div>
                 </div>
 
@@ -1240,7 +1371,9 @@ export default function TablasDiariasClient({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-2">
+              </div>
+              <div className="p-6 border-t border-slate-100 bg-white shrink-0">
+                <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 h-11 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors">
                     Cancelar
                   </button>
@@ -1249,8 +1382,8 @@ export default function TablasDiariasClient({
                     Guardar
                   </button>
                 </div>
-              </form>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1308,30 +1441,57 @@ export default function TablasDiariasClient({
       )}
       {/* MODAL: Confirmar Eliminación */}
       {isDeleteModalOpen && flightToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-surface-container-lowest rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-black/10 animate-in zoom-in-95 duration-200">
-            <div className="p-6">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-                <span className="material-symbols-outlined text-red-600 text-2xl">warning</span>
-              </div>
-              <h3 className="text-center font-headline-sm text-headline-sm font-bold text-on-surface mb-2">Eliminar Vuelo</h3>
-              <p className="text-center font-body-md text-body-md text-on-surface-variant">
-                ¿Estás seguro de que deseas eliminar el vuelo <strong className="text-on-surface">{flightToDelete.numero_vuelo}</strong>? Esta acción no se puede deshacer y borrará el registro histórico.
-              </p>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-surface max-w-sm w-full rounded-3xl p-6 shadow-2xl animate-fade-in-up border border-outline-variant/30">
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="material-symbols-outlined text-2xl">warning</span>
             </div>
-            <div className="flex bg-surface-container-low border-t border-black/5 p-4 gap-3">
+            <h3 className="text-xl font-medium text-center mb-2">¿Eliminar Vuelo?</h3>
+            <p className="text-on-surface-variant text-center mb-6">
+              ¿Estás seguro de que deseas eliminar el vuelo <strong>{flightToDelete.numero_vuelo}</strong>? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3">
               <button 
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors"
+                onClick={() => { setIsDeleteModalOpen(false); setFlightToDelete(null); }}
+                className="flex-1 px-4 py-2 rounded-full font-medium hover:bg-surface-variant transition-colors"
               >
                 Cancelar
               </button>
               <button 
                 onClick={executeDelete}
-                className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-full font-medium hover:bg-red-700 shadow-sm shadow-red-900/20"
               >
-                Sí, Eliminar
+                Eliminar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Approval Modal */}
+      {isPendingModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-surface w-full max-w-4xl rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-outline-variant/30">
+            <div className="p-6 border-b border-outline-variant/50 flex items-center justify-between bg-surface-container-lowest">
+              <div>
+                <h3 className="text-xl font-medium flex items-center gap-2 text-red-600">
+                  <span className="material-symbols-outlined">notification_important</span>
+                  Vuelos Pendientes de Aprobación
+                </h3>
+                <p className="text-sm text-on-surface-variant mt-1">Revisa y edita los vuelos detectados automáticamente antes de guardarlos en el histórico.</p>
+              </div>
+              <button 
+                onClick={() => setIsPendingModalOpen(false)}
+                className="p-2 rounded-full hover:bg-surface-variant transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
+              {[...llegadasPendientes.map(f => ({...f, type: 'llegadas'})), ...salidasPendientes.map(f => ({...f, type: 'salidas'}))].map(flight => (
+                <PendingFlightCard key={flight.id} flight={flight as any} onApprove={handleApprovePending} />
+              ))}
             </div>
           </div>
         </div>
@@ -1431,6 +1591,61 @@ export default function TablasDiariasClient({
         </div>
       )}
 
+    </div>
+  );
+}
+
+function PendingFlightCard({ flight, onApprove }: { flight: MalekFlight & { type: 'llegadas'|'salidas' }, onApprove: (id: string, type: string, pax: number, time: string, status: string) => Promise<void> }) {
+  const [pax, setPax] = useState(flight.pasajeros_abordo || 0);
+  const timeVal = flight.hora_real_llegada ? flight.hora_real_llegada : flight.hora_real_salida;
+  const [time, setTime] = useState(timeVal ? new Date(timeVal).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'America/Panama' }) : '00:00');
+  const [status, setStatus] = useState(flight.type === 'llegadas' ? 'LLEGÓ' : 'DESPEGÓ');
+  const [saving, setSaving] = useState(false);
+
+  return (
+    <div className="bg-surface-container-low rounded-2xl p-5 border border-outline-variant/40 flex flex-col md:flex-row md:items-center gap-6 justify-between">
+      <div>
+        <div className="flex items-center gap-3 mb-2">
+          <span className={`px-2 py-0.5 rounded text-xs font-bold ${flight.aerolinea === 'Copa Airlines' ? 'bg-[#0032A0] text-white' : 'bg-red-600 text-white'}`}>{flight.aerolinea}</span>
+          <span className="font-semibold">{flight.numero_vuelo}</span>
+          <span className="text-sm text-on-surface-variant font-mono">{flight.fecha}</span>
+        </div>
+        <p className="text-sm flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">{flight.type === 'llegadas' ? 'flight_land' : 'flight_takeoff'}</span>
+          {flight.origen} <span className="material-symbols-outlined text-[16px] text-on-surface-variant">arrow_forward</span> {flight.destino || 'DAV'}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-on-surface-variant font-medium">Hora Real {flight.type === 'llegadas' ? 'Llegada' : 'Salida'}</label>
+          <input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-surface px-3 py-1.5 rounded-lg border border-outline-variant focus:border-primary outline-none" />
+        </div>
+        <div className="flex flex-col gap-1 w-24">
+          <label className="text-xs text-on-surface-variant font-medium">Pasajeros</label>
+          <input type="number" min={0} value={pax} onChange={e => setPax(parseInt(e.target.value) || 0)} className="bg-surface px-3 py-1.5 rounded-lg border border-outline-variant focus:border-primary outline-none" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-on-surface-variant font-medium">Estado</label>
+          <select value={status} onChange={e => setStatus(e.target.value)} className="bg-surface px-3 py-1.5 rounded-lg border border-outline-variant focus:border-primary outline-none">
+            <option value={flight.type === 'llegadas' ? 'LLEGÓ' : 'DESPEGÓ'}>{flight.type === 'llegadas' ? 'LLEGÓ' : 'DESPEGÓ'}</option>
+            <option value="CANCELADO">CANCELADO</option>
+            <option value="DIVERTIDO">DIVERTIDO</option>
+          </select>
+        </div>
+        <button 
+          onClick={async () => {
+            setSaving(true);
+            await onApprove(flight.id, flight.type, pax, time, status);
+            setSaving(false);
+          }}
+          disabled={saving}
+          className="ml-auto bg-primary text-on-primary hover:bg-primary/90 px-4 py-2 rounded-xl font-medium shadow-sm flex items-center gap-2 disabled:opacity-50"
+        >
+          {saving ? <span className="material-symbols-outlined animate-spin">progress_activity</span> : <span className="material-symbols-outlined">check_circle</span>}
+          Aprobar
+        </button>
+      </div>
     </div>
   );
 }

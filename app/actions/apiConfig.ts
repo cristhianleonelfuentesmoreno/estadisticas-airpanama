@@ -17,18 +17,7 @@ export type ApiConfig = {
   is_active: boolean;
 };
 
-// Fallback configs from .env.local
 const FALLBACK_CONFIGS: Record<string, ApiConfig> = {
-  flightaware: {
-    id: 'flightaware',
-    api_key: process.env.FLIGHTAWARE_API_KEY || '',
-    is_active: true
-  },
-  flightradar24: {
-    id: 'flightradar24',
-    api_key: process.env.FLIGHTRADAR24_API_KEY || '',
-    is_active: true
-  },
   gemini: {
     id: 'gemini',
     api_key: process.env.GEMINI_API_KEY || '',

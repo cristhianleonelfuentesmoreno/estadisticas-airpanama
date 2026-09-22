@@ -36,6 +36,22 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const [fAirline, setFAirline] = useState("Air Panama");
   const [fDate, setFDate] = useState(todayStr);
 
+  const AIRPORTS = [
+    { code: 'DAV', name: 'DAV - Enrique Malek' },
+    { code: 'PAC', name: 'PAC - Albrook' },
+    { code: 'PTY', name: 'PTY - Tocumen' },
+    { code: 'BLB', name: 'BLB - Panamá Pacífico' },
+    { code: 'BOC', name: 'BOC - Isla Colón (Bocas)' },
+    { code: 'CHX', name: 'CHX - Changuinola' },
+    { code: 'SYQ', name: 'SYQ - Tobías Bolaños' },
+    { code: 'SJO', name: 'SJO - Juan Santamaría' }
+  ];
+
+  const COMMON_FLIGHTS = [
+    "770", "771", "772", "773", "774", "775", "776", "777", "778", "779",
+    "011", "012", "015", "016", "019"
+  ];
+
   if (!isOpen) return null;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -501,15 +517,28 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-bold text-on-surface-variant uppercase">Nº de Vuelo (Ej: 670)</label>
-                    <input type="text" value={fNum} onChange={e => setFNum(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
+                    <input list="manual-flight-numbers" type="text" value={fNum} onChange={e => setFNum(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
+                    <datalist id="manual-flight-numbers">
+                      {COMMON_FLIGHTS.map(f => <option key={f} value={f} />)}
+                    </datalist>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Origen (Ej: PAC)</label>
-                    <input type="text" value={fOri} onChange={e => setFOri(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
+                    <label className="text-xs font-bold text-on-surface-variant uppercase">Origen</label>
+                    <select value={fOri} onChange={e => setFOri(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1">
+                      <option value="">Seleccione Origen...</option>
+                      {AIRPORTS.map(apt => (
+                        <option key={apt.code} value={apt.code}>{apt.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Destino (Ej: DAV)</label>
-                    <input type="text" value={fDes} onChange={e => setFDes(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
+                    <label className="text-xs font-bold text-on-surface-variant uppercase">Destino</label>
+                    <select value={fDes} onChange={e => setFDes(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1">
+                      <option value="">Seleccione Destino...</option>
+                      {AIRPORTS.map(apt => (
+                        <option key={apt.code} value={apt.code}>{apt.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-bold text-on-surface-variant uppercase">Hora Salida (HH:mm)</label>

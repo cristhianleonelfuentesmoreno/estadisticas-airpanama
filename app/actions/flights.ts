@@ -22,19 +22,17 @@ export interface FlightData {
   airline: string; // <-- Nuevo campo para diferenciar
   progress: number; // 0 to 100
   durationStr: string;
-  trackingLink?: string;
-  isNonItinerary?: boolean;
 }
 
 export async function getUpcomingFlights(targetDate?: string): Promise<FlightData[]> {
   const now = new Date(); // Obtenemos la hora local del dispositivo
 
-  // Función para convertir la hora del itinerario ("13:30") a un objeto Date del día de hoy
   const parseTime = (timeStr: string) => {
-    const [hours, mins] = timeStr.split(':').map(Number);
-    const date = new Date(now);
-    date.setHours(hours, mins, 0, 0);
-    return date;
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    // timeStr format is HH:MM or H:MM. Construct an ISO string for Panama time
+    const [hours, mins] = timeStr.split(':');
+    const paddedHours = hours.padStart(2, '0');
+    return new Date(`${todayStr}T${paddedHours}:${mins}:00-05:00`);
   };
 
   const { getManualFlightsForDate } = await import('./manualFlights');
@@ -58,72 +56,6 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
   }));
 
 
-  // 1. Fetch API Configs
-  const { getApiConfigs } = await import('./apiConfig');
-  const apiConfigs = await getApiConfigs();
-  const faConfig = apiConfigs.flightaware;
-  const fr24Config = apiConfigs.flightradar24;
-
-  let aeroApiData: any[] = [];
-  let fr24ApiData: any[] = [];
-
-  const panamaTimeStr = now.toLocaleString("en-US", { timeZone: "America/Panama", hour12: false, hour: 'numeric' });
-  const panamaHour = parseInt(panamaTimeStr, 10);
-
-  // Solo consultar APIs entre 06:00 AM y 08:00 PM (inclusive)
-  if (panamaHour >= 6 && panamaHour <= 20) {
-    const promises: Promise<void>[] = [];
-
-    // Tarea 1: FlightAware (Para Copa)
-    if (faConfig?.is_active && faConfig?.api_key) {
-      promises.push((async () => {
-        try {
-          const fetchConfig = {
-            headers: { 'x-apikey': faConfig.api_key },
-            next: { revalidate: 3600 } // 1 hora de caché (mantiene el costo mensual de ~$4.20 USD)
-          };
-          const [depRes, arrRes] = await Promise.all([
-            fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/departures', fetchConfig),
-            fetch('https://aeroapi.flightaware.com/aeroapi/airports/MPDA/flights/arrivals', fetchConfig)
-          ]);
-          if (depRes.ok && arrRes.ok) {
-            const depData = await depRes.json();
-            const arrData = await arrRes.json();
-            aeroApiData = [...(depData.departures || []), ...(arrData.arrivals || [])];
-          }
-        } catch (error) {
-          console.error("Error fetching FlightAware:", error);
-        }
-      })());
-    }
-
-    // Tarea 2: FlightRadar24 (Para Air Panama)
-    if (fr24Config?.is_active && fr24Config?.api_key) {
-      promises.push((async () => {
-        try {
-          const fetchConfig = {
-            headers: { 
-              'Accept': 'application/json',
-              'Accept-Version': 'v1',
-              'Authorization': `Bearer ${fr24Config.api_key}`
-            },
-            next: { revalidate: 900 } // 15 minutos (consume ~26,000 créditos mensuales de tus 60,000 disponibles)
-          };
-          const res = await fetch('https://fr24api.flightradar24.com/api/live/flight-positions/full?airports=MPDA', fetchConfig);
-          if (res.ok) {
-            const data = await res.json();
-            fr24ApiData = data.data || [];
-          }
-        } catch (error) {
-          console.error("Error fetching FlightRadar24:", error);
-        }
-      })());
-    }
-
-    await Promise.all(promises);
-  }
-
-  const mappedApiIdents = new Set<string>();
 
   const flights: FlightData[] = itinerary.map((flight) => {
     let depDate = parseTime(flight.dep);
@@ -133,83 +65,13 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
       arrDate.setDate(arrDate.getDate() + 1);
     }
 
-    let trackingLink = '';
-
-    // 2. Merge con datos de APIs
-    if (flight.airline === 'Copa Airlines') {
-      const targetIdents = [`CMP${flight.num}`, `CM${flight.num}`, flight.num];
-      const matches = aeroApiData.filter(f => targetIdents.includes(f.ident) || targetIdents.includes(f.flight_number));
-      
-      let apiMatch = undefined;
-      if (matches.length > 0) {
-        apiMatch = matches.reduce((closest, current) => {
-          const closestTime = closest.scheduled_out ? new Date(closest.scheduled_out).getTime() : 0;
-          const currentTime = current.scheduled_out ? new Date(current.scheduled_out).getTime() : 0;
-          return Math.abs(currentTime - depDate.getTime()) < Math.abs(closestTime - depDate.getTime()) ? current : closest;
-        }, matches[0]);
-        
-        // Si el vuelo encontrado tiene más de 12 horas de diferencia con el itinerario, probablemente sea el de ayer o mañana, lo ignoramos.
-        if (apiMatch && apiMatch.scheduled_out && Math.abs(new Date(apiMatch.scheduled_out).getTime() - depDate.getTime()) > 12 * 3600000) {
-          apiMatch = null;
-        }
-      }
-      
-      if (apiMatch) {
-        mappedApiIdents.add(apiMatch.ident);
-        if (apiMatch.estimated_out) depDate = new Date(apiMatch.estimated_out);
-        else if (apiMatch.scheduled_out) depDate = new Date(apiMatch.scheduled_out);
-        
-        if (apiMatch.estimated_in) arrDate = new Date(apiMatch.estimated_in);
-        else if (apiMatch.scheduled_in) arrDate = new Date(apiMatch.scheduled_in);
-        
-        trackingLink = `https://flightaware.com/live/flight/${apiMatch.ident}`;
-      } else {
-        trackingLink = `https://flightaware.com/live/flight/CMP${flight.num}`;
-      }
-    } else if (flight.airline === 'Air Panama') {
-      const targetIdents = [`PNC${flight.num}`, `7P${flight.num}`, flight.num];
-      // En FR24, el callsign a veces viene en 'callsign' o 'flight'
-      const apiMatch = fr24ApiData.find(f => targetIdents.includes(f.callsign) || targetIdents.includes(f.flight));
-
-      if (apiMatch) {
-        mappedApiIdents.add(apiMatch.callsign || apiMatch.flight);
-        // En FR24, times are in seconds (unix timestamp) if they exist. Actually this is live positions endpoint, so it has current position.
-        // Let's just create the tracking link
-        trackingLink = `https://www.flightradar24.com/${apiMatch.callsign}/${apiMatch.id}`;
-      } else {
-        trackingLink = `https://www.flightradar24.com/data/flights/7p${flight.num}`;
-      }
-    }
 
     const totalDurationMs = arrDate.getTime() - depDate.getTime();
     const elapsedMs = now.getTime() - depDate.getTime();
     
     let progress = 0;
     let status: FlightData['status'] = 'PROGRAMADO';
-    let isApiStatus = false;
-    
-    // Si tenemos datos de API en tiempo real (Copa / FlightAware), usamos sus timestamps para el estatus definitivo
-    if (flight.airline === 'Copa Airlines' && trackingLink.includes('/live/flight/') && mappedApiIdents.has(trackingLink.split('/').pop() || '')) {
-      const apiMatch = aeroApiData.find(f => f.ident === trackingLink.split('/').pop());
-      if (apiMatch) {
-        if (apiMatch.actual_in || apiMatch.actual_on) {
-          status = 'ARRIBO';
-          progress = 100;
-          isApiStatus = true;
-        } else if (apiMatch.actual_off) {
-          status = 'EN VUELO';
-          progress = Math.floor((elapsedMs / totalDurationMs) * 100);
-          isApiStatus = true;
-        } else if (apiMatch.actual_out) {
-          status = 'ABORDANDO';
-          progress = 0;
-          isApiStatus = true;
-        }
-      }
-    }
-    
-    // Si la API no tiene un estatus activo definitivo (ej. no ha salido), calculamos basado en el tiempo
-    if (!isApiStatus) {
+
       if (elapsedMs < 0) {
         // Falta tiempo para que salga
         progress = 0;
@@ -228,7 +90,6 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
         progress = Math.floor((elapsedMs / totalDurationMs) * 100);
         status = 'EN VUELO';
       }
-    }
 
     const durationMins = totalDurationMs / 60000;
     const hours = Math.floor(durationMins / 60);
@@ -237,7 +98,7 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
 
     const prefix = flight.airline === 'Copa Airlines' ? 'CM-' : '7P-';
 
-    return {
+    const result: FlightData = {
       id: `${flight.num}-${flight.dep}`,
       flightNumber: `${prefix}${flight.num}`,
       aircraft: flight.type,
@@ -258,116 +119,13 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
       flightType: 'REGULAR',
       airline: flight.airline,
       progress,
-      durationStr,
-      trackingLink
+      durationStr
     };
+
+    return result;
   });
 
-  const irregularFlights: FlightData[] = [];
-
-  // Vuelos no itinerados en FlightAware (Copa Airlines u otros)
-  aeroApiData.forEach(apiFlight => {
-    if (!mappedApiIdents.has(apiFlight.ident) && apiFlight.ident && (apiFlight.ident.startsWith('CMP') || apiFlight.ident.startsWith('CM'))) {
-      const depDate = apiFlight.estimated_out ? new Date(apiFlight.estimated_out) : (apiFlight.scheduled_out ? new Date(apiFlight.scheduled_out) : new Date());
-      const arrDate = apiFlight.estimated_in ? new Date(apiFlight.estimated_in) : (apiFlight.scheduled_in ? new Date(apiFlight.scheduled_in) : new Date());
-      
-      const num = apiFlight.ident.replace(/^(CMP|CM)/, '');
-      const ori = apiFlight.origin?.code_iata || apiFlight.origin?.code_icao || 'N/A';
-      const des = apiFlight.destination?.code_iata || apiFlight.destination?.code_icao || 'N/A';
-      
-      // Filtrar que al menos toque MPDA o DAV
-      if (ori !== 'DAV' && ori !== 'MPDA' && des !== 'DAV' && des !== 'MPDA') return;
-
-      const depLocal = depDate.toLocaleString("en-US", { timeZone: "America/Panama", hour12: false, hour: '2-digit', minute: '2-digit' });
-      const arrLocal = arrDate.toLocaleString("en-US", { timeZone: "America/Panama", hour12: false, hour: '2-digit', minute: '2-digit' });
-      
-      const totalDurationMs = arrDate.getTime() - depDate.getTime();
-      const elapsedMs = now.getTime() - depDate.getTime();
-      let status: FlightData['status'] = 'PROGRAMADO';
-      let progress = 0;
-      if (elapsedMs < 0) {
-        progress = 0;
-        status = Math.abs(elapsedMs) <= 30 * 60000 ? 'ABORDANDO' : 'PROGRAMADO';
-      } else if (elapsedMs >= totalDurationMs) {
-        progress = 100;
-        status = 'ARRIBO';
-      } else {
-        progress = Math.floor((elapsedMs / totalDurationMs) * 100);
-        status = 'EN VUELO';
-      }
-
-      const durationMins = totalDurationMs / 60000;
-      const hours = Math.floor(durationMins / 60);
-      const mins = durationMins % 60;
-      const durationStr = hours > 0 ? `${hours}h ${mins.toString().padStart(2, '0')}m` : `${mins} min`;
-
-      irregularFlights.push({
-        id: `irreg-fa-${apiFlight.ident}`,
-        flightNumber: `CM-${num}`,
-        aircraft: apiFlight.aircraft_type || 'B738',
-        aircraftReg: apiFlight.registration || '',
-        origin: ori === 'MPDA' ? 'DAV' : ori,
-        originName: apiFlight.origin?.city || ori,
-        destination: des === 'MPDA' ? 'DAV' : des,
-        destinationName: apiFlight.destination?.city || des,
-        departureTime: depDate.toISOString(),
-        arrivalTime: arrDate.toISOString(),
-        departureTimeLocal: depLocal,
-        arrivalTimeLocal: arrLocal,
-        status,
-        gate: '1',
-        pilot: '',
-        paxCount: 0,
-        paxMax: 160,
-        flightType: 'IRREGULAR',
-        airline: 'Copa Airlines',
-        progress,
-        durationStr,
-        trackingLink: `https://flightaware.com/live/flight/${apiFlight.ident}`,
-        isNonItinerary: true
-      });
-    }
-  });
-
-  // Vuelos no itinerados en FlightRadar24 (Air Panama u otros)
-  fr24ApiData.forEach(apiFlight => {
-    const ident = apiFlight.callsign || apiFlight.flight;
-    if (!mappedApiIdents.has(ident) && ident && (ident.startsWith('PNC') || ident.startsWith('7P'))) {
-      const num = ident.replace(/^(PNC|7P)/, '');
-      const ori = apiFlight.airport?.origin?.code?.iata || 'N/A';
-      const des = apiFlight.airport?.destination?.code?.iata || 'N/A';
-
-      if (ori !== 'DAV' && des !== 'DAV') return;
-
-      irregularFlights.push({
-        id: `irreg-fr-${apiFlight.id}`,
-        flightNumber: `7P-${num}`,
-        aircraft: apiFlight.aircraft?.model?.code || 'Desconocido',
-        aircraftReg: apiFlight.aircraft?.registration || '',
-        origin: ori,
-        originName: ori,
-        destination: des,
-        destinationName: des,
-        departureTime: now.toISOString(), // FR24 positions endpoint doesn't give full schedule easily in basic payload
-        arrivalTime: now.toISOString(),
-        departureTimeLocal: '--:--',
-        arrivalTimeLocal: '--:--',
-        status: 'EN VUELO', // Si está en flight positions, está volando normalmente
-        gate: '1',
-        pilot: '',
-        paxCount: 0,
-        paxMax: 50,
-        flightType: 'IRREGULAR',
-        airline: 'Air Panama',
-        progress: 50, // mock
-        durationStr: '--',
-        trackingLink: `https://www.flightradar24.com/${ident}/${apiFlight.id}`,
-        isNonItinerary: true
-      });
-    }
-  });
-
-  return [...flights, ...irregularFlights];
+  return flights;
 }
 
 import { createClient } from "@/lib/supabase/server";
@@ -407,8 +165,8 @@ export async function saveCompletedMalekFlights() {
       numero_vuelo: f.flightNumber,
       origen: f.origin,
       hora_itinerario: `${today}T${f.arrivalTimeLocal}:00-05:00`,
-      hora_llegada_real: `${today}T${f.arrivalTimeLocal}:00-05:00`,
-      estado_final: f.status === 'ARRIBO' ? 'LLEGÓ' : f.status,
+      hora_real_llegada: `${today}T${f.arrivalTimeLocal}:00-05:00`,
+      estado_final: 'PENDIENTE',
       pasajeros_abordo: f.paxCount,
       capacidad_total: f.paxMax
     }));
@@ -435,7 +193,7 @@ export async function getLlegadasMalek(dateStr?: string) {
     .from('llegadas_malek_historico')
     .select('*')
     .eq('fecha', today)
-    .order('hora_llegada_real', { ascending: false });
+    .order('hora_real_llegada', { ascending: false });
 
   if (error) {
     console.log("Error in Supabase for Malek arrivals.", error?.message);
@@ -466,15 +224,15 @@ export async function getLlegadasMalek(dateStr?: string) {
 
     return {
       ...flight,
-      hora_salida_itinerario: `${today}T${depLocal}:00-05:00`,
-      hora_llegada_itinerario: `${today}T${arrLocal}:00-05:00`
+      hora_itinerario_salida: `${today}T${depLocal}:00-05:00`,
+      hora_itinerario_llegada: `${today}T${arrLocal}:00-05:00`
     };
   });
 
   return enhancedData;
 }
 
-export async function updateLlegadaMalek(id: string, updates: { hora_llegada_real?: string, pasajeros_abordo?: number, estado_final?: string }) {
+export async function updateLlegadaMalek(id: string, updates: { hora_real_llegada?: string, pasajeros_abordo?: number, estado_final?: string }) {
   const supabase = await createClient();
   
   const { error } = await supabase
@@ -515,8 +273,8 @@ export async function saveCompletedMalekDepartures() {
       numero_vuelo: f.flightNumber,
       destino: f.destination,
       hora_itinerario: `${today}T${f.departureTimeLocal}:00-05:00`,
-      hora_salida_real: `${today}T${f.departureTimeLocal}:00-05:00`,
-      estado_final: f.status === 'ARRIBO' ? 'LLEGÓ' : f.status,
+      hora_real_salida: `${today}T${f.departureTimeLocal}:00-05:00`,
+      estado_final: 'PENDIENTE',
       pasajeros_abordo: f.paxCount,
       capacidad_total: f.paxMax
     }));
@@ -543,7 +301,7 @@ export async function getSalidasMalek(dateStr?: string) {
     .from('salidas_malek_historico')
     .select('*')
     .eq('fecha', today)
-    .order('hora_salida_real', { ascending: false });
+    .order('hora_real_salida', { ascending: false });
 
   if (error) {
     console.log("Error in Supabase for Malek departures.", error?.message);
@@ -574,15 +332,15 @@ export async function getSalidasMalek(dateStr?: string) {
 
     return {
       ...flight,
-      hora_salida_itinerario: `${today}T${depLocal}:00-05:00`,
-      hora_llegada_itinerario: `${today}T${arrLocal}:00-05:00`
+      hora_itinerario_salida: `${today}T${depLocal}:00-05:00`,
+      hora_itinerario_llegada: `${today}T${arrLocal}:00-05:00`
     };
   });
 
   return enhancedData;
 }
 
-export async function updateSalidaMalek(id: string, updates: { hora_salida_real?: string, pasajeros_abordo?: number, estado_final?: string }) {
+export async function updateSalidaMalek(id: string, updates: { hora_real_salida?: string, pasajeros_abordo?: number, estado_final?: string }) {
   const supabase = await createClient();
   const { error } = await supabase
     .from('salidas_malek_historico')

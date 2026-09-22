@@ -67,7 +67,7 @@ export function ManualFlightUploadWidget() {
             <div className="p-6 overflow-y-auto flex flex-col gap-4 max-h-[70vh]">
               <div className="p-4 bg-surface-container-high rounded-xl text-on-surface-variant text-sm font-medium border border-white/5">
                 <span className="material-symbols-outlined text-error float-left mr-2 mt-0.5">warning</span>
-                Utiliza este módulo únicamente si las APIs de FlightAware y FlightRadar24 fallan o se quedan sin fondos. Los datos introducidos aquí reemplazarán la búsqueda automática para los vuelos indicados.
+                Utiliza este módulo para cargar itinerarios manualmente. Los datos introducidos aquí se reflejarán en el panel de próximos vuelos.
               </div>
               
               <div className="flex flex-col gap-2 mt-2">

@@ -184,26 +184,12 @@ export function ApiManagementWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const [faKey, setFaKey] = useState("");
-  const [faActive, setFaActive] = useState(true);
-
-  const [frKey, setFrKey] = useState("");
-  const [frActive, setFrActive] = useState(true);
-
   const [geminiKey, setGeminiKey] = useState("");
   const [geminiActive, setGeminiActive] = useState(true);
 
   const loadConfigs = async () => {
     try {
       const configs = await getApiConfigs();
-      if (configs.flightaware) {
-        setFaKey(configs.flightaware.api_key);
-        setFaActive(configs.flightaware.is_active);
-      }
-      if (configs.flightradar24) {
-        setFrKey(configs.flightradar24.api_key);
-        setFrActive(configs.flightradar24.is_active);
-      }
       if (configs.gemini) {
         setGeminiKey(configs.gemini.api_key);
         setGeminiActive(configs.gemini.is_active);
@@ -223,8 +209,6 @@ export function ApiManagementWidget() {
   const handleSave = async () => {
     setLoading(true);
     try {
-      await saveApiConfig("flightaware", faKey, faActive);
-      await saveApiConfig("flightradar24", frKey, frActive);
       await saveApiConfig("gemini", geminiKey, geminiActive);
       toast.success("Configuración de APIs guardada correctamente");
       setIsOpen(false);
@@ -248,7 +232,7 @@ export function ApiManagementWidget() {
           </div>
           <div>
             <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">Gestión de API</h3>
-            <p className="font-body-md text-body-md text-on-surface-variant mt-0.5">Configurar FlightAware y FlightRadar24</p>
+            <p className="font-body-md text-body-md text-on-surface-variant mt-0.5">Configurar Google Gemini</p>
           </div>
         </div>
         <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>
@@ -278,30 +262,6 @@ export function ApiManagementWidget() {
 
             {/* API Cards */}
             <div className="p-6 overflow-y-auto flex flex-col gap-4 max-h-[70vh]">
-              <ApiKeyCard
-                icon="flight_takeoff"
-                iconColor="text-primary"
-                title="FlightAware (Copa Airlines)"
-                description="Consumo estimado: ~$4.20 / $5.00 mensuales (Caché optimizada)"
-                savedKey={faKey}
-                isActive={faActive}
-                onActiveChange={setFaActive}
-                onSaveKey={(k) => setFaKey(k)}
-                onDeleteKey={() => setFaKey("")}
-              />
-
-              <ApiKeyCard
-                icon="radar"
-                iconColor="text-secondary"
-                title="FlightRadar24 (Air Panama)"
-                description="Consumo estimado: ~26,000 / 60,000 créditos (Caché optimizada)"
-                savedKey={frKey}
-                isActive={frActive}
-                onActiveChange={setFrActive}
-                onSaveKey={(k) => setFrKey(k)}
-                onDeleteKey={() => setFrKey("")}
-              />
-
               <ApiKeyCard
                 icon="smart_toy"
                 iconColor="text-purple-500"
