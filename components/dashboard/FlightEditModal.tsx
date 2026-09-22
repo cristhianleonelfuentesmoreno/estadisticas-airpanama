@@ -54,7 +54,12 @@ export function FlightEditModal({
 
     setLoading(true);
     try {
-      await updateFlightDetails(flight.manualLogId, formData);
+      const payload = {
+        ...formData,
+        actual_departure_time: formData.actual_departure_time || formData.departureTimeLocal,
+        actual_arrival_time: formData.actual_arrival_time || formData.arrivalTimeLocal,
+      };
+      await updateFlightDetails(flight.manualLogId, payload);
       toast.success("Vuelo actualizado con éxito");
       onSuccess();
       onClose();

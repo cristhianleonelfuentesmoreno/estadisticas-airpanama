@@ -147,7 +147,6 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
               </div>
 
 
-            {isAdmin && (
               <button
                 onClick={() => setIsManualModalOpen(true)}
                 className="mt-2 sm:mt-0 flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-label-md font-bold rounded-full shadow-sm hover:bg-primary/90 transition-colors"
@@ -155,7 +154,6 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
                 <span className="material-symbols-outlined text-[18px]">add</span>
                 Cargar Itinerario
               </button>
-            )}
 
             </div>
             

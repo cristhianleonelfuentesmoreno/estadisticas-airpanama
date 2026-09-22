@@ -11,7 +11,7 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
   const [loading, setLoading] = useState(true);
   const [editingFlight, setEditingFlight] = useState<FlightData | null>(null);
 
-  const [boardDate, setBoardDate] = useState<string>(initialDate);
+  const [boardDate, setBoardDate] = useState<string>('TODOS');
 
   const loadData = async () => {
     setLoading(true);
@@ -71,8 +71,6 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
     }
   };
 
-  if (!loading && flights.length === 0) return null;
-
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-surface w-full max-w-6xl rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-outline-variant/30 relative">
@@ -88,8 +86,8 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
 
         <div className="p-6 border-b border-outline-variant/50 bg-surface-container-lowest flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center border border-error/20">
-              <span className="material-symbols-outlined text-error text-[20px]">fact_check</span>
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200 shadow-inner">
+              <span className="material-symbols-outlined text-blue-600 text-[20px]">fact_check</span>
             </div>
             <div>
               <h2 className="text-xl font-headline-md font-bold text-on-surface flex items-center gap-2">
@@ -102,7 +100,7 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
           <div className="flex items-center gap-2 mr-12">
             <button 
               onClick={() => setBoardDate('TODOS')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm ${boardDate === 'TODOS' ? 'bg-secondary text-on-secondary border border-secondary' : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/50 hover:bg-surface-container'}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm ${boardDate === 'TODOS' ? 'bg-primary text-on-primary border border-primary' : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/50 hover:bg-surface-container'}`}
             >
               TODOS
             </button>
@@ -118,7 +116,7 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
         </div>
 
         <div className="p-6 overflow-y-auto flex-1 bg-surface-container-lowest">
-          <div className="bg-surface-container-lowest rounded-2xl border border-error/20 p-4 shadow-sm overflow-x-auto">
+          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-4 shadow-sm overflow-x-auto">
             {loading ? (
               <div className="text-center py-4 text-on-surface-variant animate-pulse">Cargando vuelos por auditar...</div>
             ) : (
@@ -188,7 +186,7 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
                           </button>
                           <button 
                             onClick={() => handleArchive(flight.id, flight.manualLogId)}
-                            className="px-3 py-1.5 bg-secondary text-on-secondary hover:bg-secondary/90 transition-colors rounded-md text-xs font-bold shadow-sm flex items-center gap-1"
+                            className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-500 transition-colors rounded-md text-xs font-bold shadow-sm flex items-center gap-1"
                           >
                             <span className="material-symbols-outlined text-[16px]">check_circle</span>
                             Aprobado
@@ -199,6 +197,12 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
                   ))}
                 </tbody>
               </table>
+            )}
+            {!loading && flights.length === 0 && (
+              <div className="text-center py-12 text-on-surface-variant">
+                <span className="material-symbols-outlined text-4xl mb-2 opacity-50">check_circle</span>
+                <p>No hay vuelos pendientes de auditar para la fecha seleccionada.</p>
+              </div>
             )}
           </div>
         </div>

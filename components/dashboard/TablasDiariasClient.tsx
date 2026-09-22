@@ -691,7 +691,7 @@ export default function TablasDiariasClient({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">AODB Base</span>
+                <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">EN LINEA</span>
               </div>
               <h1 className="font-headline-md text-2xl md:text-3xl text-white font-black tracking-tight drop-shadow-sm">
                 Registro Histórico
