@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("Cargando...");
   const [userCargo, setUserCargo] = useState("...");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState("");
   
   // Dashboard Metrics State
@@ -44,10 +45,11 @@ export default function DashboardPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: perfil } = await supabase.from('perfiles').select('nombre, cargo, role').eq('id', user.id).single();
+        const { data: perfil } = await supabase.from('perfiles').select('nombre, cargo, role, avatar_url').eq('id', user.id).single();
         if (perfil) {
           setUserName(perfil.nombre || user.email?.split('@')[0] || "Usuario");
           setUserCargo(perfil.cargo || "Sin cargo asignado");
+          if (perfil.avatar_url) setAvatarUrl(perfil.avatar_url);
           if (perfil.role === 'administrador') {
             setIsAdmin(true);
           }
@@ -121,8 +123,12 @@ export default function DashboardPage() {
 <h1 className="font-headline-md text-headline-md font-extrabold tracking-tight mt-0.5 capitalize">{userName}</h1>
 <p className="font-body-sm text-body-sm text-on-primary-container capitalize">{userCargo}</p>
 </div>
-<div className="w-12 h-12 rounded-xl bg-surface-container-highest/20 flex items-center justify-center text-secondary-fixed">
-<span className="material-symbols-outlined text-[28px]">flight</span>
+<div className="w-12 h-12 rounded-xl bg-surface-container-highest/20 flex items-center justify-center text-secondary-fixed ring-1 ring-white/20 overflow-hidden shadow-sm">
+{avatarUrl ? (
+  <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+) : (
+  <span className="font-headline-sm text-headline-sm font-bold text-white uppercase">{userName.charAt(0)}</span>
+)}
 </div>
 </div>
 <div className="mt-space-md pt-space-sm border-t border-white/10 flex items-center justify-between text-on-primary-container">
