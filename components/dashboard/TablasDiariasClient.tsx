@@ -825,18 +825,7 @@ export default function TablasDiariasClient({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-1 text-center">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl py-3 flex flex-col border border-white/20 shadow-inner hover:bg-white/15 transition-colors">
-              <span className="text-[11px] text-white/80 font-bold uppercase tracking-wider mb-0.5">
-                {viewType === 'todos' ? 'Total Vuelos' : `Total ${viewType === 'llegadas' ? 'Llegadas' : 'Salidas'}`}
-              </span>
-              <span className="font-headline-md text-2xl font-black text-white drop-shadow-sm">{totalFlights}</span>
-            </div>
-            <div className="bg-gradient-to-b from-emerald-500/20 to-emerald-600/20 backdrop-blur-md rounded-2xl py-3 flex flex-col border border-emerald-400/30 shadow-[0_4px_20px_rgba(16,185,129,0.15)] hover:from-emerald-500/30 hover:to-emerald-600/30 transition-colors">
-              <span className="text-[11px] text-emerald-100 font-bold uppercase tracking-wider mb-0.5">Completados</span>
-              <span className="font-headline-md text-2xl font-black text-emerald-300 drop-shadow-sm">{aTiempo}</span>
-            </div>
-          </div>
+
         </div>
       </section>
       {/* Airtable Grid */}
