@@ -247,6 +247,15 @@ export default function DashboardLayoutShell({
             <div className="w-px h-6 bg-outline-variant/30 hidden md:block mx-1"></div>
             
             <button 
+              onClick={() => window.location.reload()}
+              aria-label="Recargar página"
+              title="Recargar página"
+              className="hidden md:flex w-10 h-10 rounded-full bg-secondary items-center justify-center text-white ring-1 ring-white/20 hover:opacity-90 active:scale-95 transition-all shadow-sm mx-1"
+            >
+              <span className="material-symbols-outlined text-[20px]">refresh</span>
+            </button>
+
+            <button 
               onClick={handleLogout}
               aria-label="Cerrar sesión" 
               title="Cerrar sesión"
