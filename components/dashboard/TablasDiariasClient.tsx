@@ -421,174 +421,200 @@ export default function TablasDiariasClient({
 
     try {
       const ws = wb.Sheets[sheetName];
-      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as any[][];
-      
-      const normalizeKey = (key: string) => {
-        return key.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // quita tildes y espacios extras
+
+      // Leer con raw:true para obtener números seriales de Excel tal cual (fechas como decimales)
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][];
+
+      const normalizeKey = (key: any): string => {
+        if (key === null || key === undefined || key === '') return '';
+        return key.toString().trim().toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/\.$/, ''); // quita punto final (reg. -> reg)
       };
 
-      // Encontrar la fila de encabezados
+      // ================================================================
+      // PASO 1: Detectar la fila de encabezados (puede haber filas vacías)
+      // ================================================================
+      const HEADER_KEYWORDS = ['leg', 'tipo', 'operacion', 'airline', 'aerolinea', 'compania', 'flight', 'vuelo', 'arrival/departure'];
       let headerRowIndex = -1;
       let headers: string[] = [];
-      for (let i = 0; i < Math.min(20, rawData.length); i++) {
+
+      for (let i = 0; i < Math.min(30, rawData.length); i++) {
         const row = rawData[i];
-        if (!row) continue;
-        const stringRow = row.map(cell => cell ? normalizeKey(cell) : '');
-        if (stringRow.includes('leg') || stringRow.includes('tipo') || stringRow.includes('operacion') || stringRow.includes('airline') || stringRow.includes('aerolinea') || stringRow.includes('compania') || stringRow.includes('flight') || stringRow.includes('vuelo')) {
+        if (!row || row.length === 0) continue;
+        const normalizedRow = row.map((cell: any) => normalizeKey(cell));
+        if (HEADER_KEYWORDS.some(kw => normalizedRow.includes(kw))) {
           headerRowIndex = i;
-          headers = row.map(cell => cell ? normalizeKey(cell) : '');
+          headers = normalizedRow;
           break;
         }
       }
 
       if (headerRowIndex === -1) {
-         throw new Error("No se encontraron encabezados válidos (Leg, Airline, Flight, etc.) en esta pestaña.");
+        throw new Error("No se encontraron encabezados válidos (Leg, Airline, Flight, etc.) en esta pestaña.");
       }
 
-      // Reconstruir los datos como objetos
-      const data = [];
+      // ================================================================
+      // PASO 2: Convertir número serial de Excel → fecha/hora real
+      // Los números de Excel cuentan días desde 1899-12-30 UTC
+      // Ejemplo: 46023.333 → "2026-01-01 08:00"
+      // ================================================================
+      const excelSerialToDate = (serial: number): Date => {
+        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+        return new Date(excelEpoch.getTime() + serial * 86400000);
+      };
+
+      const parseDateTimeCell = (cellValue: any): { fechaStr: string; timeStr: string } => {
+        if (cellValue === null || cellValue === undefined || cellValue === '') return { fechaStr: '', timeStr: '' };
+
+        // Número serial de Excel
+        if (typeof cellValue === 'number') {
+          const d = excelSerialToDate(cellValue);
+          const yyyy = d.getUTCFullYear();
+          const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const dd   = String(d.getUTCDate()).padStart(2, '0');
+          const hh   = String(d.getUTCHours()).padStart(2, '0');
+          const mi   = String(d.getUTCMinutes()).padStart(2, '0');
+          return { fechaStr: `${yyyy}-${mm}-${dd}`, timeStr: `${hh}:${mi}` };
+        }
+
+        const str = cellValue.toString().trim();
+
+        // String con fecha y hora: "MM/DD/YYYY HH:MM" o "DD/MM/YYYY HH:MM"
+        if (str.includes(' ')) {
+          const spaceIdx = str.indexOf(' ');
+          const datePart = str.substring(0, spaceIdx);
+          const timePart = str.substring(spaceIdx + 1, spaceIdx + 6); // HH:MM
+          const dParts = datePart.split('/');
+          if (dParts.length === 3) {
+            const year = dParts[2].length === 2 ? `20${dParts[2]}` : dParts[2];
+            let month: string, day: string;
+            if (Number(dParts[0]) > 12) {
+              day = dParts[0].padStart(2, '0'); month = dParts[1].padStart(2, '0');
+            } else {
+              month = dParts[0].padStart(2, '0'); day = dParts[1].padStart(2, '0');
+            }
+            return { fechaStr: `${year}-${month}-${day}`, timeStr: timePart || '00:00' };
+          }
+        }
+
+        // Solo hora "HH:MM"
+        if (/^\d{1,2}:\d{2}/.test(str)) return { fechaStr: '', timeStr: str.substring(0, 5) };
+
+        return { fechaStr: '', timeStr: '' };
+      };
+
+      // ================================================================
+      // PASO 3: Construir filas como objetos { header -> valor }
+      // ================================================================
+      const data: any[] = [];
       for (let i = headerRowIndex + 1; i < rawData.length; i++) {
         const row = rawData[i];
         if (!row || row.length === 0) continue;
         const obj: any = {};
-        let hasAnyData = false;
+        let hasData = false;
         for (let j = 0; j < headers.length; j++) {
-           if (headers[j] && row[j] !== undefined && row[j] !== null && row[j] !== '') {
-             obj[headers[j]] = row[j];
-             hasAnyData = true;
-           }
+          if (headers[j] && row[j] !== undefined && row[j] !== null && row[j] !== '') {
+            obj[headers[j]] = row[j];
+            hasData = true;
+          }
         }
-        if (hasAnyData) data.push(obj);
+        if (hasData) data.push(obj);
       }
-      
-      const llegadasToInsert = [];
-      const salidasToInsert = [];
+
+      // ================================================================
+      // PASO 4: Procesar filas → llegadas / salidas
+      // ================================================================
+      const llegadasToInsert: any[] = [];
+      const salidasToInsert: any[] = [];
 
       for (const row of data) {
-        // Leer las columnas de AODB según la captura
-        const leg = (row['leg'] || row['tipo'] || row['operacion'] || row['type'] || row['arrival/departure'] || '').toString().toLowerCase();
-        const isLlegada = leg.includes('arrival') || leg.includes('llegada') || leg.includes('arr');
-        const isSalida = leg.includes('departure') || leg.includes('salida') || leg.includes('dep');
-        
+        // Leg: Arrival / Departure
+        const legRaw = (row['leg'] || row['tipo'] || row['operacion'] || row['type'] || row['arrival/departure'] || '').toString().trim().toLowerCase();
+        const isLlegada = legRaw.startsWith('arr') || legRaw.includes('llegada');
+        const isSalida  = legRaw.startsWith('dep') || legRaw.includes('salida');
         if (!isLlegada && !isSalida) continue;
 
-        // Filtrar estrictamente solo Air Panama y Copa Airlines
+        // Aerolínea
         let aerolinea = (row['airline'] || row['aerolinea'] || row['compania'] || row['operador'] || '').toString().trim();
-        const aerolineaLower = aerolinea.toLowerCase().replace(/\s+/g, '');
-        if (aerolineaLower.includes('airpanama') || aerolineaLower === '7p') {
+        const al = aerolinea.toLowerCase().replace(/\s+/g, '');
+        if (al.includes('airpanama') || al === '7p') {
           aerolinea = 'Air Panama';
-        } else if (aerolineaLower.includes('copa') || aerolineaLower === 'cm') {
+        } else if (al.includes('copa') || al === 'cm') {
           aerolinea = 'Copa Airlines';
         } else {
-          continue; // Se ignora cualquier otra aerolínea
+          continue;
         }
 
-        // Extraer Fecha y Horas robustamente
-        let fechaStr = currentDateStr; // Fallback
-        let runwayTimeStr = '12:00';
-        let actualTimeStr = '12:00';
+        // Runway Time y Actual Time
+        const runwayRaw = row['runway time'] || row['hora itinerario'] || row['std'] || row['sta'] || row['hora programada'] || '';
+        const actualRaw = row['actual time (ata/atad)'] || row['actual time (ata/atd)'] || row['actual time'] || row['hora real'] || row['ata'] || row['atd'] || runwayRaw;
 
-        const rawRunway = (row['runway time'] || row['hora itinerario'] || row['std'] || row['sta'] || row['hora programada'] || '').toString().trim();
-        const rawActual = (row['actual time (ata/atad)'] || row['actual time'] || row['hora real'] || row['ata'] || row['atd'] || rawRunway).toString().trim();
+        const { fechaStr: fechaRunway, timeStr: runwayTimeStr } = parseDateTimeCell(runwayRaw);
+        const { fechaStr: fechaActual, timeStr: actualTimeStr  } = parseDateTimeCell(actualRaw);
 
-        // Si rawRunway viene como "08/01/2026 12:33" (MM/DD/YYYY HH:mm) o similar
-        if (rawRunway.includes(' ')) {
-          const parts = rawRunway.split(' ');
-          const dParts = parts[0].split('/'); // MM/DD/YYYY o DD/MM/YYYY
-          if (dParts.length === 3) {
-            // Asumimos YYYY al final
-            const year = dParts[2].length === 2 ? `20${dParts[2]}` : dParts[2];
-            // Intentar adivinar el formato (asumiremos que si el primer número es > 12 es DD, si no dependemos de si la fecha es válida)
-            if (Number(dParts[0]) > 12) {
-              fechaStr = `${year}-${dParts[1].padStart(2, '0')}-${dParts[0].padStart(2, '0')}`;
-            } else {
-              fechaStr = `${year}-${dParts[0].padStart(2, '0')}-${dParts[1].padStart(2, '0')}`;
-            }
-          }
-          runwayTimeStr = parts[1];
-        } else if (rawRunway) {
-          runwayTimeStr = rawRunway;
+        let fechaStr = fechaRunway || fechaActual;
+        if (!fechaStr) {
+          const { fechaStr: fb } = parseDateTimeCell(row['date'] || row['fecha'] || row['fecha vuelo'] || '');
+          fechaStr = fb || currentDateStr;
         }
 
-        if (rawActual.includes(' ')) {
-          actualTimeStr = rawActual.split(' ')[1];
-        } else if (rawActual) {
-          actualTimeStr = rawActual;
-        }
+        // Número de Vuelo
+        let rawFlight = (row['flight'] || row['vuelo'] || row['no vuelo'] || '').toString().trim().toUpperCase();
+        rawFlight = rawFlight.replace(/\s+/g, '-'); // "CM 013" → "CM-013"
 
-        // Fallback por si la fecha venía en otra columna (como Date)
-        if (!rawRunway.includes(' ')) {
-          let fallbackDate = (row['date'] || row['fecha'] || row['fecha vuelo'] || row['fecha de vuelo'] || '').toString().trim();
-          if (fallbackDate && fallbackDate.includes('/')) {
-            const months: any = { 'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06', 'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12' };
-            const parts = fallbackDate.split('/');
-            if (parts.length === 3) {
-              const day = parts[0].padStart(2, '0');
-              const month = months[parts[1].toLowerCase()] || parts[1].padStart(2, '0');
-              const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-              fechaStr = `${year}-${month}-${day}`;
-            }
-          } else if (fallbackDate && fallbackDate.includes('-')) {
-            fechaStr = fallbackDate;
-          } else if (fallbackDate && fallbackDate.includes(' ')) {
-            // Ejemplo: "01 Aug 2026"
-            const parts = fallbackDate.split(' ');
-            if (parts.length === 3) {
-              const months: any = { 'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06', 'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12' };
-              const day = parts[0].padStart(2, '0');
-              const month = months[parts[1].substring(0,3).toLowerCase()] || '01';
-              const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-              fechaStr = `${year}-${month}-${day}`;
-            }
-          }
-        }
-        
-        // Parsear Número de Vuelo
-        let rawFlight = (row['flight'] || row['vuelo'] || row['no. vuelo'] || row['no.vuelo'] || '').toString().trim().toUpperCase();
-        rawFlight = rawFlight.replace(/\s+/g, '-'); // "CM 030" -> "CM-030"
-        
-        if (aerolinea === 'Air Panama' && rawFlight.startsWith('7P') && !rawFlight.includes('-')) {
-          rawFlight = rawFlight.replace('7P', '7P-');
+        if (aerolinea === 'Air Panama') {
+          if (rawFlight.startsWith('7P') && !rawFlight.includes('-')) rawFlight = '7P-' + rawFlight.substring(2);
+          else if (!rawFlight.startsWith('7P')) rawFlight = '7P-' + rawFlight;
         } else if (aerolinea === 'Copa Airlines') {
-          if (rawFlight.startsWith('CMP')) rawFlight = rawFlight.replace('CMP', 'CM-');
-          if (rawFlight.startsWith('CM') && !rawFlight.includes('-')) rawFlight = rawFlight.replace('CM', 'CM-');
-          
-          // Pad flight number with zero if it's too short, ej: CM-14 -> CM-014
+          if (rawFlight.startsWith('CMP-')) rawFlight = 'CM-' + rawFlight.substring(4);
+          else if (rawFlight.startsWith('CMP')) rawFlight = 'CM-' + rawFlight.substring(3);
+          else if (rawFlight.startsWith('CM') && !rawFlight.includes('-')) rawFlight = 'CM-' + rawFlight.substring(2);
           const parts = rawFlight.split('-');
-          if (parts.length === 2 && parts[1].length < 3) {
-            parts[1] = parts[1].padStart(3, '0');
-            rawFlight = `${parts[0]}-${parts[1]}`;
-          }
+          if (parts.length === 2 && parts[1].length < 3) { parts[1] = parts[1].padStart(3, '0'); rawFlight = parts.join('-'); }
         }
-        
-        const itinDate = new Date(`${fechaStr}T${runwayTimeStr}:00-05:00`);
-        const realDate = new Date(`${fechaStr}T${actualTimeStr}:00-05:00`);
+
+        const runwayTime = runwayTimeStr || '00:00';
+        const actualTime = actualTimeStr  || runwayTime;
+
+        const itinDate = new Date(`${fechaStr}T${runwayTime}:00-05:00`);
+        const realDate  = new Date(`${fechaStr}T${actualTime}:00-05:00`);
 
         const diffMins = (realDate.getTime() - itinDate.getTime()) / 60000;
-        let estadoFinal = 'LLEGÓ';
-        if (diffMins > 15) estadoFinal = 'DEMORADO';
+        const estadoFinal = diffMins > 15 ? 'DEMORADO' : 'LLEGÓ';
+
+        // Avión y capacidad
+        const acRaw  = (row['ac'] || row['aircraft'] || row['avion'] || '').toString().trim().toUpperCase();
+        const regRaw = (row['reg'] || row['matricula'] || '').toString().trim().toUpperCase();
+        let capacidad = aerolinea === 'Air Panama' ? 50 : 160;
+        if      (['DH8D','DHC8','Q400'].includes(acRaw))  capacidad = 78;
+        else if (['F50','FK50'].includes(acRaw))           capacidad = 50;
+        else if (['B737','B738'].includes(acRaw))          capacidad = 160;
+        else if (['B39M','B38M'].includes(acRaw))          capacidad = 166;
+        else if (['C208','C-208'].includes(acRaw))         capacidad = 9;
+
+        const od = (row['o/d'] || row['origen'] || row['destino'] || row['ruta'] || 'PAC').toString().trim().toUpperCase();
 
         const record: any = {
           fecha: fechaStr,
-          aerolinea: aerolinea,
+          aerolinea,
           numero_vuelo: rawFlight,
           hora_itinerario: isNaN(itinDate.getTime()) ? new Date().toISOString() : itinDate.toISOString(),
-          estado_final: row['estado'] || row['status'] || estadoFinal,
-          pasajeros_abordo: Number(row['pax'] || row['pasajeros'] || row['total pax'] || row['pax abordo']) || 0,
-          capacidad_total: aerolinea === 'Air Panama' ? 78 : 160 // Valor por defecto
+          estado_final: estadoFinal,
+          pasajeros_abordo: Number(row['pax'] || row['pasajeros'] || row['total pax'] || row['pax abordo'] || 0) || 0,
+          capacidad_total: capacidad,
+          avion: acRaw || undefined,
+          matricula: regRaw || undefined,
         };
-
-        // Extra (si existe en base de datos futura, no hace daño enviarlo, se ignora si no existe)
-        if (row['reg'] || row['matricula']) record.matricula = row['reg'] || row['matricula'];
-
-        const od = (row['o/d'] || row['origen'] || row['destino'] || row['ruta'] || 'PAC').toString().trim();
 
         if (isLlegada) {
           record.origen = od;
+          record.hora_itinerario_llegada = isNaN(itinDate.getTime()) ? undefined : itinDate.toISOString();
           record.hora_real_llegada = isNaN(realDate.getTime()) ? record.hora_itinerario : realDate.toISOString();
           llegadasToInsert.push(record);
         } else {
           record.destino = od;
+          record.hora_itinerario_salida = isNaN(itinDate.getTime()) ? undefined : itinDate.toISOString();
           record.hora_real_salida = isNaN(realDate.getTime()) ? record.hora_itinerario : realDate.toISOString();
           salidasToInsert.push(record);
         }
@@ -600,14 +626,14 @@ export default function TablasDiariasClient({
         const res = await insertFlightRecords(llegadasToInsert, 'llegadas');
         if (res.success) {
           totalInserted += res.inserted || 0;
-          totalUpdated += res.updated || 0;
+          totalUpdated  += res.updated  || 0;
         }
       }
       if (salidasToInsert.length > 0) {
         const res = await insertFlightRecords(salidasToInsert, 'salidas');
         if (res.success) {
           totalInserted += res.inserted || 0;
-          totalUpdated += res.updated || 0;
+          totalUpdated  += res.updated  || 0;
         }
       }
 

@@ -61,27 +61,20 @@ export default function DashboardPage() {
 
     const fetchFlightStats = async () => {
       try {
-        const { getLlegadasMalek, getSalidasMalek } = await import("@/app/actions/flights");
+        const { getUpcomingFlights } = await import("@/app/actions/flights");
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
-        const llegadas = await getLlegadasMalek(today);
-        const salidas = await getSalidasMalek(today);
+        const upcomingFlights = await getUpcomingFlights(today);
         
-        // Filtrar solo los de Air Panama
-        const combined = [...llegadas, ...salidas].filter(f => f.aerolinea === 'Air Panama');
+        // Filtrar los vuelos de David (DAV) tanto los que vienen como los que se van
+        const davFlights = upcomingFlights.filter(f => f.origin === 'DAV' || f.destination === 'DAV');
         
-        // Vuelos Completados
-        const completados = combined.length;
-        setVuelosCompletados(completados);
+        // Vuelos Totales en DAVID
+        setVuelosCompletados(davFlights.length);
         
-        // Pasajeros y Factor de Ocupación
-        const totalPax = combined.reduce((acc, f) => acc + (f.pasajeros_abordo || 0), 0);
-        const totalMax = combined.reduce((acc, f) => acc + (f.capacidad_total || 0), 0);
+        // Pasajeros Totales
+        const totalPax = davFlights.reduce((acc, f) => acc + (f.paxCount || 0), 0);
         setPasajerosHoy(totalPax);
-        setFactorOcup(totalMax > 0 ? ((totalPax / totalMax) * 100).toFixed(1) : "0.0");
         
-        // Puntualidad (OTP - On Time Performance)
-        const aTiempo = combined.filter(f => f.estado_final === 'ARRIBÓ' || f.estado_final === 'CUMPLIDO').length;
-        setOtpPercent(completados > 0 ? ((aTiempo / completados) * 100).toFixed(1) : "0.0");
       } catch (e) {
         console.error("Error fetching metrics:", e);
       }
@@ -146,7 +139,7 @@ export default function DashboardPage() {
 {/*  Vuelos Completados  */}
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">Vuelos Completados</span>
+<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK</span>
 <span className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700">
 <span className="material-symbols-outlined text-[16px]">flight_land</span>
 </span>
@@ -159,7 +152,7 @@ export default function DashboardPage() {
 {/*  Pax en Tránsito  */}
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">Pasajeros Totales</span>
+<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">PASAJEROS TOTALES</span>
 <span className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700">
 <span className="material-symbols-outlined text-[16px]">groups</span>
 </span>

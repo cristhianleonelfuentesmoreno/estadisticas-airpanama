@@ -434,27 +434,24 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
 
   for (const d of data) {
     const isLlegada = type === 'llegadas';
-    const origin = isLlegada ? (d.origen || 'PAC') : 'DAV';
-    const destination = isLlegada ? 'DAV' : (d.destino || 'PAC');
+    const origin = isLlegada ? (d.origen || 'PAC') : (d.origen || 'DAV');
+    const destination = isLlegada ? (d.destino || 'DAV') : (d.destino || 'PAC');
 
     // Mapeo hacia el esquema en INGLÉS de manual_flights_log
+    // aircraftReg es varchar(5), truncar si viene más largo (ej: HP1856 → HP185)
+    const regRaw = (d.matricula || '').toString().trim();
     const mappedRecord: any = {
        flightDate: d.fecha,
        airline: d.aerolinea,
-       flightNumber: d.numero_vuelo.replace('7P-', '').replace('CM-', ''), // El schema guarda sin prefijo a veces, pero para asegurar, mejor lo dejamos tal cual o como venga. Espera, el schema actual puede guardar prefijos. Lo dejamos como venga.
+       flightNumber: d.numero_vuelo, // Preservar tal como viene (7P-670, CM-013)
        origin: origin,
        destination: destination,
        status_override: d.estado_final || 'LLEGÓ',
        paxCount: d.pasajeros_abordo || 0,
        paxMax: d.capacidad_total || (d.aerolinea === 'Air Panama' ? 78 : 160),
-       aircraft: d.avion || (d.aerolinea === 'Air Panama' ? 'F50' : 'B738'),
-       aircraftReg: d.matricula || null
+       aircraft: (d.avion || (d.aerolinea === 'Air Panama' ? 'F50' : 'B738')).substring(0, 10),
+       aircraftReg: regRaw ? regRaw.substring(0, 5) : null
     };
-
-    // Restaurar prefijos para la base de datos si es necesario
-    if (d.aerolinea === 'Air Panama' && !mappedRecord.flightNumber.includes('7P')) {
-      mappedRecord.flightNumber = mappedRecord.flightNumber;
-    }
 
     // Tiempos
     if (isLlegada) {
