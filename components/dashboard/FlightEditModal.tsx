@@ -24,13 +24,13 @@ export function FlightEditModal({
 
   const [formData, setFormData] = useState({
     flightNumber: flight.flightNumber.replace(/^(CM-|7P-)/, ''), // Remove prefix if any
-    origin: flight.origin,
-    destination: flight.destination,
+    origin: flight.origin || '',
+    destination: flight.destination || '',
     departureTimeLocal: formatTimeForInput(flight.departureTimeLocal),
     arrivalTimeLocal: formatTimeForInput(flight.arrivalTimeLocal),
     actual_departure_time: formatTimeForInput(flight.actualDepartureTime || flight.departureTimeLocal),
     actual_arrival_time: formatTimeForInput(flight.actualArrivalTime || flight.arrivalTimeLocal),
-    aircraft: flight.aircraft,
+    aircraft: flight.aircraft || '',
     aircraftReg: flight.aircraftReg || '',
     pilot: flight.pilot || '',
     paxCount: flight.paxCount,

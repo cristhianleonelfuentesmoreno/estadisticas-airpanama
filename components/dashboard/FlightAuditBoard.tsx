@@ -10,8 +10,16 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingFlight, setEditingFlight] = useState<FlightData | null>(null);
+  const [isApprovingAll, setIsApprovingAll] = useState(false);
+  const [confirmAllModalOpen, setConfirmAllModalOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [confirmDeleteAllModalOpen, setConfirmDeleteAllModalOpen] = useState(false);
 
   const [boardDate, setBoardDate] = useState<string>('TODOS');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'Air Panama' | 'Copa Airlines'>('ALL');
+
+  const filteredFlights = flights.filter(f => activeTab === 'ALL' || f.airline === activeTab);
 
   const loadData = async () => {
     setLoading(true);
@@ -58,16 +66,65 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
     }
   };
 
-  const handleDelete = async (manualLogId?: string) => {
+  const handleApproveAll = () => {
+    if (filteredFlights.length === 0) return;
+    setConfirmAllModalOpen(true);
+  };
+
+  const executeApproveAll = async () => {
+    setIsApprovingAll(true);
+    setConfirmAllModalOpen(false);
+    try {
+      const promises = filteredFlights
+        .filter(f => f.manualLogId)
+        .map(f => archiveFlight(f.manualLogId!));
+      await Promise.all(promises);
+      toast.success(`${filteredFlights.length} vuelos archivados correctamente`);
+      loadData();
+    } catch (err: any) {
+      toast.error("Error al archivar múltiples vuelos: " + err.message);
+    } finally {
+      setIsApprovingAll(false);
+    }
+  };
+
+  const handleDelete = (manualLogId?: string) => {
     if (!manualLogId) return;
-    if (confirm("¿Estás seguro de que deseas eliminar este vuelo? Esta acción no se puede deshacer.")) {
-      try {
-        await deleteManualFlight(manualLogId);
-        toast.success("Vuelo eliminado correctamente");
-        loadData();
-      } catch (err: any) {
-        toast.error("Error al eliminar el vuelo: " + err.message);
-      }
+    setConfirmDeleteId(manualLogId);
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDeleteId) return;
+    try {
+      await deleteManualFlight(confirmDeleteId);
+      toast.success("Vuelo eliminado correctamente");
+      loadData();
+    } catch (err: any) {
+      toast.error("Error al eliminar el vuelo: " + err.message);
+    } finally {
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const handleDeleteAll = () => {
+    if (filteredFlights.length === 0) return;
+    setConfirmDeleteAllModalOpen(true);
+  };
+
+  const executeDeleteAll = async () => {
+    setIsDeletingAll(true);
+    setConfirmDeleteAllModalOpen(false);
+    try {
+      const promises = filteredFlights
+        .filter(f => f.manualLogId)
+        .map(f => deleteManualFlight(f.manualLogId!));
+      await Promise.all(promises);
+      toast.success(`${filteredFlights.length} vuelos descartados correctamente`);
+      loadData();
+    } catch (err: any) {
+      toast.error("Error al descartar múltiples vuelos: " + err.message);
+    } finally {
+      setIsDeletingAll(false);
     }
   };
 
@@ -97,7 +154,38 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
               <p className="text-sm text-on-surface-variant mt-0.5">Revisa y aprueba los vuelos que ya han llegado o sido cancelados antes de guardarlos en el histórico definitivo.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 mr-12">
+          <div className="flex items-center gap-4 mr-12">
+            {filteredFlights.length > 0 && (
+              <>
+                <button 
+                  onClick={handleDeleteAll}
+                  disabled={isDeletingAll || isApprovingAll || loading}
+                  className="px-4 py-1.5 rounded-lg text-sm font-bold bg-error/10 text-error hover:bg-error/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                  title="Descartar todos los vuelos visibles"
+                >
+                  {isDeletingAll ? (
+                    <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">delete_sweep</span>
+                  )}
+                  Descartar Todos
+                </button>
+                <button 
+                  onClick={handleApproveAll}
+                  disabled={isApprovingAll || isDeletingAll || loading}
+                  className="px-4 py-1.5 rounded-lg text-sm font-bold bg-emerald-600 text-white shadow-sm hover:bg-emerald-500 transition-colors flex items-center gap-2 disabled:opacity-50"
+                  title="Aprobar todos los vuelos visibles"
+                >
+                  {isApprovingAll ? (
+                    <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">done_all</span>
+                  )}
+                  Aprobar Todos
+                </button>
+              </>
+            )}
+            <div className="h-6 w-px bg-outline-variant/30 hidden sm:block"></div>
             <button 
               onClick={() => setBoardDate('TODOS')}
               className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm ${boardDate === 'TODOS' ? 'bg-primary text-on-primary border border-primary' : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/50 hover:bg-surface-container'}`}
@@ -116,6 +204,30 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
         </div>
 
         <div className="p-6 overflow-y-auto flex-1 bg-surface-container-lowest">
+          <div className="flex gap-6 mb-4 px-2 border-b border-outline-variant/30">
+            <button
+              onClick={() => setActiveTab('ALL')}
+              className={`pb-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'ALL' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
+            >
+              Todos ({flights.length})
+            </button>
+            {flights.some(f => f.airline === 'Air Panama') && (
+              <button
+                onClick={() => setActiveTab('Air Panama')}
+                className={`pb-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'Air Panama' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
+              >
+                Air Panama ({flights.filter(f => f.airline === 'Air Panama').length})
+              </button>
+            )}
+            {flights.some(f => f.airline === 'Copa Airlines') && (
+              <button
+                onClick={() => setActiveTab('Copa Airlines')}
+                className={`pb-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === 'Copa Airlines' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
+              >
+                Copa Airlines ({flights.filter(f => f.airline === 'Copa Airlines').length})
+              </button>
+            )}
+          </div>
           <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 p-4 shadow-sm overflow-x-auto">
             {loading ? (
               <div className="text-center py-4 text-on-surface-variant animate-pulse">Cargando vuelos por auditar...</div>
@@ -132,8 +244,8 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/20">
-                  {flights.map(flight => (
-                    <tr key={flight.id} className="hover:bg-surface-container-highest transition-colors">
+                  {filteredFlights.map((flight, idx) => (
+                    <tr key={flight.manualLogId || `${flight.id}-${idx}`} className="hover:bg-surface-container-highest transition-colors">
                       <td className="py-3">
                         <div className="font-bold text-on-surface">{flight.flightNumber}</div>
                         <div className="text-xs text-on-surface-variant">{boardDate}</div>
@@ -198,10 +310,10 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
                 </tbody>
               </table>
             )}
-            {!loading && flights.length === 0 && (
+            {!loading && filteredFlights.length === 0 && (
               <div className="text-center py-12 text-on-surface-variant">
                 <span className="material-symbols-outlined text-4xl mb-2 opacity-50">check_circle</span>
-                <p>No hay vuelos pendientes de auditar para la fecha seleccionada.</p>
+                <p>No hay vuelos pendientes de auditar para la vista seleccionada.</p>
               </div>
             )}
           </div>
@@ -216,6 +328,100 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
             }}
           />
         )}
+
+        {/* Custom Confirmation Modal for Approve All */}
+        {confirmAllModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-surface w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden border border-outline-variant/30 animate-in zoom-in-95 duration-200">
+              <div className="p-6 text-center flex flex-col items-center">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 bg-primary/10">
+                  <span className="material-symbols-outlined text-4xl text-primary">done_all</span>
+                </div>
+                <h3 className="text-xl font-headline-md font-bold text-on-surface mb-2">Aprobar Todos</h3>
+                <p className="text-sm font-body-sm text-on-surface-variant">
+                  ¿Estás seguro de que deseas aprobar y archivar los {filteredFlights.length} vuelos pendientes que se muestran?
+                </p>
+              </div>
+              <div className="flex bg-surface-container-low border-t border-black/5 p-4 gap-3">
+                <button 
+                  onClick={() => setConfirmAllModalOpen(false)}
+                  className="flex-1 px-4 py-2 rounded-xl font-label-md font-semibold text-on-surface-variant hover:bg-surface-container transition-colors shadow-sm"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={executeApproveAll}
+                  className="flex-1 px-4 py-2 rounded-xl font-label-md font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  Aprobar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Custom Confirmation Modal for Delete */}
+        {confirmDeleteId && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-surface w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden border border-error/20 animate-in zoom-in-95 duration-200">
+              <div className="p-6 text-center flex flex-col items-center">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 bg-error/10">
+                  <span className="material-symbols-outlined text-4xl text-error">warning</span>
+                </div>
+                <h3 className="text-xl font-headline-md font-bold text-on-surface mb-2">Eliminar Vuelo</h3>
+                <p className="text-sm font-body-sm text-on-surface-variant">
+                  ¿Estás seguro de que deseas eliminar este vuelo? Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div className="flex bg-surface-container-low border-t border-black/5 p-4 gap-3">
+                <button 
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="flex-1 px-4 py-2 rounded-xl font-label-md font-semibold text-on-surface-variant hover:bg-surface-container transition-colors shadow-sm"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={executeDelete}
+                  className="flex-1 px-4 py-2 rounded-xl font-label-md font-semibold bg-error text-on-error hover:bg-error/90 transition-colors shadow-sm"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Custom Confirmation Modal for Delete All */}
+        {confirmDeleteAllModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-surface w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden border border-error/20 animate-in zoom-in-95 duration-200">
+              <div className="p-6 text-center flex flex-col items-center">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 bg-error/10">
+                  <span className="material-symbols-outlined text-4xl text-error">delete_sweep</span>
+                </div>
+                <h3 className="text-xl font-headline-md font-bold text-on-surface mb-2">Descartar Todos</h3>
+                <p className="text-sm font-body-sm text-on-surface-variant">
+                  ¿Estás seguro de que deseas eliminar permanentemente los {filteredFlights.length} vuelos mostrados?
+                </p>
+              </div>
+              <div className="flex bg-surface-container-low border-t border-black/5 p-4 gap-3">
+                <button 
+                  onClick={() => setConfirmDeleteAllModalOpen(false)}
+                  className="flex-1 px-4 py-2 rounded-xl font-label-md font-semibold text-on-surface-variant hover:bg-surface-container transition-colors shadow-sm"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={executeDeleteAll}
+                  className="flex-1 px-4 py-2 rounded-xl font-label-md font-semibold bg-error text-on-error hover:bg-error/90 transition-colors shadow-sm"
+                >
+                  Descartar Todos
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

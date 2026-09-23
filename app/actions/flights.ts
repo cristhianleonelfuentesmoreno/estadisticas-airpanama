@@ -32,10 +32,12 @@ export interface FlightData {
 export async function getUpcomingFlights(targetDate?: string): Promise<FlightData[]> {
   const now = new Date(); // Obtenemos la hora local del dispositivo
 
-  const parseTime = (timeStr: string, flightDateStr?: string) => {
+  const parseTime = (timeStr: string | null | undefined, flightDateStr?: string) => {
+    if (!timeStr) return null;
     const targetDateStr = (flightDateStr && flightDateStr !== 'TODOS') ? flightDateStr : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     // timeStr format is HH:MM or H:MM. Construct an ISO string for Panama time
     const [hours, mins] = timeStr.split(':');
+    if (!hours || !mins) return null;
     const paddedHours = hours.padStart(2, '0');
     return new Date(`${targetDateStr}T${paddedHours}:${mins}:00-05:00`);
   };
@@ -69,13 +71,13 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
 
 
   const flights: FlightData[] = itinerary.map((flight) => {
-    let depDate = parseTime(flight.dep, flight.date);
-    let arrDate = parseTime(flight.arr, flight.date);
+    const fallbackDate = new Date(`${flight.date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' })}T00:00:00-05:00`);
+    let depDate = parseTime(flight.dep, flight.date) ?? fallbackDate;
+    let arrDate = parseTime(flight.arr, flight.date) ?? new Date(depDate.getTime() + 3600000); // +1h si no hay arrival
     
     if (arrDate < depDate) {
       arrDate.setDate(arrDate.getDate() + 1);
     }
-
 
     const totalDurationMs = arrDate.getTime() - depDate.getTime();
     const elapsedMs = now.getTime() - depDate.getTime();
@@ -456,18 +458,21 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
        paxCount: d.pasajeros_abordo || 0,
        paxMax: d.capacidad_total || (d.aerolinea === 'Air Panama' ? 78 : 160),
        aircraft: (d.avion || (d.aerolinea === 'Air Panama' ? 'F50' : 'B738')).substring(0, 10),
-       aircraftReg: regRaw ? regRaw.substring(0, 10) : null
+       aircraftReg: regRaw ? regRaw.substring(0, 10) : null,
+       is_archived: true
     };
 
     // Tiempos
     if (isLlegada) {
-       const rawTime = d.hora_itinerario_llegada || d.hora_itinerario;
-       mappedRecord.arrivalTimeLocal = rawTime ? new Date(rawTime).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : '12:00';
-       mappedRecord.actual_arrival_time = d.hora_real_llegada || null;
+       const rawItin = d.hora_itinerario_llegada || d.hora_itinerario;
+       const rawReal = d.hora_real_llegada;
+       mappedRecord.arrivalTimeLocal = rawItin ? new Date(rawItin).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : '12:00';
+       mappedRecord.actual_arrival_time = rawReal ? new Date(rawReal).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : null;
     } else {
-       const rawTime = d.hora_itinerario_salida || d.hora_itinerario;
-       mappedRecord.departureTimeLocal = rawTime ? new Date(rawTime).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : '12:00';
-       mappedRecord.actual_departure_time = d.hora_real_salida || null;
+       const rawItin = d.hora_itinerario_salida || d.hora_itinerario;
+       const rawReal = d.hora_real_salida;
+       mappedRecord.departureTimeLocal = rawItin ? new Date(rawItin).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : '12:00';
+       mappedRecord.actual_departure_time = rawReal ? new Date(rawReal).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : null;
     }
 
     // Buscamos si existe la llave para actualizar

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords, getUpcomingFlights } from "@/app/actions/flights";
 import * as XLSX from 'xlsx';
 import { FlightAuditBoard } from "./FlightAuditBoard";
+import { ExcelImportPreviewModal, ParsedFlight } from "./ExcelImportPreviewModal";
 
 interface MalekFlight {
   id: string;
@@ -116,6 +117,10 @@ export default function TablasDiariasClient({
   const [importWorkbook, setImportWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
   const [submittingAction, setSubmittingAction] = useState<string | null>(null);
+  
+  // Preview State
+  const [previewData, setPreviewData] = useState<{ llegadas: any[]; salidas: any[] } | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const loadPendingAudit = async () => {
     try {
@@ -622,27 +627,12 @@ export default function TablasDiariasClient({
         }
       }
 
-      let totalInserted = 0;
-      let totalUpdated = 0;
-      if (llegadasToInsert.length > 0) {
-        const res = await insertFlightRecords(llegadasToInsert, 'llegadas');
-        if (res.success) {
-          totalInserted += res.inserted || 0;
-          totalUpdated  += res.updated  || 0;
-        }
+      if (llegadasToInsert.length > 0 || salidasToInsert.length > 0) {
+        setPreviewData({ llegadas: llegadasToInsert, salidas: salidasToInsert });
+        setIsPreviewOpen(true);
+      } else {
+        setImportResult({ show: true, type: 'error', message: 'No se encontraron vuelos válidos en el archivo.' });
       }
-      if (salidasToInsert.length > 0) {
-        const res = await insertFlightRecords(salidasToInsert, 'salidas');
-        if (res.success) {
-          totalInserted += res.inserted || 0;
-          totalUpdated  += res.updated  || 0;
-        }
-      }
-
-      let msg = `Importación completada: ${totalInserted} vuelos nuevos agregados.`;
-      if (totalUpdated > 0) msg += ` ${totalUpdated} vuelos actualizados.`;
-      
-      setImportResult({ show: true, type: 'success', message: msg });
       setImporting(false);
     } catch (err: any) {
       console.error("Error importando Excel:", err);
@@ -1193,22 +1183,23 @@ export default function TablasDiariasClient({
                       {COMMON_FLIGHTS.map(f => <option key={f} value={f} />)}
                     </datalist>
                   </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.hora_real_llegada ? 'Origen' : 'Destino'}</label>
-                    <select 
-                      className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      required 
-                      value={!!editingFlight.hora_real_llegada ? editFormData.origen : editFormData.destino}
-                      onChange={(e) => !!editingFlight.hora_real_llegada 
-                        ? setEditFormData({...editFormData, origen: e.target.value}) 
-                        : setEditFormData({...editFormData, destino: e.target.value})}
-                    >
-                      <option value="">Seleccione...</option>
-                      {AIRPORTS.map(apt => (
-                        <option key={apt.code} value={apt.code}>{apt.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.hora_real_llegada ? 'Origen' : 'Destino'}</label>
+                  <select 
+                    className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none w-full" 
+                    required 
+                    value={!!editingFlight.hora_real_llegada ? editFormData.origen : editFormData.destino}
+                    onChange={(e) => !!editingFlight.hora_real_llegada 
+                      ? setEditFormData({...editFormData, origen: e.target.value}) 
+                      : setEditFormData({...editFormData, destino: e.target.value})}
+                  >
+                    <option value="">Seleccione...</option>
+                    {AIRPORTS.map(apt => (
+                      <option key={apt.code} value={apt.code}>{apt.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -1675,6 +1666,59 @@ export default function TablasDiariasClient({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Excel Import Preview Modal */}
+      {isPreviewOpen && previewData && (
+        <ExcelImportPreviewModal
+          data={previewData}
+          onConfirm={async (finalData) => {
+            setIsPreviewOpen(false);
+            setImporting(true); // show loading state if needed
+            
+            try {
+              let totalInserted = 0;
+              let totalUpdated = 0;
+              
+              if (finalData.llegadas.length > 0) {
+                const res = await insertFlightRecords(finalData.llegadas, 'llegadas');
+                if (res.success) {
+                  totalInserted += res.inserted || 0;
+                  totalUpdated  += res.updated  || 0;
+                }
+              }
+              if (finalData.salidas.length > 0) {
+                const res = await insertFlightRecords(finalData.salidas, 'salidas');
+                if (res.success) {
+                  totalInserted += res.inserted || 0;
+                  totalUpdated  += res.updated  || 0;
+                }
+              }
+
+              let msg = `Importación completada: ${totalInserted} vuelos nuevos agregados.`;
+              if (totalUpdated > 0) msg += ` ${totalUpdated} vuelos actualizados.`;
+              
+              setImportResult({ show: true, type: 'success', message: msg });
+              setPreviewData(null);
+              // reload data
+              if (dateInputRef.current) {
+                const event = { target: { value: dateInputRef.current.value } } as React.ChangeEvent<HTMLInputElement>;
+                handleDateChange(event);
+              } else {
+                window.location.reload();
+              }
+            } catch (err: any) {
+              console.error("Error saving previewed data:", err);
+              setImportResult({ show: true, type: 'error', message: "Error al guardar los datos verificados. Detalles: " + err.message });
+            } finally {
+              setImporting(false);
+            }
+          }}
+          onCancel={() => {
+            setIsPreviewOpen(false);
+            setPreviewData(null);
+          }}
+        />
       )}
 
     </div>
