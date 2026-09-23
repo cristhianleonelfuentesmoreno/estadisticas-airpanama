@@ -116,9 +116,11 @@ export async function getFlightDecisions(): Promise<FlightDecision[]> {
       const processedForecasts: ProcessedForecast[] = relevantFcsts.map(f => {
         const dFrom = new Date(f.timeFrom * 1000);
         const dTo = new Date(f.timeTo * 1000);
-        const formatOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
+        // Hora de Panamá explícita: en Vercel el servidor corre en UTC
+        const formatOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Panama' };
+        const hourOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', hour12: false, timeZone: 'America/Panama' };
         const period = `${dFrom.toLocaleTimeString('es-PA', formatOptions)} - ${dTo.toLocaleTimeString('es-PA', formatOptions)}`;
-        const shortPeriod = `${dFrom.toLocaleTimeString('es-PA', {hour: '2-digit', hour12:false})} - ${dTo.toLocaleTimeString('es-PA', {hour: '2-digit', hour12:false})}h`;
+        const shortPeriod = `${dFrom.toLocaleTimeString('es-PA', hourOptions)} - ${dTo.toLocaleTimeString('es-PA', hourOptions)}h`;
         
         const windText = f.wdir === 'VRB' ? `Viento variable a ${f.wspd} nudos` : `Viento a ${f.wspd} nudos`;
         const wxText = translateWeather(f.wxString);

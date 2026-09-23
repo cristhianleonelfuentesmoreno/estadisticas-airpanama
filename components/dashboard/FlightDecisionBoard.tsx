@@ -1,14 +1,38 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { getFlightDecisions, FlightDecision } from "@/app/actions/weather";
+import { getFlightDecisions, FlightDecision, StatusColor } from "@/app/actions/weather";
+import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 
-type FilterType = 'all' | 'red' | 'yellow' | 'green';
+// Código IATA usado en los vuelos para cada estación TAF (ICAO)
+const ICAO_TO_IATA: Record<string, string> = {
+  MPDA: 'DAV',
+  MPMG: 'PAC',
+  MPTO: 'PTY',
+  MPBO: 'BOC',
+  MPCE: 'CTD',
+};
+
+const COLOR_STYLES: Record<StatusColor, { dot: string; text: string; chip: string; icon: string }> = {
+  red: { dot: "bg-orange-500", text: "text-orange-600", chip: "border-orange-500/30 bg-orange-500/5", icon: "thunderstorm" },
+  yellow: { dot: "bg-amber-500", text: "text-amber-600", chip: "border-amber-500/30 bg-amber-500/5", icon: "rainy" },
+  green: { dot: "bg-emerald-500", text: "text-emerald-600", chip: "border-emerald-500/30 bg-emerald-500/5", icon: "sunny" },
+};
+
+// "RIESGO ALTO: TORMENTAS" -> "Tormentas"
+function shortLabel(alert: string) {
+  const label = alert.includes(':') ? alert.split(':')[1].trim() : alert;
+  return label.charAt(0) + label.slice(1).toLowerCase();
+}
+
+function criticalPeriod(decision: FlightDecision) {
+  return decision.forecasts.find(f => f.isCritical)?.shortPeriod ?? null;
+}
 
 export function FlightDecisionBoard() {
   const [decisions, setDecisions] = useState<FlightDecision[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [expandedTaf, setExpandedTaf] = useState<string | null>(null);
 
   useEffect(() => {
@@ -16,6 +40,7 @@ export function FlightDecisionBoard() {
       try {
         const data = await getFlightDecisions();
         setDecisions(data);
+        setUpdatedAt(new Date());
       } catch (err) {
         console.error("Error loading flight decisions:", err);
       } finally {
@@ -27,152 +52,86 @@ export function FlightDecisionBoard() {
     return () => clearInterval(interval);
   }, []);
 
-  const { counts, filteredDecisions, globalAlert } = useMemo(() => {
-    const counts = {
-      all: decisions.length,
-      red: decisions.filter(d => d.statusColor === 'red').length,
-      yellow: decisions.filter(d => d.statusColor === 'yellow').length,
-      green: decisions.filter(d => d.statusColor === 'green').length,
-    };
-
-    const filteredDecisions = decisions.filter(d => {
-      if (filter === 'all') return true;
-      return d.statusColor === filter;
-    });
-
-    // Determine global alert
-    let globalAlert = null;
-    if (counts.red > 0) {
-      const redStations = decisions.filter(d => d.statusColor === 'red');
-      const worstAlert = redStations[0]?.shortAlert || "RIESGO ALTO: TORMENTAS";
-      globalAlert = {
-        title: worstAlert.includes('TORMENTAS') ? "Alerta de Tormentas Severas" : worstAlert.includes('NIEBLA') ? "Alerta de Visibilidad Crítica" : "Alerta Operativa Severa",
-        subtitle: `Múltiples Estaciones • Próximas 8 Horas`,
-        level: "DEFCON OPS-2",
-        redCount: counts.red,
-        yellowCount: counts.yellow,
-        greenCount: counts.green,
-        redDesc: worstAlert,
-      };
-    } else if (counts.yellow > 0) {
-      globalAlert = {
-        title: "Vigilancia Meteorológica Activa",
-        subtitle: `Condiciones marginales en progreso`,
-        level: "DEFCON OPS-3",
-        redCount: counts.red,
-        yellowCount: counts.yellow,
-        greenCount: counts.green,
-        redDesc: "Riesgo Medio",
-      };
+  // Resumen de una línea pensado para gerencia
+  const summary = useMemo(() => {
+    const red = decisions.filter(d => d.statusColor === 'red');
+    const yellow = decisions.filter(d => d.statusColor === 'yellow');
+    const total = decisions.length;
+    if (red.length > 0) {
+      return { color: 'red' as StatusColor, text: `${shortLabel(red[0].shortAlert)} en ${red.length} de ${total} aeropuertos · posibles demoras` };
     }
-
-    return { counts, filteredDecisions, globalAlert };
-  }, [decisions, filter]);
+    if (yellow.length > 0) {
+      return { color: 'yellow' as StatusColor, text: `Precaución en ${yellow.length} de ${total} aeropuertos · condiciones marginales` };
+    }
+    return { color: 'green' as StatusColor, text: 'Clima favorable en todos los aeropuertos' };
+  }, [decisions]);
 
   if (loading) {
     return (
-      <div className="bg-surface-container-lowest rounded-2xl p-space-md border border-white/5 shadow-sm animate-pulse flex flex-col gap-4">
-        <div className="h-6 bg-surface-container-low rounded w-1/4"></div>
-        <div className="h-32 bg-surface-container-low rounded-xl"></div>
+      <div className="bg-surface-container-lowest rounded-xl p-space-sm border border-surface-container/50 shadow-sm animate-pulse flex flex-col gap-2">
+        <div className="h-4 bg-surface-container-low rounded w-1/3"></div>
+        <div className="h-10 bg-surface-container-low rounded-lg"></div>
       </div>
     );
   }
 
+  if (decisions.length === 0) {
+    return (
+      <div className="bg-surface-container-lowest rounded-xl px-space-sm py-2 border border-surface-container/50 text-on-surface-variant font-body-sm text-body-sm">
+        Pronóstico del clima no disponible en este momento.
+      </div>
+    );
+  }
+
+  const summaryStyle = COLOR_STYLES[summary.color];
+
   return (
-    <div className="flex flex-col gap-space-sm font-sans">
-      {/* HEADER & FILTERS */}
-      <div className="flex flex-col gap-2 px-1 pb-1">
-        <div className="flex items-center justify-between">
-          <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Pronóstico del Clima</h2>
-          <a href="https://aviationweather.gov/" target="_blank" rel="noreferrer" className="text-secondary hover:underline font-label-sm text-label-sm flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-            Fuente: NOAA
-          </a>
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
-            <span className="font-label-sm text-label-sm text-on-surface-variant font-medium">TAF Operacional a 8 Horas • Act. hace 4 min</span>
+    <div className="bg-surface-container-lowest rounded-xl p-space-sm border border-surface-container/50 shadow-sm flex flex-col gap-2 font-sans">
+      {/* Encabezado + resumen en una línea */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2 min-w-0">
+          <span className={`material-symbols-outlined text-[20px] ${summaryStyle.text}`}>{summaryStyle.icon}</span>
+          <div className="flex flex-col min-w-0">
+            <span className="font-label-md text-label-md font-bold text-on-surface">{summary.text}</span>
+            <span className="font-label-sm text-[11px] text-on-surface-variant">
+              Clima próximas 8 h{updatedAt && ` · Act. ${updatedAt.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })}`}
+            </span>
           </div>
-          <span className="font-label-sm text-label-sm text-on-surface-variant font-medium opacity-50 hidden sm:block">CIC-AERO</span>
         </div>
+        <a href="https://aviationweather.gov/" target="_blank" rel="noreferrer" className="text-on-surface-variant hover:text-secondary font-label-sm text-[11px] flex items-center gap-0.5 shrink-0">
+          NOAA
+          <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+        </a>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-        <FilterBadge 
-          label="Todas" count={counts.all} active={filter === 'all'} 
-          onClick={() => setFilter('all')} color="default"
-        />
-        <FilterBadge 
-          label="Con Alerta" count={counts.red} active={filter === 'red'} 
-          onClick={() => setFilter('red')} color="red"
-        />
-        <FilterBadge 
-          label="Vigilancia" count={counts.yellow} active={filter === 'yellow'} 
-          onClick={() => setFilter('yellow')} color="yellow"
-        />
-        <FilterBadge 
-          label="VFR Óptimo" count={counts.green} active={filter === 'green'} 
-          onClick={() => setFilter('green')} color="green"
-        />
-      </div>
-
-      {/* GLOBAL ALERT BANNER */}
-      {globalAlert && filter === 'all' && (
-        <div className="bg-surface-container-lowest rounded-xl p-space-md border border-orange-500/20 flex flex-col gap-space-md shadow-sm">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-space-sm">
-              <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
-                <span className="material-symbols-outlined text-[24px]">thunderstorm</span>
+      {/* Un chip por aeropuerto: toca para ver detalle y vuelos afectados */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {decisions.map(decision => {
+          const style = COLOR_STYLES[decision.statusColor];
+          const period = decision.statusColor !== 'green' ? criticalPeriod(decision) : null;
+          return (
+            <button
+              key={decision.icao}
+              onClick={() => setExpandedTaf(decision.icao)}
+              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border ${style.chip} hover:bg-surface-container-low transition-colors text-left`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${style.dot}`}></span>
+                <span className="font-label-md text-label-md font-bold text-on-surface truncate">{decision.name}</span>
               </div>
-              <div className="flex flex-col">
-                <span className="font-headline-sm text-headline-sm font-bold text-on-surface">{globalAlert.title}</span>
-                <span className="font-label-md text-label-md text-on-surface-variant">{globalAlert.subtitle}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 text-orange-500 rounded-full font-label-sm text-label-sm font-bold">
-              <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-              {globalAlert.level}
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-space-sm">
-            <div className="bg-orange-500/5 border border-orange-500/10 rounded-lg p-space-sm flex flex-col items-center justify-center text-center">
-              <span className="font-label-sm text-label-sm font-bold text-orange-500 uppercase">{globalAlert.redCount} ESTACION{globalAlert.redCount !== 1 ? 'ES' : ''}</span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant leading-tight mt-1">Riesgo Alto<br/>{globalAlert.redDesc}</span>
-            </div>
-            <div className="bg-surface-container rounded-lg p-space-sm flex flex-col items-center justify-center text-center">
-              <span className="font-label-sm text-label-sm font-bold text-amber-500 uppercase">{globalAlert.yellowCount} ESTACION{globalAlert.yellowCount !== 1 ? 'ES' : ''}</span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant leading-tight mt-1">Monitoreo<br/>Bruma/Lluvia</span>
-            </div>
-            <div className="bg-surface-container-low rounded-lg p-space-sm flex flex-col items-center justify-center text-center">
-              <span className="font-label-sm text-label-sm font-bold text-emerald-500 uppercase">{globalAlert.greenCount} ESTACION{globalAlert.greenCount !== 1 ? 'ES' : ''}</span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant leading-tight mt-1">VFR<br/>Ilimitado</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* DECISION CARDS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-space-sm">
-        {filteredDecisions.map(decision => (
-          <DecisionCard 
-            key={decision.icao} 
-            decision={decision} 
-            onClick={() => setExpandedTaf(decision.icao)}
-          />
-        ))}
-        {filteredDecisions.length === 0 && (
-          <div className="col-span-1 lg:col-span-3 p-space-xl text-center text-on-surface-variant font-body-md text-body-md bg-surface-container-lowest rounded-xl border border-white/5">
-            No hay estaciones que coincidan con el filtro.
-          </div>
-        )}
+              <span className={`font-label-sm text-[11px] font-bold shrink-0 ${style.text}`}>
+                {shortLabel(decision.shortAlert)}{period && ` ${period}`}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* MODAL */}
       {expandedTaf && (
-        <DecisionModal 
-          decision={filteredDecisions.find(d => d.icao === expandedTaf) || decisions.find(d => d.icao === expandedTaf)!}
-          onClose={() => setExpandedTaf(null)} 
+        <DecisionModal
+          decision={decisions.find(d => d.icao === expandedTaf)!}
+          onClose={() => setExpandedTaf(null)}
         />
       )}
     </div>
@@ -180,72 +139,6 @@ export function FlightDecisionBoard() {
 }
 
 // Subcomponents
-
-function FilterBadge({ label, count, active, onClick, color }: { label: string, count: number, active: boolean, onClick: () => void, color: string }) {
-  let bgClass = "bg-surface-container hover:bg-surface-container-high text-on-surface-variant border-transparent";
-  let dotClass = "bg-on-surface-variant/50";
-  
-  if (active) {
-    if (color === 'red') { bgClass = "bg-orange-500/15 border-orange-500/30 text-orange-500"; dotClass = "bg-orange-500"; }
-    else if (color === 'yellow') { bgClass = "bg-amber-500/15 border-amber-500/30 text-amber-500"; dotClass = "bg-amber-500"; }
-    else if (color === 'green') { bgClass = "bg-emerald-500/15 border-emerald-500/30 text-emerald-500"; dotClass = "bg-emerald-500"; }
-    else { bgClass = "bg-surface-variant text-on-surface border-transparent"; dotClass = "bg-transparent hidden"; }
-  } else {
-    if (color === 'red') { dotClass = "bg-orange-500"; }
-    else if (color === 'yellow') { dotClass = "bg-amber-500"; }
-    else if (color === 'green') { dotClass = "bg-emerald-500"; }
-  }
-
-  return (
-    <button 
-      onClick={onClick}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-label-md text-label-md font-medium border transition-all active:scale-95 outline-none focus:outline-none ${bgClass} shrink-0`}
-    >
-      {color !== 'default' && <div className={`w-2 h-2 rounded-full ${dotClass}`}></div>}
-      {label} ({count})
-    </button>
-  );
-}
-
-function DecisionCard({ decision, onClick }: { decision: FlightDecision, onClick: () => void }) {
-  let borderColor = "border-white/10";
-  let topBorderColor = "border-t-surface-container-high";
-  let badgeColor = "bg-surface-container text-on-surface-variant";
-  let badgeIcon = "check_circle";
-
-  if (decision.statusColor === 'red') {
-    borderColor = "border-orange-500/20";
-    topBorderColor = "border-t-orange-500";
-    badgeColor = "bg-orange-500/15 text-orange-500";
-    badgeIcon = "warning";
-  } else if (decision.statusColor === 'yellow') {
-    borderColor = "border-amber-500/20";
-    topBorderColor = "border-t-amber-500";
-    badgeColor = "bg-amber-500/15 text-amber-500";
-    badgeIcon = "visibility";
-  } else if (decision.statusColor === 'green') {
-    borderColor = "border-emerald-500/20";
-    topBorderColor = "border-t-emerald-500";
-    badgeColor = "bg-emerald-500/10 text-emerald-500";
-    badgeIcon = "check";
-  }
-
-  return (
-    <div className={`bg-surface-container-lowest rounded-xl border ${borderColor} border-t-4 ${topBorderColor} shadow-sm overflow-hidden flex flex-col transition-all hover:bg-surface-container-low cursor-pointer`} onClick={onClick}>
-      <div className="p-space-sm flex flex-col gap-3 w-full items-center text-center">
-        <div className="flex flex-col items-center">
-          <span className="font-display-sm text-display-sm font-bold text-on-surface">{decision.icao}</span>
-          <span className="font-label-lg text-label-lg font-bold text-on-surface leading-tight mt-1">{decision.name}</span>
-          <span className="font-label-sm text-[11px] text-on-surface-variant">{decision.fullName}</span>
-        </div>
-        <div className={`flex items-center w-full justify-center gap-1 px-2.5 py-1.5 rounded-md font-label-sm text-[11px] font-bold uppercase ${badgeColor}`}>
-          <span className="material-symbols-outlined text-[16px]">{badgeIcon}</span>
-          {decision.shortAlert}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function DecisionModal({ decision, onClose }: { decision: FlightDecision, onClose: () => void }) {
   if (!decision) return null;
@@ -268,9 +161,23 @@ function DecisionModal({ decision, onClose }: { decision: FlightDecision, onClos
     badgeIcon = "check";
   }
 
-  const mockedFlights = decision.icao === 'MPMG' ? ['PST-804', 'PST-702'] : 
-                       decision.icao === 'MPTO' ? ['PST-201'] : 
-                       decision.icao === 'MPDA' ? ['PST-405'] : [];
+  return <DecisionModalContent decision={decision} onClose={onClose} headerBg={headerBg} headerText={headerText} badgeIcon={badgeIcon} />;
+}
+
+function DecisionModalContent({ decision, onClose, headerBg, headerText, badgeIcon }: { decision: FlightDecision, onClose: () => void, headerBg: string, headerText: string, badgeIcon: string }) {
+  const [flights, setFlights] = useState<FlightData[] | null>(null);
+
+  // Próximos vuelos de hoy que salen o llegan a esta estación
+  useEffect(() => {
+    const iata = ICAO_TO_IATA[decision.icao];
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    getUpcomingFlights(today)
+      .then(all => setFlights(all.filter(f =>
+        (f.origin === iata || f.destination === iata) &&
+        !f.isArchived && f.status !== 'ARRIBÓ' && f.status !== 'CANCELADO'
+      )))
+      .catch(() => setFlights([]));
+  }, [decision.icao]);
 
   return (
     <div className="fixed inset-0 z-50 bg-primary/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
@@ -335,27 +242,26 @@ function DecisionModal({ decision, onClose }: { decision: FlightDecision, onClos
 
           {/* Footer / Flights & TAF Toggle */}
           <div className="border-t border-white/10 pt-6 flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {mockedFlights.length > 0 ? (
-                <>
-                  <span className="material-symbols-outlined text-[20px] text-on-surface-variant">flight_takeoff</span>
-                  <span className="font-label-md text-label-md text-on-surface-variant font-bold">Vuelos afectados:</span>
-                  <div className="flex flex-wrap gap-2">
-                    {mockedFlights.map(fl => (
-                      <span key={fl} className="bg-surface-container px-3 py-1 rounded-md text-on-surface font-label-sm text-label-sm font-bold">
-                        {fl}
-                      </span>
-                    ))}
-                  </div>
-                </>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-on-surface-variant">flight_takeoff</span>
+                <span className="font-label-md text-label-md text-on-surface-variant font-bold">Próximos vuelos de hoy en {decision.name}</span>
+              </div>
+              {flights === null ? (
+                <span className="font-body-sm text-body-sm text-on-surface-variant">Cargando vuelos...</span>
+              ) : flights.length === 0 ? (
+                <span className="font-body-sm text-body-sm text-on-surface-variant">No hay vuelos pendientes hoy en esta estación.</span>
               ) : (
-                <div className="flex items-center gap-2 text-emerald-500">
-                  <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                  <span className="font-label-md text-label-md font-bold">Condiciones Seguras para Vuelos</span>
+                <div className="flex flex-wrap gap-2">
+                  {flights.map(fl => (
+                    <span key={fl.id} className="bg-surface-container px-3 py-1 rounded-md text-on-surface font-label-sm text-label-sm font-bold">
+                      {fl.flightNumber} · {fl.origin}→{fl.destination} · {fl.departureTimeLocal}
+                    </span>
+                  ))}
                 </div>
               )}
             </div>
-            
+
             <div className="p-4 bg-surface-container-low rounded-xl border border-white/5 font-mono text-[13px] text-on-surface-variant leading-relaxed break-words whitespace-pre-wrap mt-2">
               <span className="font-bold text-on-surface block mb-2 uppercase text-[11px] tracking-wider">TAF Crudo:</span>
               {decision.rawTAF}
