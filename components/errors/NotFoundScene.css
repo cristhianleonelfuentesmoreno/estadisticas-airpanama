@@ -1,0 +1,255 @@
+/* Página 404: "Pista 404" */
+
+.nf {
+  --nf-navy: #0a2540;   /* primary-container */
+  --nf-red: #bb001d;    /* secondary (rojo Air Panama) */
+  --nf-ink: #44474d;
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f7f9fb 0%, #e3ecf7 100%);
+  color: var(--nf-navy);
+}
+
+.nf__copy {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: clamp(48px, 12vh, 120px) 16px 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+.nf__title {
+  margin: 0;
+  font-size: clamp(2rem, 5.5vw, 3.6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.nf__text {
+  margin: 0;
+  color: var(--nf-ink);
+  font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+}
+
+.nf__cta {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: var(--nf-red);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 20px rgba(187, 0, 29, 0.25);
+  transition: background 0.2s, transform 0.2s;
+  pointer-events: auto;
+}
+
+.nf__cta:hover {
+  background: #93000a;
+  transform: translateY(-1px);
+}
+
+.nf__cta .material-symbols-outlined {
+  font-size: 20px;
+}
+
+/* ---------- Escena ---------- */
+.nf__stage {
+  --runway-h: clamp(84px, 14vh, 120px);
+  --px: 30vw;
+  --py: 60vh;
+  --face: 1;
+  --lx: -999px;
+  --ly: -999px;
+  --lens-r: 60px;
+  --clip-r: 0px;
+  position: absolute;
+  inset: 0;
+  user-select: none;
+}
+
+.nf__word {
+  position: absolute;
+  left: 50%;
+  bottom: var(--runway-h);
+  transform: translateX(-50%);
+  line-height: 0.78;
+}
+
+.nf__glyph {
+  margin: 0;
+  font-size: clamp(9rem, 34vw, 32rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+
+.nf__glyph--base {
+  color: #d3dff0;
+}
+
+/* Un lente, no un reflector: el círculo es el PUNTO FIJO del zoom,
+   así el disco no se puede salir del aro */
+.nf__found {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  clip-path: circle(var(--clip-r) at var(--lx) var(--ly));
+  transform: scale(1.3);
+  transform-origin: var(--lx) var(--ly);
+  background-color: #f4f8fd;
+  background-image:
+    linear-gradient(rgba(10, 37, 64, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10, 37, 64, 0.09) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.nf__glyph--lit {
+  color: var(--nf-navy);
+}
+
+/* Letreros de aeropuerto escondidos en el 404 */
+.nf__sign {
+  position: absolute;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font-size: clamp(9px, 1.1vw, 13px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.nf__sign--red {
+  background: var(--nf-red);
+}
+
+.nf__sign--navy {
+  background: var(--nf-navy);
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.nf__arm {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.nf__arm-line {
+  stroke: var(--nf-navy);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.nf__arm-joint {
+  fill: var(--nf-navy);
+}
+
+.nf__lens {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 7;
+  box-sizing: border-box;
+  width: calc(var(--lens-r) * 2);
+  height: calc(var(--lens-r) * 2);
+  border: 7px solid var(--nf-navy);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.55), transparent 42%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.6),
+    0 12px 26px rgba(10, 37, 64, 0.25);
+  transform: translate3d(calc(var(--lx) - var(--lens-r)), calc(var(--ly) - var(--lens-r)), 0);
+  pointer-events: none;
+}
+
+/* Pista: luces de borde y línea central */
+.nf__runway {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  height: var(--runway-h);
+  background: #2d3643;
+}
+
+.nf__runway::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  height: 8px;
+  background: radial-gradient(circle, #ffe7a3 0 2.5px, transparent 3.5px) 12px 0 / 48px 8px repeat-x;
+}
+
+.nf__runway::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 55%;
+  height: 4px;
+  background: repeating-linear-gradient(90deg, #eef1f5 0 44px, transparent 44px 88px);
+  opacity: 0.85;
+}
+
+.nf__plane {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  width: clamp(170px, 26vw, 340px);
+  transform: translate3d(calc(var(--px) - 50%), var(--py), 0);
+  pointer-events: none;
+}
+
+.nf__plane svg {
+  display: block;
+  transform: scaleX(var(--face));
+}
+
+.nf__livery-text {
+  transform: scaleX(var(--face));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.nf__plane::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 12%;
+  bottom: 1px;
+  z-index: -1;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  filter: blur(4px);
+}
+
+/* Pantallas angostas: la pista sube y el 404 crece para no dejar un hueco vacío */
+@media (max-width: 640px) {
+  .nf__stage {
+    --runway-h: 24vh;
+  }
+
+  .nf__glyph {
+    font-size: 40vw;
+  }
+}
