@@ -90,9 +90,9 @@ export default function DashboardLayoutShell({
   };
 
   const navLinks = [
-    { name: "Inicio", path: "/dashboard", icon: "space_dashboard" },
-    { name: "Tablas", path: "/dashboard/diario", icon: "table_chart" },
-    { name: "Reportes", path: "/dashboard/mensual", icon: "event_note" },
+    { name: "Inicio", path: "/dashboard", icon: "window" },
+    { name: "Tablas", path: "/dashboard/diario", icon: "data_table" },
+    { name: "Reportes", path: "/dashboard/mensual", icon: "analytics" },
   ];
 
   return (
@@ -284,26 +284,26 @@ export default function DashboardLayoutShell({
       {/* ========================================= */}
       {/* BOTTOM NAVIGATION (Solo Móvil)            */}
       {/* ========================================= */}
-      <div className="md:hidden fixed bottom-6 inset-x-4 z-40 pb-safe">
-        <nav className="flex items-center justify-around h-[68px] px-2 rounded-[34px] bg-white/70 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-white/60">
+      <div className="md:hidden fixed bottom-2 inset-x-3 z-40 pb-safe">
+        <nav className="flex items-center justify-around h-[60px] px-1 rounded-full bg-surface/40 backdrop-blur-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-outline-variant/30 ring-1 ring-white/20">
           {navLinks.map((link) => {
             const isActive = pathname === link.path;
             return (
               <Link 
                 key={link.path}
                 href={link.path}
-                className={`flex flex-col items-center justify-center w-[72px] h-full gap-1 active:scale-95 transition-all duration-300 group ${
+                className={`flex flex-col items-center justify-center w-[72px] h-full gap-0.5 active:scale-95 transition-all duration-300 group ${
                   isActive ? "text-primary" : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                <div className={`w-[56px] h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                <div className={`w-[48px] h-[28px] rounded-full flex items-center justify-center transition-all duration-300 ${
                   isActive ? "bg-primary-fixed text-on-primary-fixed shadow-sm scale-100" : "bg-transparent scale-95 group-active:bg-surface-variant/50"
                 }`}>
-                  <span className={`material-symbols-outlined transition-all duration-300 ${isActive ? 'text-[26px] font-semibold' : 'text-[24px]'}`}>
+                  <span className={`material-symbols-outlined transition-all duration-300 ${isActive ? 'text-[22px] font-semibold' : 'text-[22px]'}`}>
                     {link.icon}
                   </span>
                 </div>
-                <span className={`font-label-sm text-[10px] tracking-wide transition-all duration-300 ${isActive ? "font-bold opacity-100" : "font-medium opacity-70"}`}>
+                <span className={`font-label-sm text-[9px] tracking-wide transition-all duration-300 ${isActive ? "font-bold opacity-100" : "font-medium opacity-70"}`}>
                   {link.name.split(" ")[0]}
                 </span>
               </Link>
