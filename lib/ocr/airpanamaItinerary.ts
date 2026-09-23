@@ -3,24 +3,10 @@
 import { createWorker, PSM } from "tesseract.js";
 import sharp from "sharp";
 import type { ParsedFlight } from "@/app/actions/imageParser";
-
-// --------------------------------------------------------------------------
-// Flota Air Panama
-// --------------------------------------------------------------------------
-const AIRCRAFT_CAPACITY_MAP: Record<string, number> = {
-  'DH8D': 78,   // igual que en Registro; el itinerario real trae vuelos con 76 pax
-  'F-50': 50,
-  'C-208': 12,
-};
-
-// Tiempos de ruta Air Panama en minutos
-const ROUTE_TIMES_MAP: Record<string, number> = {
-  'PAC-DAV': 55, 'DAV-PAC': 55,
-  'PAC-BOC': 55, 'BOC-PAC': 55,
-  'PAC-CHX': 60, 'CHX-PAC': 60,
-  'BOC-DAV': 40, 'DAV-BOC': 40,
-  'CHX-BOC': 30, 'BOC-CHX': 30,
-};
+import {
+  EMPTY_KNOWLEDGE, classifyCrewLine, flightWarnings, legKey, resolveAircraft, routeMinutes,
+  type CrewLine, type FleetKnowledge,
+} from "@/lib/fleet/rules";
 
 // --------------------------------------------------------------------------
 // Preprocesado para el OCR: ampliar, escala de grises y blanco/negro.
@@ -77,7 +63,7 @@ type Token =
   | { kind: 'flight'; at: number; end: number; time: string; num: string; ori: string; des: string };
 
 // Imagen → vuelos: preprocesa, pasa el OCR y lee el texto
-export async function readAirPanamaItinerary(image: Buffer, targetDateStr: string): Promise<ParsedFlight[]> {
+export async function readAirPanamaItinerary(image: Buffer, targetDateStr: string, kb: FleetKnowledge = EMPTY_KNOWLEDGE): Promise<ParsedFlight[]> {
   console.log("Iniciando Tesseract OCR para Air Panama diario...");
   const prepared = await prepareForOcr(image);
   const worker = await createWorker('eng');
@@ -87,18 +73,25 @@ export async function readAirPanamaItinerary(image: Buffer, targetDateStr: strin
   await worker.terminate();
 
   console.log("OCR completado. Texto crudo:\n", text);
-  return parseAirPanamaText(text, targetDateStr);
+  return parseAirPanamaText(text, targetDateStr, kb);
 }
 
-// Texto del OCR → vuelos (función pura, se puede probar sin imagen)
-export function parseAirPanamaText(text: string, targetDateStr: string): ParsedFlight[] {
-  // Cada avión abre un bloque; su matrícula aparece en la fila de abajo pero vale para todo el bloque
-  type Block = { aircraft: string; reg: string; flights: ParsedFlight[] };
+type Row = { flight: ParsedFlight; crew: CrewLine };
+type Rotation = { pilots: string; cabin: string; notes: string[] };
+
+// Texto del OCR → vuelos (función pura, se puede probar sin imagen).
+// Estructura del itinerario: cada avión es un bloque; dentro, cada ida y vuelta es una
+// ROTACIÓN cuya 1ª línea de TRIPULACION son los pilotos (capitán / primer oficial) y la
+// 2ª los tripulantes de cabina. Ambos vuelan los dos tramos. La C-208 no lleva cabina.
+export function parseAirPanamaText(text: string, targetDateStr: string, kb: FleetKnowledge = EMPTY_KNOWLEDGE): ParsedFlight[] {
+  // La matrícula aparece en la fila de abajo del modelo pero vale para todo el bloque
+  type Block = { aircraft: string; reg: string; rows: Row[] };
   const blocks: Block[] = [];
   const current = () => {
-    if (blocks.length === 0) blocks.push({ aircraft: '', reg: '', flights: [] });
+    if (blocks.length === 0) blocks.push({ aircraft: '', reg: '', rows: [] });
     return blocks[blocks.length - 1];
   };
+  // Número + ruta: el 693 hace CHX-BOC y luego BOC-DAV, son dos vuelos distintos
   const seen = new Set<string>();
 
   for (const rawLine of normalizeOcrText(text).split('\n')) {
@@ -114,45 +107,80 @@ export function parseAirPanamaText(text: string, targetDateStr: string): ParsedF
 
     tokens.forEach((tok, i) => {
       if (tok.kind === 'aircraft') {
-        blocks.push({ aircraft: tok.value, reg: '', flights: [] });
+        blocks.push({ aircraft: tok.value, reg: '', rows: [] });
         return;
       }
       if (tok.kind === 'reg') {
         current().reg = tok.value;
         return;
       }
-      if (seen.has(tok.num)) return;
-      seen.add(tok.num);
+      const key = legKey({ flightNumber: tok.num, origin: tok.ori, destination: tok.des });
+      if (seen.has(key)) return;
+      seen.add(key);
 
       // Lo que sigue al vuelo (hasta el próximo vuelo de la línea): tripulación y pasajeros
       const next = tokens.slice(i + 1).find(t => t.kind === 'flight');
       const rest = line.slice(tok.end, next ? next.at : undefined);
       const paxMatch = rest.match(/\b(\d{1,3})\b(?!.*\b\d{1,3}\b)/);
-      const paxCount = paxMatch ? parseInt(paxMatch[1], 10) : undefined;
-      const pilot = (paxMatch ? rest.slice(0, paxMatch.index) : rest)
-        .replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ/\s]/g, ' ')
+      const crewText = (paxMatch ? rest.slice(0, paxMatch.index) : rest)
+        .replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ/!|.\s]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
-      current().flights.push({
-        flightNumber:       tok.num,
-        origin:             tok.ori,
-        destination:        tok.des,
-        departureTimeLocal: tok.time,
-        arrivalTimeLocal:   tok.time ? addMinutes(tok.time, ROUTE_TIMES_MAP[`${tok.ori}-${tok.des}`] || 60) : '',
-        airline:            "Air Panama",
-        flightDate:         targetDateStr,
-        paxCount,
-        pilot:              pilot.length > 2 ? pilot : undefined,
+      current().rows.push({
+        crew: classifyCrewLine(crewText, kb),
+        flight: {
+          flightNumber:       tok.num,
+          origin:             tok.ori,
+          destination:        tok.des,
+          departureTimeLocal: tok.time,
+          arrivalTimeLocal:   '',
+          airline:            "Air Panama",
+          flightDate:         targetDateStr,
+          paxCount:           paxMatch ? parseInt(paxMatch[1], 10) : undefined,
+        },
       });
     });
   }
 
-  return blocks.flatMap(b => b.flights.map(f => ({
-    ...f,
-    aircraft:    b.aircraft,
-    aircraftReg: b.reg,
-    paxMax:      AIRCRAFT_CAPACITY_MAP[b.aircraft] || undefined,
-  })));
-}
+  return blocks.flatMap(block => {
+    const { registration, code, paxMax, knownRegistration } = resolveAircraft({ aircraft: block.aircraft, aircraftReg: block.reg }, kb);
+    let rotation: Rotation = { pilots: '', cabin: '', notes: [] };
 
+    return block.rows.map(({ flight, crew }) => {
+      const warnings: string[] = [];
+      if (crew.kind !== 'vacio') {
+        if (crew.unknown.length > 0) warnings.push(`Tripulante no registrado: ${crew.unknown.join(', ')}`);
+        // Nombres conocidos deciden el rol; si no, se usa la posición (1ª línea pilotos, 2ª cabina)
+        const isPilots = crew.kind === 'pilotos' || (crew.kind === 'desconocido' && !rotation.pilots) ||
+          (crew.kind === 'desconocido' && !!rotation.cabin);
+        if (isPilots) {
+          rotation = { pilots: crew.text, cabin: '', notes: [] };
+        } else {
+          rotation.cabin = crew.text;
+        }
+        if (crew.notes) rotation.notes.push(crew.notes);
+      }
+
+      const time = flight.departureTimeLocal;
+      if (!time) warnings.push('Hora no leída: complétala');
+      const minutes = routeMinutes('Air Panama', flight.origin, flight.destination, kb) ?? 60;
+      const result: ParsedFlight = {
+        ...flight,
+        arrivalTimeLocal: time ? addMinutes(time, minutes) : '',
+        aircraft:         code ?? block.aircraft,
+        aircraftReg:      registration,
+        paxMax:           paxMax ?? undefined,
+      };
+      warnings.push(...flightWarnings(result, kb, { paxMax, knownRegistration }));
+      // La rotación se comparte por referencia: la cabina (2ª línea) también aplica al vuelo de ida
+      return { result, rotation, warnings };
+    }).map(({ result, rotation: r, warnings }) => ({
+      ...result,
+      pilot:      r.pilots || undefined,
+      cabin_crew: r.cabin || undefined,
+      notes:      r.notes.join(' · ') || undefined,
+      warnings:   warnings.length ? warnings : undefined,
+    }));
+  });
+}

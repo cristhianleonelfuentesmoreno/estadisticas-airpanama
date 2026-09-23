@@ -8,6 +8,7 @@ import { SettingsWidget } from "./SettingsWidget";
 import { ApiManagementWidget } from "./ApiManagementWidget";
 import { DispositivosPanel } from "./DispositivosPanel";
 import { AuditoriaPanel } from "./AuditoriaPanel";
+import { FleetKnowledgePanel } from "./FleetKnowledgePanel";
 
 export interface User {
   id: string;
@@ -311,6 +312,11 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
           </div>
         )}
       </section>
+
+      {/* ========================================= */}
+      {/* FLOTA Y TRIPULACIÓN (base de conocimiento) */}
+      {/* ========================================= */}
+      <FleetKnowledgePanel />
 
       {/* ========================================= */}
       {/* PANEL DE DISPOSITIVOS ACTIVOS             */}

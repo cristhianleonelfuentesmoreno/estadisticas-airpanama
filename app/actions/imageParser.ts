@@ -4,6 +4,7 @@ import { requireApprovedUser } from "@/lib/auth";
 
 import { createWorker } from "tesseract.js";
 import { readAirPanamaItinerary } from "@/lib/ocr/airpanamaItinerary";
+import { loadFleetKnowledge } from "@/lib/fleet/knowledge";
 
 export interface ParsedFlight {
   flightNumber: string;
@@ -16,8 +17,11 @@ export interface ParsedFlight {
   aircraft?: string;
   aircraftReg?: string;
   paxCount?: number;
-  pilot?: string;
+  pilot?: string;        // capitán / primer oficial
+  cabin_crew?: string;   // tripulantes de cabina
+  notes?: string;        // notas del itinerario (clientes de chárter, carga…)
   paxMax?: number;
+  warnings?: string[];   // lo que no cuadra con la base de conocimiento, para revisar
 }
 
 // --------------------------------------------------------------------------
@@ -41,7 +45,8 @@ const COPA_DAV_SCHEDULE: Record<string, { origin: string; destination: string; e
 // PARSER DE AIR PANAMA (DIARIO) — ver lib/ocr/airpanamaItinerary.ts
 // --------------------------------------------------------------------------
 async function parseAirPanamaDaily(base64Data: string, targetDateStr: string): Promise<ParsedFlight[]> {
-  const flights = await readAirPanamaItinerary(Buffer.from(base64Data, 'base64'), targetDateStr);
+  const kb = await loadFleetKnowledge();
+  const flights = await readAirPanamaItinerary(Buffer.from(base64Data, 'base64'), targetDateStr, kb);
   if (flights.length === 0) {
     throw new Error("El motor OCR local no pudo encontrar ningún vuelo en la imagen. La calidad puede ser muy baja.");
   }

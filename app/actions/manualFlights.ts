@@ -2,6 +2,8 @@
 
 import { requireApprovedUser, requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { loadFleetKnowledge } from '@/lib/fleet/knowledge';
+import { applyFleetRules, capacityOf, classifyCrewLine, legKey, normalizeRegistration } from '@/lib/fleet/rules';
 
 const getAdminSupabase = createAdminClient;
 
@@ -17,7 +19,9 @@ export type ManualFlightInput = {
   departureTimeLocal: string; // HH:mm
   arrivalTimeLocal: string; // HH:mm
   airline: string;
-  pilot: string;
+  pilot: string;         // capitán / primer oficial
+  cabin_crew?: string;   // tripulantes de cabina
+  notes?: string;        // notas del itinerario (chárter, carga…)
   paxCount: number;
   paxMax: number;
   flightDate: string; // YYYY-MM-DD
@@ -32,7 +36,7 @@ const WRITABLE_FIELDS = [
   'flightNumber', 'aircraft', 'aircraftReg', 'origin', 'originName', 'destination',
   'destinationName', 'departureTimeLocal', 'arrivalTimeLocal', 'airline', 'pilot',
   'paxCount', 'paxMax', 'flightDate', 'actual_departure_time', 'actual_arrival_time',
-  'status_override', 'is_archived',
+  'status_override', 'is_archived', 'cabin_crew', 'notes',
 ] as const;
 
 function pickWritable(input: Partial<ManualFlightInput>) {
@@ -78,9 +82,10 @@ export async function getManualFlightsForDate(dateStr?: string): Promise<ManualF
 export async function addManualFlight(flight: ManualFlightInput) {
   await requireApprovedUser();
   const supabase = getAdminSupabase();
+  const kb = await loadFleetKnowledge();
   const { error } = await supabase
     .from('manual_flights_log')
-    .insert([pickWritable(flight)]);
+    .insert([applyFleetRules(pickWritable(flight), kb)]);
     
   if (error) {
     throw new Error(error.message);
@@ -98,22 +103,21 @@ export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
   const uniqueDates = Array.from(new Set(flights.map(f => f.flightDate)));
   
   // Buscar vuelos existentes para esas fechas
-  const { data: existingFlights, error: fetchError } = await supabase
-    .from('manual_flights_log')
-    .select('flightNumber, flightDate')
-    .in('flightDate', uniqueDates);
+  const [{ data: existingFlights, error: fetchError }, kb] = await Promise.all([
+    supabase
+      .from('manual_flights_log')
+      .select('flightNumber, flightDate, origin, destination')
+      .in('flightDate', uniqueDates),
+    loadFleetKnowledge(),
+  ]);
 
   if (fetchError) {
     throw new Error(fetchError.message);
   }
 
-  // Filtrar los vuelos que ya existen
-  const newFlights = flights.filter(newFlight => {
-    return !existingFlights.some(existing => 
-      existing.flightNumber === newFlight.flightNumber && 
-      existing.flightDate === newFlight.flightDate
-    );
-  });
+  // Filtrar los vuelos que ya existen: número Y ruta (el 693 tiene dos tramos el mismo día)
+  const existingKeys = new Set(existingFlights.map(legKey));
+  const newFlights = flights.filter(newFlight => !existingKeys.has(legKey(newFlight)));
 
   if (newFlights.length === 0) {
     return true; // Ya todos existen
@@ -122,7 +126,7 @@ export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
   // Insertar solo los nuevos
   const { error: insertError } = await supabase
     .from('manual_flights_log')
-    .insert(newFlights.map(pickWritable));
+    .insert(newFlights.map(f => applyFleetRules(pickWritable(f), kb)));
     
   if (insertError) {
     throw new Error(insertError.message);
@@ -221,7 +225,7 @@ export async function updateFlightDetails(id: string, updates: Partial<ManualFli
   const supabase = getAdminSupabase();
 
   // Solo columnas permitidas (descarta id y cualquier campo desconocido)
-  const payload = pickWritable(updates);
+  const payload = applyFleetRules(pickWritable(updates), await loadFleetKnowledge());
   
   const { error } = await supabase
     .from('manual_flights_log')
@@ -244,37 +248,42 @@ export async function deleteManualFlight(id: string) {
 
 export type FleetSuggestion = { airline: string; aircraft: string; aircraftReg: string; paxMax: number };
 
-// Sugerencias para el ingreso manual, tomadas de los vuelos ya registrados:
-// matrículas conocidas (con su tipo y capacidad) y tripulaciones usadas.
-export async function getFlightFormSuggestions(): Promise<{ fleet: FleetSuggestion[]; pilots: string[] }> {
+// Sugerencias para el ingreso manual. La flota y la tripulación salen de la base de
+// conocimiento; del historial solo se agregan matrículas que aún no están registradas
+// (p. ej. Copa) y las parejas de pilotos, ya corregidas.
+export async function getFlightFormSuggestions(): Promise<{ fleet: FleetSuggestion[]; pilots: string[]; cabin: string[] }> {
   await requireApprovedUser();
   const supabase = getAdminSupabase();
-  const { data, error } = await supabase
-    .from('manual_flights_log')
-    .select('airline, aircraft, aircraftReg, paxMax, pilot, created_at')
-    .order('created_at', { ascending: false })
-    .limit(2000);
-  if (error || !data) return { fleet: [], pilots: [] };
+  const [{ data }, kb] = await Promise.all([
+    supabase
+      .from('manual_flights_log')
+      .select('airline, aircraft, aircraftReg, paxMax, pilot, created_at')
+      .order('created_at', { ascending: false })
+      .limit(2000),
+    loadFleetKnowledge(),
+  ]);
 
-  // La fila más reciente de cada matrícula define su tipo y capacidad
   const fleet = new Map<string, FleetSuggestion>();
-  const pilots = new Set<string>();
-  for (const row of data) {
-    const reg = (row.aircraftReg || '').trim().toUpperCase();
-    if (reg && !fleet.has(reg)) {
-      fleet.set(reg, {
-        airline: row.airline || '',
-        aircraft: row.aircraft || '',
-        aircraftReg: reg,
-        paxMax: row.paxMax || 0,
-      });
-    }
-    const pilot = (row.pilot || '').trim();
-    if (pilot) pilots.add(pilot);
+  for (const a of kb.aircraft) {
+    fleet.set(a.registration, { airline: a.airline, aircraft: a.code, aircraftReg: a.registration, paxMax: capacityOf(a.code, kb) ?? 0 });
   }
+
+  const pilots = new Set<string>();
+  for (const row of data ?? []) {
+    const reg = normalizeRegistration(row.aircraftReg);
+    if (reg && !fleet.has(reg)) {
+      const fixed = applyFleetRules({ aircraft: row.aircraft, aircraftReg: reg, paxMax: row.paxMax }, kb);
+      fleet.set(reg, { airline: row.airline || '', aircraft: fixed.aircraft || '', aircraftReg: reg, paxMax: fixed.paxMax || 0 });
+    }
+    // Solo parejas reconocidas como pilotos (antes se mezclaban tripulantes de cabina)
+    const line = classifyCrewLine(row.pilot || '', kb);
+    if (line.kind === 'pilotos' && line.unknown.length === 0) pilots.add(line.text);
+  }
+  for (const c of kb.crew) if (c.role !== 'cabina') pilots.add(c.name);
 
   return {
     fleet: [...fleet.values()].sort((a, b) => a.aircraftReg.localeCompare(b.aircraftReg)),
     pilots: [...pilots].sort(),
+    cabin: kb.crew.filter(c => c.role === 'cabina').map(c => c.name).sort(),
   };
 }

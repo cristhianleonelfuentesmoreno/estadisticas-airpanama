@@ -1,6 +1,8 @@
 "use server";
 
 import { requireApprovedUser, requireAdmin } from "@/lib/auth";
+import { loadFleetKnowledge } from "@/lib/fleet/knowledge";
+import { applyFleetRules, legKey } from "@/lib/fleet/rules";
 
 export interface FlightData {
   id: string;
@@ -515,8 +517,9 @@ export async function insertFlightRecords(data: FlightRecordInput[], type: 'lleg
     return { success: false, error: fetchError.message };
   }
 
-  // Clave usando fecha y número de vuelo (quitando sufijos si los hay, pero normalmente coincide)
-  const existingMap = new Map(existing?.map(r => [`${r.flightDate}_${r.flightNumber}`, r.id]) || []);
+  // Clave: fecha + número + ruta (el 693 tiene dos tramos el mismo día)
+  const existingMap = new Map(existing?.map(r => [legKey(r), r.id]) || []);
+  const kb = await loadFleetKnowledge();
   
   const newData = [];
   const toUpdate = [];
@@ -562,12 +565,15 @@ export async function insertFlightRecords(data: FlightRecordInput[], type: 'lleg
        mappedRecord.actual_departure_time = rawReal ? new Date(rawReal).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : null;
     }
 
-    // Buscamos si existe la llave para actualizar
-    const key = `${d.fecha}_${d.numero_vuelo}`;
+    // Matrícula normalizada, modelo y capacidad según la flota conocida
+    const record = applyFleetRules(mappedRecord as { aircraft?: string | null; aircraftReg?: string | null; paxMax?: number | null }, kb) as typeof mappedRecord;
+
+    // Buscamos si existe la llave para actualizar (con el número ya limpio: "7P670" → "670")
+    const key = legKey({ flightDate: d.fecha, flightNumber: flightNum.substring(0, 10), origin, destination });
     if (existingMap.has(key)) {
-      toUpdate.push({ id: existingMap.get(key), ...mappedRecord });
+      toUpdate.push({ id: existingMap.get(key), ...record });
     } else {
-      newData.push(mappedRecord);
+      newData.push(record);
     }
   }
 

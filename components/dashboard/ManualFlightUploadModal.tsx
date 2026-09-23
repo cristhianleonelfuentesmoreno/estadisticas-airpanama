@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Fragment, useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { addMultipleManualFlights, getFlightFormSuggestions, ManualFlightInput, FleetSuggestion } from "@/app/actions/manualFlights";
 import { parseItineraryImage } from "@/app/actions/imageParser";
 import * as Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { UploadProgress, type UploadJob } from "@/components/ui/UploadProgress";
+
+type ReviewFlight = ManualFlightInput & { warnings?: string[] };
 
 interface Props {
   isOpen: boolean;
@@ -18,7 +20,17 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const [activeTab, setActiveTab] = useState<'image' | 'upload' | 'manual'>('image');
   const [loading, setLoading] = useState(false);
   const [loadingSeconds, setLoadingSeconds] = useState(0);
-  const [fileData, setFileData] = useState<ManualFlightInput[]>([]);
+  // Vuelos a revisar antes de importar; `warnings` viene de la base de conocimiento
+  const [fileData, setFileData] = useState<ReviewFlight[]>([]);
+  // Edita una celda; al corregir pasajeros u hora se quita el aviso correspondiente
+  const updateRow = (i: number, patch: Partial<ReviewFlight>, clears?: RegExp) => {
+    setFileData(rows => rows.map((r, j) => j !== i ? r : {
+      ...r,
+      ...patch,
+      warnings: clears ? r.warnings?.filter(w => !clears.test(w)) : r.warnings,
+    }));
+  };
+  const reviewCount = fileData.filter(f => f.warnings?.length).length;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -43,6 +55,8 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const [fReg, setFReg] = useState("");
   const [fAircraft, setFAircraft] = useState("");
   const [fPilot, setFPilot] = useState("");
+  const [fCabin, setFCabin] = useState("");
+  const [cabinOptions, setCabinOptions] = useState<string[]>([]);
   const [fPax, setFPax] = useState("");
   const [fPaxMax, setFPaxMax] = useState("");
   const [fleet, setFleet] = useState<FleetSuggestion[]>([]);
@@ -51,7 +65,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   useEffect(() => {
     if (!isOpen || activeTab !== 'manual' || fleet.length > 0) return;
     getFlightFormSuggestions()
-      .then(({ fleet, pilots }) => { setFleet(fleet); setPilotOptions(pilots); })
+      .then(({ fleet, pilots, cabin }) => { setFleet(fleet); setPilotOptions(pilots); setCabinOptions(cabin); })
       .catch(() => {});
   }, [isOpen, activeTab, fleet.length]);
 
@@ -67,7 +81,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
 
   const resetManualForm = () => {
     setFNum(""); setFOri(""); setFDes(""); setFDep(""); setFArr(""); setFDate(todayStr);
-    setFReg(""); setFAircraft(""); setFPilot(""); setFPax(""); setFPaxMax("");
+    setFReg(""); setFAircraft(""); setFPilot(""); setFCabin(""); setFPax(""); setFPaxMax("");
   };
 
   const AIRPORTS = [
@@ -158,7 +172,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
           const flights = await parseItineraryImage(base64Image, targetDate, selectedAirline);
           if (flights && flights.length > 0) {
             // El OCR no trae nombres de origen/destino; el resto de campos se completa al editar
-            setFileData(flights as ManualFlightInput[]);
+            setFileData(flights as ReviewFlight[]);
             afterUploadRef.current = () => toast.success(`Se encontraron ${flights.length} vuelos en la imagen.`);
             setUploadJob(j => j && { ...j, status: "success", label: `${flights.length} vuelos encontrados` });
           } else {
@@ -286,6 +300,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
         arrivalTimeLocal: fArr,
         airline: fAirline,
         pilot: fPilot.trim(),
+        cabin_crew: fCabin.trim() || undefined,
         paxCount: pax,
         paxMax,
         flightDate: fDate
@@ -345,7 +360,12 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
               <div className="flex items-center justify-between px-3 py-2 bg-surface-container-high rounded-xl border border-outline-variant/20">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[16px] text-primary">airplane_ticket</span>
-                  <span className="text-[12px] font-bold text-on-surface">{fileData.length} vuelos · {fileData[0]?.flightDate?.substring(0,7)}</span>
+                  <span className="text-[12px] font-bold text-on-surface">{fileData.length} vuelos · {fileData[0]?.flightDate}</span>
+                  {reviewCount > 0 && (
+                    <span className="text-[12px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                      {reviewCount} para revisar
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 text-on-surface-variant/60">
                   <span className="material-symbols-outlined text-[14px]">swipe_vertical</span>
@@ -366,19 +386,22 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                     </thead>
                     <tbody className="divide-y divide-outline-variant/20">
                       {fileData.map((f, i) => (
-                        <tr key={i} className="hover:bg-surface-container-highest transition-colors">
+                        <Fragment key={i}>
+                        <tr className={`transition-colors ${f.warnings?.length ? 'bg-amber-50 hover:bg-amber-100/70' : 'hover:bg-surface-container-highest'}`}>
                           <td className="px-4 py-3 text-on-surface-variant font-medium">
                             <input 
                             type="text" 
                             value={f.flightNumber} 
-                            onChange={(e) => {
-                              const newData = [...fileData];
-                              newData[i].flightNumber = e.target.value;
-                              setFileData(newData);
-                            }}
+                            onChange={(e) => updateRow(i, { flightNumber: e.target.value })}
                             className="w-16 bg-transparent border-b border-outline-variant/30 focus:border-primary focus:outline-none"
                           />
-                          <div className="text-xs text-on-surface-variant/70 font-normal mt-1">{f.departureTimeLocal}</div>
+                          <input
+                            type="time"
+                            value={f.departureTimeLocal}
+                            onChange={(e) => updateRow(i, { departureTimeLocal: e.target.value }, /^Hora/)}
+                            className="mt-1 block text-xs text-on-surface-variant/80 bg-transparent focus:outline-none"
+                            aria-label="Hora de salida"
+                          />
                         </td>
                         <td className="px-4 py-3">
                           <span className="bg-surface-variant/50 px-2 py-0.5 rounded text-xs">{f.origin}</span>
@@ -399,13 +422,18 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                           <input 
                             type="text" 
                             value={f.pilot || ''} 
-                            onChange={(e) => {
-                              const newData = [...fileData];
-                              newData[i].pilot = e.target.value;
-                              setFileData(newData);
-                            }}
-                            className="w-full min-w-[120px] max-w-[150px] bg-transparent border-b border-outline-variant/30 focus:border-primary focus:outline-none"
-                            placeholder="Desconocida"
+                            onChange={(e) => updateRow(i, { pilot: e.target.value })}
+                            className="w-full min-w-[120px] max-w-[190px] bg-transparent border-b border-outline-variant/30 focus:border-primary focus:outline-none"
+                            placeholder="Pilotos"
+                            title="Capitán / Primer oficial"
+                          />
+                          <input
+                            type="text"
+                            value={f.cabin_crew || ''}
+                            onChange={(e) => updateRow(i, { cabin_crew: e.target.value })}
+                            className="mt-1 w-full min-w-[120px] max-w-[190px] bg-transparent border-b border-outline-variant/20 text-on-surface-variant/70 focus:border-primary focus:outline-none"
+                            placeholder="Cabina"
+                            title="Tripulantes de cabina"
                           />
                         </td>
                         <td className="px-4 py-3 text-on-surface-variant">
@@ -413,17 +441,28 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                             <input 
                               type="number" 
                               value={f.paxCount !== undefined ? f.paxCount : ''} 
-                              onChange={(e) => {
-                                const newData = [...fileData];
-                                newData[i].paxCount = e.target.value ? parseInt(e.target.value, 10) : 0;
-                                setFileData(newData);
-                              }}
+                              onChange={(e) => updateRow(i, { paxCount: e.target.value ? parseInt(e.target.value, 10) : 0 }, /pasajeros/i)}
                               className="w-12 text-center bg-surface-container-highest rounded border border-outline-variant/30 focus:border-primary focus:outline-none text-on-surface"
                             />
                             {f.paxMax && <span className="text-on-surface-variant/70 text-xs">/ {f.paxMax}</span>}
                           </div>
                         </td>
                       </tr>
+                      {f.warnings?.length ? (
+                        <tr className="bg-amber-50">
+                          <td colSpan={5} className="px-4 pb-3 pt-0">
+                            <div className="flex flex-wrap gap-1.5">
+                              {f.warnings.map(w => (
+                                <span key={w} className="inline-flex items-center gap-1 text-[12px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                                  <span className="material-symbols-outlined text-[14px]">warning</span>
+                                  {w}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                      </Fragment>
                     ))}
                   </tbody>
                   </table>
@@ -668,10 +707,17 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                     <input type="text" value={fAircraft} onChange={e => setFAircraft(e.target.value)} placeholder="Ej: DH8D, B738" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1 uppercase" />
                   </div>
                   <div className="flex flex-col gap-1 col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Piloto / Tripulación</label>
+                    <label className="text-xs font-bold text-on-surface-variant uppercase">Pilotos</label>
                     <input list="manual-pilots" type="text" value={fPilot} onChange={e => setFPilot(e.target.value)} placeholder="Capitán / Primer oficial" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
                     <datalist id="manual-pilots">
                       {pilotOptions.map(p => <option key={p} value={p} />)}
+                    </datalist>
+                  </div>
+                  <div className="flex flex-col gap-1 col-span-2">
+                    <label className="text-xs font-bold text-on-surface-variant uppercase">Tripulación de cabina</label>
+                    <input list="manual-cabin" type="text" value={fCabin} onChange={e => setFCabin(e.target.value)} placeholder="Opcional · la C-208 no lleva" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
+                    <datalist id="manual-cabin">
+                      {cabinOptions.map(p => <option key={p} value={p} />)}
                     </datalist>
                   </div>
                   <div className="flex flex-col gap-1">
