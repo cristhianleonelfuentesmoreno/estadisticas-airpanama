@@ -4,7 +4,6 @@ import { headers } from "next/headers";
 import { UAParser } from "ua-parser-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const supabaseAdmin = createAdminClient();
 
 export type TipoEventoAuditoria = 'acceso_fallido' | 'inicio_sesion' | 'cierre_sesion' | 'edicion' | 'eliminacion' | 'alerta_sistema';
 
@@ -18,6 +17,7 @@ interface AuditParams {
 
 export async function logAudit({ tipo_evento, usuario_id, nombre_referencia, descripcion, detalles_extra = {} }: AuditParams) {
   try {
+    const supabaseAdmin = createAdminClient();
     const headersList = await headers();
     
     // Obtener IP

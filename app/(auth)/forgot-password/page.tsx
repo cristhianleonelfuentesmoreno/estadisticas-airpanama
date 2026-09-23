@@ -8,13 +8,14 @@ import Link from "next/link";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return toast.error("Ingresa tu correo electrónico.");
 
     setLoading(true);
+    // Se crea aquí y no al renderizar: la página se prerenderiza en el build, sin variables de entorno
+    const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       // Pasa por el servidor, que valida el enlace y abre la sesión antes de /update-password
       redirectTo: `${window.location.origin}/api/auth/confirm?next=/update-password`,

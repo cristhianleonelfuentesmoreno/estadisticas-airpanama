@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -39,7 +39,9 @@ async function resolveRecoverySession(supabase: ReturnType<typeof createRecovery
 const inputStyle = { padding: "12px", borderRadius: "8px", border: "1px solid #ddd", width: "100%", fontSize: "1rem" };
 
 export default function UpdatePasswordPage() {
-  const [supabase] = useState(createRecoveryClient);
+  // Se crea en el navegador (efecto o evento), no al renderizar: la página se prerenderiza en el build
+  const clientRef = useRef<ReturnType<typeof createRecoveryClient> | null>(null);
+  const getClient = () => (clientRef.current ??= createRecoveryClient());
   const [linkState, setLinkState] = useState<LinkState>("checking");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -47,11 +49,11 @@ export default function UpdatePasswordPage() {
 
   useEffect(() => {
     let cancelled = false;
-    resolveRecoverySession(supabase)
+    resolveRecoverySession(getClient())
       .then(ok => { if (!cancelled) setLinkState(ok ? "ready" : "invalid"); })
       .catch(() => { if (!cancelled) setLinkState("invalid"); });
     return () => { cancelled = true; };
-  }, [supabase]);
+  }, []);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +61,7 @@ export default function UpdatePasswordPage() {
     if (password !== confirm) return toast.error("Las contraseñas no coinciden.");
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await getClient().auth.updateUser({ password });
     setLoading(false);
 
     if (error) {

@@ -6,7 +6,6 @@ import { logAudit } from "@/lib/audit";
 import { requireAdmin, requireApprovedUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const supabaseAdmin = createAdminClient();
 
 const isValidCoord = (v: unknown, max: number): v is number =>
   typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max;
@@ -14,6 +13,7 @@ const isValidCoord = (v: unknown, max: number): v is number =>
 export async function registrarSesion(lat: number | null, lon: number | null, userAgentStr: string) {
   // El userId sale de la sesión, nunca del cliente (evita suplantar a otro usuario)
   const { id: userId } = await requireApprovedUser();
+  const supabaseAdmin = createAdminClient();
   if (!isValidCoord(lat, 90) || !isValidCoord(lon, 180)) {
     lat = null;
     lon = null;
@@ -97,6 +97,7 @@ export async function registrarSesion(lat: number | null, lon: number | null, us
 export async function actualizarActividad(sessionId: string) {
   if (!sessionId) return { success: false };
   const { id: userId } = await requireApprovedUser();
+  const supabaseAdmin = createAdminClient();
   const { error } = await supabaseAdmin
     .from('sesiones')
     .update({ ultima_actividad: new Date().toISOString() })
@@ -109,6 +110,7 @@ export async function actualizarActividad(sessionId: string) {
 export async function cerrarSesion(sessionId: string) {
   if (!sessionId) return { success: false };
   const { id: userId } = await requireApprovedUser();
+  const supabaseAdmin = createAdminClient();
 
   // Obtener info para auditoria antes de actualizar (solo sesiones propias)
   const { data: sessionData } = await supabaseAdmin.from('sesiones').select('user_id').eq('id', sessionId).eq('user_id', userId).single();
@@ -172,6 +174,7 @@ export type SesionConUsuario = Sesion & {
 
 export async function getSesionesActivas(): Promise<SesionConUsuario[]> {
   await requireAdmin();
+  const supabaseAdmin = createAdminClient();
   const tenMinutesAgo = new Date(Date.now() - 10 * 60000).toISOString();
 
   const { data: sesiones, error } = await supabaseAdmin
@@ -199,6 +202,7 @@ export async function getSesionesActivas(): Promise<SesionConUsuario[]> {
 
 export async function getHistorialSesionesUser(userId: string): Promise<Sesion[]> {
   await requireAdmin();
+  const supabaseAdmin = createAdminClient();
   const { data } = await supabaseAdmin
     .from('sesiones')
     .select('*')
