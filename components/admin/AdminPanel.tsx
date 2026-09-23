@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction, updateUserName } from "@/app/actions/admin";
+import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction, updateUserName, sendPasswordResetAction } from "@/app/actions/admin";
 import { toast } from "sonner";
 
 import { SettingsWidget } from "./SettingsWidget";
@@ -24,6 +24,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
   const [showAllUsers, setShowAllUsers] = useState(false);
 
   // Estados temporales para el modal
@@ -101,6 +102,22 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       toast.error(`Error al eliminar usuario: ${(error as Error).message}`);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleSendReset = async () => {
+    if (!editingUser) return;
+    if (!window.confirm(`¿Enviar a ${editingUser.email} un correo para restablecer su contraseña?`)) return;
+
+    setIsSendingReset(true);
+    try {
+      const res = await sendPasswordResetAction(editingUser.id);
+      if (res.error) throw new Error(res.error);
+      toast.success(`Enlace enviado a ${res.email}. Es válido por tiempo limitado.`);
+    } catch (error) {
+      toast.error(`No se pudo enviar el enlace: ${(error as Error).message}`);
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -371,6 +388,25 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
                   placeholder="Ej. Piloto, Gerente..."
                   className="h-12 px-4 rounded-xl bg-surface-container text-on-surface font-label-md focus:outline-none focus:ring-2 ring-primary/20 placeholder:text-on-surface-variant/50"
                 />
+              </div>
+
+              {/* Acceso */}
+              <div className="flex flex-col gap-2">
+                <label className="font-label-md font-bold text-on-surface">Acceso</label>
+                <button
+                  type="button"
+                  onClick={handleSendReset}
+                  disabled={isSendingReset || isSaving || isDeleting}
+                  className="h-12 px-4 rounded-xl bg-surface-container text-on-surface font-label-md font-bold hover:bg-surface-container-high transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <span className={`material-symbols-outlined text-[18px] ${isSendingReset ? "animate-spin" : ""}`}>
+                    {isSendingReset ? "sync" : "lock_reset"}
+                  </span>
+                  {isSendingReset ? "Enviando..." : "Enviar enlace para restablecer contraseña"}
+                </button>
+                <p className="font-body-sm text-xs text-on-surface-variant">
+                  El usuario recibe un correo para crear una contraseña nueva. Tú no la ves en ningún momento.
+                </p>
               </div>
             </div>
 

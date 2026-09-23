@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
 import { logFailedLogin } from "@/app/actions/sessions";
+import { DockButton } from "./DockButton";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface LoginCardProps {
   settings?: {
@@ -83,6 +86,8 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
   const [showLogPassword, setShowLogPassword] = useState(false);
   const [logEmail, setLogEmail] = useState("");
   const [logPassword, setLogPassword] = useState("");
+  // Chrome autocompleta sin avisar a React hasta el primer clic: lo detectamos por CSS
+  const [logAutofilled, setLogAutofilled] = useState(false);
 
   const supabase = createClient();
 
@@ -172,6 +177,27 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
       window.history.replaceState(null, "", window.location.pathname);
     }
     
+    // Enlaces de recuperación de contraseña inválidos (ver /api/auth/confirm)
+    const linkError = params.get("error");
+    if (linkError === "link_expired" || linkError === "link_other_browser") {
+      toast.custom(() => (
+        <div className="bg-surface-container-lowest border-l-4 border-amber-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+          <div className="bg-amber-100 text-amber-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-xl">link_off</span>
+          </div>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">Enlace no válido</h3>
+            <p className="font-body-sm text-xs text-on-surface-variant mt-1">
+              {linkError === "link_other_browser"
+                ? "Abre el enlace en el mismo navegador donde lo solicitaste, o pide uno nuevo."
+                : "El enlace expiró o ya fue usado. Solicita uno nuevo."}
+            </p>
+          </div>
+        </div>
+      ), { duration: 8000 });
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
     if (params.get("error") === "rejected") {
       toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
@@ -187,6 +213,13 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, []);
+
+  const loginReady = logAutofilled || (EMAIL_RE.test(logEmail.trim()) && logPassword.length > 0);
+  const registerReady =
+    regName.trim().length > 0 &&
+    EMAIL_RE.test(regEmail.trim()) &&
+    regPassword.length >= 6 &&
+    regPassword === regConfirmPassword;
 
   const toggleView = () => setActiveView(activeView === "login" ? "register" : "login");
 
@@ -231,23 +264,27 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!logEmail || !logPassword) {
+    // Leemos del formulario: con autocompletado el estado puede ir un paso atrás
+    const fields = e.currentTarget.elements;
+    const email = (fields.namedItem("email") as HTMLInputElement).value;
+    const password = (fields.namedItem("password") as HTMLInputElement).value;
+    if (!email || !password) {
       return toast.error("Ingresa correo y contraseña.");
     }
     
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: logEmail,
-      password: logPassword,
+      email,
+      password,
     });
 
     if (error) {
       setLoading(false);
       
       // Registrar auditoría de fallo
-      logFailedLogin(logEmail).catch(console.error);
+      logFailedLogin(email).catch(console.error);
 
       return toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
@@ -336,26 +373,31 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
           <GoogleButton text="Regístrate con Google" onClick={() => handleGoogleAuth('register')} loading={loading} />
           <p>O usa tu correo para registrarte</p>
           <form className="form-inputs" onSubmit={handleRegister} suppressHydrationWarning>
-            <input type="text" placeholder="Nombre completo" value={regName} onChange={e => setRegName(e.target.value)} required suppressHydrationWarning />
-            <input type="email" placeholder="Correo electrónico" value={regEmail} onChange={e => setRegEmail(e.target.value)} required suppressHydrationWarning />
+            <input type="text" name="name" autoComplete="name" placeholder="Nombre completo" value={regName} onChange={e => setRegName(e.target.value)} required suppressHydrationWarning />
+            <input type="email" name="email" autoComplete="email" placeholder="Correo electrónico" value={regEmail} onChange={e => setRegEmail(e.target.value)} required suppressHydrationWarning />
             
             <div className="password-wrapper">
-              <input type={showRegPassword ? "text" : "password"} placeholder="Contraseña" value={regPassword} onChange={e => setRegPassword(e.target.value)} required minLength={6} suppressHydrationWarning />
+              <input type={showRegPassword ? "text" : "password"} name="new-password" autoComplete="new-password" placeholder="Contraseña" value={regPassword} onChange={e => setRegPassword(e.target.value)} required minLength={6} suppressHydrationWarning />
               <button type="button" className="password-toggle" onClick={() => setShowRegPassword(!showRegPassword)}>
                 <span className="material-symbols-outlined text-[18px]">{showRegPassword ? "visibility_off" : "visibility"}</span>
               </button>
             </div>
             
             <div className="password-wrapper">
-              <input type={showRegConfirmPassword ? "text" : "password"} placeholder="Confirmar Contraseña" value={regConfirmPassword} onChange={e => setRegConfirmPassword(e.target.value)} required minLength={6} suppressHydrationWarning />
+              <input type={showRegConfirmPassword ? "text" : "password"} name="confirm-password" autoComplete="new-password" placeholder="Confirmar Contraseña" value={regConfirmPassword} onChange={e => setRegConfirmPassword(e.target.value)} required minLength={6} suppressHydrationWarning />
               <button type="button" className="password-toggle" onClick={() => setShowRegConfirmPassword(!showRegConfirmPassword)}>
                 <span className="material-symbols-outlined text-[18px]">{showRegConfirmPassword ? "visibility_off" : "visibility"}</span>
               </button>
             </div>
             
-            <button className="submit-btn" type="submit" disabled={loading}>
-              {loading ? "PROCESANDO..." : "REGISTRARSE"}
-            </button>
+            <DockButton
+              label="REGISTRARSE"
+              loadingLabel="PROCESANDO..."
+              ready={registerReady}
+              loading={loading}
+              active={activeView === "register"}
+              lockedHint="Completa tus datos para despegar"
+            />
           </form>
         </div>
         
@@ -372,11 +414,16 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
           <h2>Iniciar Sesión</h2>
           <GoogleButton text="Ingresa con Google" onClick={() => handleGoogleAuth('login')} loading={loading} />
           <p>O usa tu cuenta local</p>
-          <form className="form-inputs" onSubmit={handleLogin} suppressHydrationWarning>
-            <input type="email" placeholder="Correo electrónico" value={logEmail} onChange={e => setLogEmail(e.target.value)} required suppressHydrationWarning />
+          <form
+            className="form-inputs"
+            onSubmit={handleLogin}
+            onAnimationStart={e => { if (e.animationName === "autofill-detect") setLogAutofilled(true); }}
+            suppressHydrationWarning
+          >
+            <input type="email" name="email" autoComplete="username" placeholder="Correo electrónico" value={logEmail} onChange={e => { setLogEmail(e.target.value); setLogAutofilled(false); }} required suppressHydrationWarning />
             
             <div className="password-wrapper">
-              <input type={showLogPassword ? "text" : "password"} placeholder="Contraseña" value={logPassword} onChange={e => setLogPassword(e.target.value)} required suppressHydrationWarning />
+              <input type={showLogPassword ? "text" : "password"} name="password" autoComplete="current-password" placeholder="Contraseña" value={logPassword} onChange={e => { setLogPassword(e.target.value); setLogAutofilled(false); }} required suppressHydrationWarning />
               <button type="button" className="password-toggle" onClick={() => setShowLogPassword(!showLogPassword)}>
                 <span className="material-symbols-outlined text-[18px]">{showLogPassword ? "visibility_off" : "visibility"}</span>
               </button>
@@ -385,9 +432,14 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
             <Link href="/forgot-password" style={{ paddingTop: 6, marginBottom: 7, fontSize: '0.85rem', color: '#666', textDecoration: 'none', textAlign: 'left' }}>
               ¿Olvidaste tu contraseña?
             </Link>
-            <button className="submit-btn" type="submit" disabled={loading}>
-              {loading ? "PROCESANDO..." : "INICIAR SESIÓN"}
-            </button>
+            <DockButton
+              label="INICIAR SESIÓN"
+              loadingLabel="PROCESANDO..."
+              ready={loginReady}
+              loading={loading}
+              active={activeView === "login"}
+              lockedHint="Completa tus datos para despegar"
+            />
           </form>
         </div>
       </div>

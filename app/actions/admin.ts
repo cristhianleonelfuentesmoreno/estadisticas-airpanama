@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin, type SessionUser } from "@/lib/auth";
 
@@ -147,6 +148,26 @@ export async function deleteUserAction(userId: string) {
   
   revalidatePath("/dashboard");
   return { success: true };
+}
+
+// El admin nunca ve ni define la contraseña: Supabase le envía al usuario un enlace seguro
+export async function sendPasswordResetAction(userId: string) {
+  const admin = await getAdminOrNull();
+  if (!admin) return { error: "No autorizado" };
+
+  const supabaseAdmin = createAdminClient();
+  const { data: target } = await supabaseAdmin.from("perfiles").select("email").eq("id", userId).single();
+  if (!target?.email) return { error: "El usuario no tiene correo registrado" };
+
+  const h = await headers();
+  const origin = h.get("origin") ?? `https://${h.get("host")}`;
+  const { error } = await supabaseAdmin.auth.resetPasswordForEmail(target.email, {
+    redirectTo: `${origin}/api/auth/confirm?next=/update-password`,
+  });
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin.id, userId, `envió un enlace para restablecer la contraseña`);
+  return { success: true, email: target.email as string };
 }
 
 // Pública a propósito: la pantalla de login necesita el fondo y los textos antes de tener sesión

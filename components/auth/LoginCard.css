@@ -195,6 +195,16 @@
   color: #333;
 }
 
+/* Dispara onAnimationStart cuando el navegador autocompleta un campo */
+.form input:-webkit-autofill {
+  animation: autofill-detect 1ms;
+}
+
+@keyframes autofill-detect {
+  from { opacity: 1; }
+  to { opacity: 1; }
+}
+
 .form input:focus {
   outline: none;
   border-color: #333;
@@ -221,6 +231,159 @@
 .form button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* =========================================
+   DOCK: botón que espera en su "gate"
+========================================= */
+.dock {
+  --dock-navy: #0a2540;   /* primary-container */
+  --dock-red: #bb001d;    /* secondary (rojo Air Panama) */
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  isolation: isolate;
+}
+
+.dock__band {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dock__band path {
+  fill: none;
+  stroke: var(--dock-navy);
+  stroke-linecap: round;
+  stroke-dasharray: 7 7;
+  opacity: 0;
+  transition: opacity 0.25s;
+  animation: dock-taxi 0.9s linear infinite;
+}
+
+.dock.is-away .dock__band path {
+  opacity: 0.55;
+}
+
+/* La marca de la puerta de embarque que queda cuando el botón se va */
+.dock__socket {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1.5px dashed #c4c6ce;
+  border-radius: 8px;
+  color: #666;
+  font-size: 0.78rem;
+  letter-spacing: 0.3px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.dock.is-away .dock__socket {
+  opacity: 1;
+}
+
+.dock__beacon {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dock-red);
+  box-shadow: 0 0 0 0 rgba(187, 0, 29, 0.5);
+  animation: dock-beacon 1.4s ease-out infinite;
+}
+
+/* El bucle de animación es dueño de `transform`: ninguna transición lo toca */
+.form button.cta {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transform: translate3d(var(--x, 0), var(--y, 0), 0) rotate(var(--rot, 0deg));
+  transition: background 0.3s, opacity 0.3s, box-shadow 0.3s, width 0.35s ease, border-radius 0.35s ease;
+  will-change: transform;
+}
+
+/* Fuera del gate se vuelve una píldora compacta: tiene espacio para escapar hacia los lados */
+.dock.is-away.is-locked button.cta {
+  width: 210px;
+  border-radius: 999px;
+}
+
+.form button.cta[aria-disabled="true"],
+.form button.cta[aria-disabled="true"]:hover {
+  background: #212625;
+  opacity: 0.88;
+  cursor: not-allowed;
+  box-shadow: 0 8px 18px rgba(10, 37, 64, 0.18);
+}
+
+.dock.is-ready button.cta:not(:disabled) {
+  box-shadow: 0 0 0 0 rgba(10, 37, 64, 0);
+}
+
+.dock.is-ready button.cta:not(:disabled):hover {
+  background: var(--dock-navy);
+  box-shadow: 0 8px 20px rgba(10, 37, 64, 0.25);
+}
+
+.cta__icon {
+  font-size: 18px !important;
+  transition: rotate 0.4s ease;
+}
+
+.dock.is-locked .cta__icon {
+  rotate: 90deg;
+}
+
+.dock.is-ready button.cta:not(:disabled):hover .cta__icon {
+  animation: dock-takeoff 0.6s ease-in-out;
+}
+
+.form button.cta.is-shaking {
+  animation: dock-shake 0.4s ease-in-out;
+}
+
+@keyframes dock-taxi {
+  to { stroke-dashoffset: -14; }
+}
+
+@keyframes dock-beacon {
+  0%   { box-shadow: 0 0 0 0 rgba(187, 0, 29, 0.5); }
+  100% { box-shadow: 0 0 0 8px rgba(187, 0, 29, 0); }
+}
+
+@keyframes dock-takeoff {
+  0%   { translate: 0 0; }
+  50%  { translate: 4px -4px; }
+  100% { translate: 0 0; }
+}
+
+@keyframes dock-shake {
+  0%, 100% { translate: 0 0; }
+  20%      { translate: -6px 0; }
+  40%      { translate: 6px 0; }
+  60%      { translate: -4px 0; }
+  80%      { translate: 4px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock__band path,
+  .dock__beacon,
+  .form button.cta.is-shaking,
+  .dock.is-ready button.cta:not(:disabled):hover .cta__icon {
+    animation: none;
+  }
 }
 
 /* =========================================
