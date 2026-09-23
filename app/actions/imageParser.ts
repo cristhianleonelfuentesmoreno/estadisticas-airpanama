@@ -3,6 +3,7 @@
 import { requireApprovedUser } from "@/lib/auth";
 
 import { createWorker } from "tesseract.js";
+import { readAirPanamaItinerary } from "@/lib/ocr/airpanamaItinerary";
 
 export interface ParsedFlight {
   flightNumber: string;
@@ -18,25 +19,6 @@ export interface ParsedFlight {
   pilot?: string;
   paxMax?: number;
 }
-
-// --------------------------------------------------------------------------
-// Flota Air Panama
-// --------------------------------------------------------------------------
-const AIRCRAFT_CAPACITY_MAP: Record<string, number> = {
-  'FK50': 50,
-  'DH8D': 74,
-  'C-208': 12,
-  'C208': 12,
-};
-
-// Tiempos de ruta Air Panama en minutos
-const ROUTE_TIMES_MAP: Record<string, number> = {
-  'PAC-DAV': 55, 'DAV-PAC': 55,
-  'PAC-BOC': 55, 'BOC-PAC': 55,
-  'PAC-CHX': 60, 'CHX-PAC': 60,
-  'BOC-DAV': 40, 'DAV-BOC': 40,
-  'CHX-BOC': 30, 'BOC-CHX': 30,
-};
 
 // --------------------------------------------------------------------------
 // Itinerario estándar de Copa Airlines en David (MPDA)
@@ -56,91 +38,10 @@ const COPA_DAV_SCHEDULE: Record<string, { origin: string; destination: string; e
 };
 
 // --------------------------------------------------------------------------
-// Helpers
-// --------------------------------------------------------------------------
-// --------------------------------------------------------------------------
-// PARSER DE AIR PANAMA (DIARIO) — OCR local con Tesseract
+// PARSER DE AIR PANAMA (DIARIO) — ver lib/ocr/airpanamaItinerary.ts
 // --------------------------------------------------------------------------
 async function parseAirPanamaDaily(base64Data: string, targetDateStr: string): Promise<ParsedFlight[]> {
-  console.log("Iniciando Tesseract OCR para Air Panama diario...");
-  const buffer = Buffer.from(base64Data, 'base64');
-  const worker = await createWorker('eng');
-  const { data: { text } } = await worker.recognize(buffer);
-  await worker.terminate();
-
-  console.log("OCR completado. Texto crudo:\n", text);
-
-  const flights: ParsedFlight[] = [];
-  const lines = text.split('\n');
-
-  let currentAircraft = '';
-  let currentReg = '';
-  let currentPaxMax = 0;
-
-  for (const line of lines) {
-    // Detectar modelo de avión (DH8D, FK50, C-208) al inicio de línea
-    const aircraftMatch = line.match(/^([A-Z0-9-]{4,6})\s+\d{1,2}:\d{2}/);
-    if (aircraftMatch) {
-      const val = aircraftMatch[1];
-      if (val.startsWith('HP-')) {
-        currentReg = val;
-      } else {
-        currentAircraft = val;
-        currentReg = '';
-        currentPaxMax = AIRCRAFT_CAPACITY_MAP[val] || 0;
-      }
-    } else {
-      const regMatch = line.match(/^(HP-\d{3,4})\s+\d{1,2}:\d{2}/);
-      if (regMatch) currentReg = regMatch[1];
-    }
-
-    // Detectar vuelo: HH:MM NNNNN ORI-DES
-    const flightMatch = line.match(/\b(\d{1,2}:\d{2})\s+(\d{3,4})\s+([A-Z]{3}-[A-Z]{3})\b/);
-    if (flightMatch) {
-      const time       = flightMatch[1];
-      const flightNum  = flightMatch[2];
-      const route      = flightMatch[3];
-      const [ori, des] = route.split('-');
-
-      const restOfLine  = line.substring(flightMatch.index! + flightMatch[0].length).trim();
-      const paxMatches  = restOfLine.match(/\d+/g);
-      let paxCount: number | undefined;
-      let pilot = restOfLine;
-
-      if (paxMatches && paxMatches.length > 0) {
-        paxCount = parseInt(paxMatches[paxMatches.length - 1], 10);
-        const lastIdx = restOfLine.lastIndexOf(paxMatches[paxMatches.length - 1]);
-        pilot = restOfLine.substring(0, lastIdx).trim();
-      }
-      pilot = pilot.replace(/\b(Si|No|Pax)\b.*$/i, '').replace(/[^a-zA-Z\s/]+$/, '').trim();
-
-      // Hora de llegada por ruta
-      let arrivalTimeLocal = "00:00";
-      try {
-        const [h, mn] = time.split(':').map(Number);
-        const d = new Date();
-        d.setHours(h, mn, 0, 0);
-        d.setMinutes(d.getMinutes() + (ROUTE_TIMES_MAP[`${ori}-${des}`] || 60));
-        arrivalTimeLocal = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      } catch { /* silencioso */ }
-
-      flights.push({
-        flightNumber:       flightNum,
-        origin:             ori,
-        destination:        des,
-        departureTimeLocal: time,
-        arrivalTimeLocal,
-        airline:            "Air Panama",
-        flightDate:         targetDateStr,
-        aircraft:           currentAircraft,
-        aircraftReg:        currentReg,
-        paxCount,
-        pilot:              pilot || undefined,
-        paxMax:             currentPaxMax || undefined,
-      });
-    }
-  }
-
+  const flights = await readAirPanamaItinerary(Buffer.from(base64Data, 'base64'), targetDateStr);
   if (flights.length === 0) {
     throw new Error("El motor OCR local no pudo encontrar ningún vuelo en la imagen. La calidad puede ser muy baja.");
   }

@@ -319,7 +319,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">add_flight</span>
+              <span className="material-symbols-outlined text-[20px]">flight_takeoff</span>
             </div>
             <h2 className="font-headline-md text-headline-md font-bold text-on-surface">Agregar Vuelos</h2>
           </div>
