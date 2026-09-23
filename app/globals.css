@@ -133,6 +133,12 @@
   .pt-safe {
     padding-top: env(safe-area-inset-top, 0px);
   }
+  .scrollbar-hide {
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
   main > :first-child {
     margin-top: 0 !important;
   }

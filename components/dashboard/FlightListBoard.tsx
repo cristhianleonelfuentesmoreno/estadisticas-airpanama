@@ -100,130 +100,87 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
     <>
       <div className="flex flex-col gap-space-sm font-sans">
         {/* Header */}
-        <div className="flex items-center justify-between px-1 pb-2 flex-wrap gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Próximos Vuelos</h2>
-              <div className="flex items-center gap-1 bg-surface-container rounded-lg border border-white/5 shadow-sm p-1">
-                <button 
-                  onClick={handlePrevDay}
-                  className="w-8 h-8 hover:bg-surface-container-high rounded-md transition-colors text-on-surface-variant flex items-center justify-center"
-                  title="Día anterior"
-                >
-                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-                </button>
-                
-                <div 
-                  onClick={() => {
-                    if (dateInputRef.current) {
-                      try {
-                        dateInputRef.current.showPicker();
-                      } catch (e) {
-                        dateInputRef.current.focus();
-                      }
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-2 py-1 h-8 cursor-pointer hover:bg-surface-container-high rounded-md transition-colors"
-                  title="Seleccionar fecha"
-                >
-                  <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
-                  <input 
-                    ref={dateInputRef}
-                    type="date" 
-                    value={boardDate}
-                    onChange={(e) => setBoardDate(e.target.value)}
-                    className="bg-transparent border-none outline-none font-label-sm text-on-surface font-bold focus:ring-0 cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden p-0 w-[100px]"
-                  />
-                </div>
+        <div className="flex flex-col gap-3 px-1 pb-2 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Próximos Vuelos</h2>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="text-secondary font-label-md text-label-md font-bold flex items-center gap-1 hover:opacity-80 transition-opacity shrink-0"
+            >
+              Ver todos
+              <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+            </button>
+          </div>
 
-                <button 
-                  onClick={handleNextDay}
-                  className="w-8 h-8 hover:bg-surface-container-high rounded-md transition-colors text-on-surface-variant flex items-center justify-center"
-                  title="Día siguiente"
-                >
-                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-surface-container rounded-lg border border-white/5 shadow-sm p-1">
+              <button 
+                onClick={handlePrevDay}
+                className="w-9 h-9 hover:bg-surface-container-high rounded-md transition-colors text-on-surface-variant flex items-center justify-center"
+                title="Día anterior"
+              >
+                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              </button>
+              
+              <div 
+                onClick={() => {
+                  if (dateInputRef.current) {
+                    try {
+                      dateInputRef.current.showPicker();
+                    } catch {
+                      dateInputRef.current.focus();
+                    }
+                  }
+                }}
+                className="flex items-center gap-1.5 px-2 h-9 cursor-pointer hover:bg-surface-container-high rounded-md transition-colors"
+                title="Seleccionar fecha"
+              >
+                <span className="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
+                <input 
+                  ref={dateInputRef}
+                  type="date" 
+                  value={boardDate}
+                  onChange={(e) => setBoardDate(e.target.value)}
+                  className="bg-transparent border-none outline-none font-label-sm text-on-surface font-bold focus:ring-0 cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden p-0 w-[100px]"
+                />
               </div>
 
-
-              <button
-                onClick={() => setIsManualModalOpen(true)}
-                className="mt-2 sm:mt-0 flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-label-md font-bold rounded-full shadow-sm hover:bg-primary/90 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span>
-                Cargar Itinerario
-              </button>
-
-            </div>
-            
-            {/* Rutas Filter (Desktop & Mobile) */}
-            <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit max-w-full overflow-x-auto scrollbar-hide">
-              <span className="text-on-surface-variant text-[12px] font-bold px-2 uppercase tracking-wider whitespace-nowrap">Rutas:</span>
               <button 
-                onClick={() => setDestinationFilter('TODOS')}
-                className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors whitespace-nowrap ${destinationFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
+                onClick={handleNextDay}
+                className="w-9 h-9 hover:bg-surface-container-high rounded-md transition-colors text-on-surface-variant flex items-center justify-center"
+                title="Día siguiente"
               >
-                TODOS
+                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
               </button>
-              {uniqueDests.map(dest => (
-                <button 
-                  key={dest}
-                  onClick={() => setDestinationFilter(dest)}
-                  className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors whitespace-nowrap ${destinationFilter === dest ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
-                >
-                  {dest}
-                </button>
-              ))}
             </div>
 
-            {/* Airline Filter (Desktop & Mobile) */}
-            <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit">
-              <span className="text-on-surface-variant text-[12px] font-bold px-2 uppercase tracking-wider">Aerolínea:</span>
-              <button 
-                onClick={() => setAirlineFilter('TODOS')}
-                className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${airlineFilter === 'TODOS' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
-              >
-                TODAS
-              </button>
-              {uniqueAirlines.map(airline => (
-                <button 
-                  key={airline}
-                  onClick={() => setAirlineFilter(airline)}
-                  className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${airlineFilter === airline ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
-                >
-                  {airline.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
-            {/* Status Filter */}
-            <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit">
-              <span className="text-on-surface-variant text-[12px] font-bold px-2 uppercase tracking-wider">Estado:</span>
-              <button 
-                onClick={() => setStatusFilter('TODOS')}
-                className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${statusFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
-              >
-                TODOS
-              </button>
-              {['PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'ARRIBÓ', 'CANCELADO'].map(status => (
-                <button 
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${statusFilter === status ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={() => setIsManualModalOpen(true)}
+              className="flex items-center gap-2 px-4 h-11 bg-primary text-on-primary font-label-md font-bold rounded-full shadow-sm hover:bg-primary/90 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Cargar Itinerario
+            </button>
           </div>
-          
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="text-secondary font-label-md text-label-md font-bold flex items-center gap-1 hover:opacity-80 transition-opacity"
-          >
-            Ver todos
-            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-          </button>
+
+          <FilterRow
+            label="Rutas"
+            options={[{ value: 'TODOS', label: 'TODOS' }, ...uniqueDests.map(d => ({ value: d, label: d }))]}
+            value={destinationFilter}
+            onChange={setDestinationFilter}
+          />
+          <FilterRow
+            label="Aerolínea"
+            options={[{ value: 'TODOS', label: 'TODAS' }, ...uniqueAirlines.map(a => ({ value: a, label: a.toUpperCase() }))]}
+            value={airlineFilter}
+            onChange={setAirlineFilter}
+          />
+          <FilterRow
+            label="Estado"
+            options={['TODOS', 'PROGRAMADO', 'ABORDANDO', 'EN VUELO', 'ARRIBÓ', 'CANCELADO'].map(s => ({ value: s, label: s }))}
+            value={statusFilter}
+            onChange={setStatusFilter}
+          />
         </div>
 
 
@@ -299,6 +256,36 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
 
 
     </>
+  );
+}
+
+// Fila de filtros deslizable: en celular se desplaza horizontalmente
+// con un degradado a la derecha que indica que hay más opciones.
+function FilterRow({ label, options, value, onChange }: {
+  label: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative min-w-0 w-full sm:w-fit sm:max-w-full">
+      <div className="flex items-center gap-1 bg-surface-container-low rounded-lg p-1 border border-white/5 overflow-x-auto scrollbar-hide">
+        <span className="sticky left-0 z-10 bg-surface-container-low text-on-surface-variant text-[12px] font-bold pl-2 pr-2 uppercase tracking-wider whitespace-nowrap self-stretch flex items-center">
+          {label}
+        </span>
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={`shrink-0 px-3 h-8 text-label-sm font-bold rounded-md transition-colors whitespace-nowrap ${value === opt.value ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
+          >
+            {opt.label}
+          </button>
+        ))}
+        <span className="shrink-0 w-6" aria-hidden />
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-surface-container-low to-transparent sm:hidden" />
+    </div>
   );
 }
 

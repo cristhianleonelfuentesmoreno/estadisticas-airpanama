@@ -293,7 +293,7 @@ export default function DashboardLayoutShell({
       {/* MAIN CONTENT CON EFECTO BLUR EN WEB       */}
       {/* ========================================= */}
       <main 
-        className={`flex flex-col relative w-full overflow-x-hidden pt-16 pb-24 md:pt-28 md:pb-8 bg-surface flex-grow min-h-screen max-w-[1600px] mx-auto transition-all duration-500 ease-in-out ${
+        className={`flex flex-col relative w-full overflow-x-hidden pt-16 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pt-28 md:pb-8 bg-surface flex-grow min-h-screen max-w-[1600px] mx-auto transition-all duration-500 ease-in-out ${
           isMenuOpen ? "md:blur-md md:opacity-50" : ""
         }`}
       >
@@ -306,69 +306,35 @@ export default function DashboardLayoutShell({
       {/* ========================================= */}
       {/* BOTTOM NAVIGATION (Solo Móvil)            */}
       {/* ========================================= */}
-      <div className="md:hidden fixed bottom-4 inset-x-4 z-40 pb-safe">
-        {(() => {
-          // If path is not exactly matching, we default to 0 so animation doesn't break, 
-          // or we can let it be -1 to hide it offscreen.
-          const activeIndex = Math.max(0, navLinks.findIndex(l => l.path === pathname));
-          const tabWidth = 100 / navLinks.length;
-          const centerOffset = (activeIndex * tabWidth) + (tabWidth / 2);
-
-          return (
-            <div className="relative w-full h-[64px] rounded-[32px] shadow-[0_10px_30px_rgba(10,25,47,0.3)]">
-              {/* Contenedor del fondo animado */}
-              <div className="absolute inset-0 flex rounded-[32px] overflow-hidden">
-                <div 
-                  className="h-full bg-[#0A192F] transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]" 
-                  style={{ width: `calc(${centerOffset}% - 48px)` }}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0A192F] border-t border-white/10 shadow-[0_-4px_20px_rgba(10,25,47,0.25)] pb-safe">
+        <div className="flex h-16">
+          {navLinks.map((link) => {
+            const isActive = pathname === link.path;
+            return (
+              <Link
+                key={link.path}
+                href={link.path}
+                aria-current={isActive ? 'page' : undefined}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 relative active:scale-95 transition-transform"
+              >
+                <span
+                  className={`absolute top-0 h-[3px] w-10 rounded-b-full bg-[#E31837] transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}
                 />
-                <svg width="96" height="64" viewBox="0 0 96 64" className="fill-[#0A192F] flex-shrink-0">
-                  <path d="M0,0 C24,0 28,36 48,36 C68,36 72,0 96,0 L96,64 L0,64 Z" />
-                </svg>
-                <div className="h-full bg-[#0A192F] flex-grow" />
-              </div>
-
-              {/* El indicador activo (Bead) flotante */}
-              <div 
-                className="absolute w-[48px] h-[48px] rounded-[16px] bg-[#E31837] shadow-[0_0_20px_rgba(227,24,55,0.5)] transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center pointer-events-none"
-                style={{ 
-                  top: '-16px',
-                  left: `calc(${centerOffset}% - 24px)`
-                }}
-              />
-
-              {/* Los Botones */}
-              <nav className="relative z-10 flex h-full">
-                {navLinks.map((link, index) => {
-                  const isActive = index === activeIndex;
-                  return (
-                    <Link 
-                      key={link.path}
-                      href={link.path}
-                      className="flex-1 flex flex-col items-center justify-center relative active:scale-95 transition-transform"
-                    >
-                      <span 
-                        className={`material-symbols-outlined absolute transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                          isActive ? '-translate-y-6 text-white font-bold text-[24px]' : 'translate-y-0 text-slate-400 text-[26px] hover:text-slate-200'
-                        }`}
-                      >
-                        {link.icon}
-                      </span>
-                      <span 
-                        className={`font-label-sm text-[12px] absolute transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] tracking-wide ${
-                          isActive ? 'translate-y-4 text-[#E31837] font-bold opacity-100' : 'translate-y-8 opacity-0'
-                        }`}
-                      >
-                        {link.name}
-                      </span>
-                    </Link>
-                  )
-                })}
-              </nav>
-            </div>
-          );
-        })()}
-      </div>
+                <span
+                  className={`flex items-center justify-center w-12 h-8 rounded-full transition-colors duration-300 ${isActive ? 'bg-[#E31837]/15' : ''}`}
+                >
+                  <span className={`material-symbols-outlined text-[22px] ${isActive ? 'text-[#FF4D6A]' : 'text-slate-400'}`}>
+                    {link.icon}
+                  </span>
+                </span>
+                <span className={`text-[12px] tracking-wide ${isActive ? 'text-white font-bold' : 'text-slate-400 font-medium'}`}>
+                  {link.name}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </>
   );
 }
