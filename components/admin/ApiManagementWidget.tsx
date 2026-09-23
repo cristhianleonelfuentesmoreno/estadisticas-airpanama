@@ -107,7 +107,7 @@ function ApiKeyCard({
               </span>
             </div>
             {hasKey && (
-              <span className="text-[11px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+              <span className="text-[12px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
                 Activa
               </span>
             )}
@@ -138,7 +138,7 @@ function ApiKeyCard({
           {/* Costo / consumo info */}
           <div className="flex items-center gap-1.5 bg-emerald-500/10 px-3 py-2 rounded-lg border border-emerald-500/20">
             <span className="material-symbols-outlined text-[15px] text-emerald-600">monitoring</span>
-            <span className="font-label-sm text-[11px] text-emerald-700 font-medium">{description}</span>
+            <span className="font-label-sm text-[12px] text-emerald-700 font-medium">{description}</span>
           </div>
         </div>
       ) : (

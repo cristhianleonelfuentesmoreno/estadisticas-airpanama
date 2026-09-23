@@ -93,12 +93,12 @@ export function FlightDecisionBoard() {
           <span className={`material-symbols-outlined text-[20px] ${summaryStyle.text}`}>{summaryStyle.icon}</span>
           <div className="flex flex-col min-w-0">
             <span className="font-label-md text-label-md font-bold text-on-surface">{summary.text}</span>
-            <span className="font-label-sm text-[11px] text-on-surface-variant">
+            <span className="font-label-sm text-[12px] text-on-surface-variant">
               Clima próximas 8 h{updatedAt && ` · Act. ${updatedAt.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' })}`}
             </span>
           </div>
         </div>
-        <a href="https://aviationweather.gov/" target="_blank" rel="noreferrer" className="text-on-surface-variant hover:text-secondary font-label-sm text-[11px] flex items-center gap-0.5 shrink-0">
+        <a href="https://aviationweather.gov/" target="_blank" rel="noreferrer" className="text-on-surface-variant hover:text-secondary font-label-sm text-[12px] flex items-center gap-0.5 shrink-0">
           NOAA
           <span className="material-symbols-outlined text-[12px]">open_in_new</span>
         </a>
@@ -119,7 +119,7 @@ export function FlightDecisionBoard() {
                 <span className={`w-2 h-2 rounded-full shrink-0 ${style.dot}`}></span>
                 <span className="font-label-md text-label-md font-bold text-on-surface truncate">{decision.name}</span>
               </div>
-              <span className={`font-label-sm text-[11px] font-bold shrink-0 ${style.text}`}>
+              <span className={`font-label-sm text-[12px] font-bold shrink-0 ${style.text}`}>
                 {shortLabel(decision.shortAlert)}{period && ` ${period}`}
               </span>
             </button>
@@ -263,7 +263,7 @@ function DecisionModalContent({ decision, onClose, headerBg, headerText, badgeIc
             </div>
 
             <div className="p-4 bg-surface-container-low rounded-xl border border-white/5 font-mono text-[13px] text-on-surface-variant leading-relaxed break-words whitespace-pre-wrap mt-2">
-              <span className="font-bold text-on-surface block mb-2 uppercase text-[11px] tracking-wider">TAF Crudo:</span>
+              <span className="font-bold text-on-surface block mb-2 uppercase text-[12px] tracking-wider">TAF Crudo:</span>
               {decision.rawTAF}
             </div>
           </div>

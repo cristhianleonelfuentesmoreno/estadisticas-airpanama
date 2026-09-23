@@ -73,7 +73,7 @@ export function DispositivosPanel() {
                     <div className="flex items-center gap-2">
                       <span className="font-label-lg font-bold text-on-surface capitalize">{sesion.user?.nombre}</span>
                       {sesiones.filter(s => s.user_id === sesion.user_id).length > 1 && (
-                        <span className="bg-error/10 text-error px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                        <span className="bg-error/10 text-error px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
                           <span className="material-symbols-outlined text-[12px]">warning</span>
                           Múltiple
                         </span>

@@ -158,7 +158,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
             
             {/* Rutas Filter (Desktop & Mobile) */}
             <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit max-w-full overflow-x-auto scrollbar-hide">
-              <span className="text-on-surface-variant text-[11px] font-bold px-2 uppercase tracking-wider whitespace-nowrap">Rutas:</span>
+              <span className="text-on-surface-variant text-[12px] font-bold px-2 uppercase tracking-wider whitespace-nowrap">Rutas:</span>
               <button 
                 onClick={() => setDestinationFilter('TODOS')}
                 className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors whitespace-nowrap ${destinationFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
@@ -178,7 +178,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
 
             {/* Airline Filter (Desktop & Mobile) */}
             <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit">
-              <span className="text-on-surface-variant text-[11px] font-bold px-2 uppercase tracking-wider">Aerolínea:</span>
+              <span className="text-on-surface-variant text-[12px] font-bold px-2 uppercase tracking-wider">Aerolínea:</span>
               <button 
                 onClick={() => setAirlineFilter('TODOS')}
                 className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${airlineFilter === 'TODOS' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
@@ -198,7 +198,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
 
             {/* Status Filter */}
             <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1 border border-white/5 w-fit">
-              <span className="text-on-surface-variant text-[11px] font-bold px-2 uppercase tracking-wider">Estado:</span>
+              <span className="text-on-surface-variant text-[12px] font-bold px-2 uppercase tracking-wider">Estado:</span>
               <button 
                 onClick={() => setStatusFilter('TODOS')}
                 className={`px-3 py-1 text-label-sm font-bold rounded-md transition-colors ${statusFilter === 'TODOS' ? 'bg-secondary text-on-secondary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
@@ -476,7 +476,7 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
       {/* Actions Bar (Available to everyone) */}
       {flight.manualLogId && !flight.isArchived && (
         <div className="mt-2 flex items-center justify-end gap-2 pt-3 border-t border-white/5">
-          <span className="text-[10px] text-on-surface-variant uppercase tracking-wider mr-auto font-bold">Acciones</span>
+          <span className="text-[11px] text-on-surface-variant uppercase tracking-wider mr-auto font-bold">Acciones</span>
           
           <button 
             onClick={() => setIsEditModalOpen(true)}

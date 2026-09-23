@@ -275,7 +275,7 @@ export function SettingsWidget() {
                           </button>
                         ))}
                       </div>
-                      <p className="text-[10px] text-on-surface-variant text-center mt-1">Usa la cuadrícula para alinear la imagen.</p>
+                      <p className="text-[11px] text-on-surface-variant text-center mt-1">Usa la cuadrícula para alinear la imagen.</p>
                     </div>
                   </div>
                 </div>

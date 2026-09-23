@@ -138,7 +138,7 @@ export function ExcelImportPreviewModal({
         <div className="flex-1 overflow-auto bg-slate-50/50 p-6">
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[12px]">
                 <tr>
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Aerolínea</th>
@@ -166,9 +166,9 @@ export function ExcelImportPreviewModal({
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {f.aerolinea === 'Copa Airlines' ? (
-                            <div className="w-5 h-5 rounded-full bg-[#00529b] flex items-center justify-center text-white text-[9px] font-bold">CM</div>
+                            <div className="w-5 h-5 rounded-full bg-[#00529b] flex items-center justify-center text-white text-[11px] font-bold">CM</div>
                           ) : f.aerolinea === 'Air Panama' ? (
-                            <div className="w-5 h-5 rounded-full bg-[#002f6c] flex items-center justify-center text-white text-[9px] font-bold">7P</div>
+                            <div className="w-5 h-5 rounded-full bg-[#002f6c] flex items-center justify-center text-white text-[11px] font-bold">7P</div>
                           ) : null}
                           {f.aerolinea}
                         </div>
@@ -176,9 +176,9 @@ export function ExcelImportPreviewModal({
                       <td className="px-4 py-3 font-semibold">{f.numero_vuelo}</td>
                       <td className="px-4 py-3 text-center">
                         {f.type === 'llegada' ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] font-bold"><span className="material-symbols-outlined text-[14px]">flight_land</span> Llegada</span>
+                          <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-[12px] font-bold"><span className="material-symbols-outlined text-[14px]">flight_land</span> Llegada</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md text-[11px] font-bold"><span className="material-symbols-outlined text-[14px]">flight_takeoff</span> Salida</span>
+                          <span className="inline-flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md text-[12px] font-bold"><span className="material-symbols-outlined text-[14px]">flight_takeoff</span> Salida</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-500">
@@ -210,7 +210,7 @@ export function ExcelImportPreviewModal({
                         <span className="text-slate-400 font-normal"> / {f.capacidad_total}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-bold ${
                           f.estado_final === 'LLEGÓ' ? 'bg-emerald-100 text-emerald-700' : 
                           f.estado_final === 'DESPEGÓ' ? 'bg-blue-100 text-blue-700' :
                           f.estado_final === 'DEMORADO' ? 'bg-amber-100 text-amber-700' : 

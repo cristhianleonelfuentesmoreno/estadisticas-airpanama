@@ -198,7 +198,7 @@ export default function DashboardLayoutShell({
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-full bg-surface-container-highest/20 active:bg-surface-container-highest/40 transition-colors border border-outline-variant/30 text-on-primary"
               >
                 <span className="material-symbols-outlined text-emerald-500/80 text-[18px]">admin_panel_settings</span>
-                <span className="font-label-sm text-[10px] uppercase font-bold tracking-wider">Admin</span>
+                <span className="font-label-sm text-[11px] uppercase font-bold tracking-wider">Admin</span>
               </Link>
             )}
             
@@ -355,7 +355,7 @@ export default function DashboardLayoutShell({
                         {link.icon}
                       </span>
                       <span 
-                        className={`font-label-sm text-[11px] absolute transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] tracking-wide ${
+                        className={`font-label-sm text-[12px] absolute transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] tracking-wide ${
                           isActive ? 'translate-y-4 text-[#E31837] font-bold opacity-100' : 'translate-y-8 opacity-0'
                         }`}
                       >

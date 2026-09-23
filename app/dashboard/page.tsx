@@ -138,7 +138,7 @@ export default function DashboardPage() {
 {/*  Vuelos Completados  */}
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK</span>
+<span className="font-label-sm text-[12px] text-on-surface-variant uppercase font-bold tracking-wide">VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK</span>
 <span className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700">
 <span className="material-symbols-outlined text-[16px]">flight_land</span>
 </span>
@@ -151,7 +151,7 @@ export default function DashboardPage() {
 {/*  Pax en Tránsito  */}
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-[11px] text-on-surface-variant uppercase font-bold tracking-wide">PASAJEROS TOTALES</span>
+<span className="font-label-sm text-[12px] text-on-surface-variant uppercase font-bold tracking-wide">PASAJEROS TOTALES</span>
 <span className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700">
 <span className="material-symbols-outlined text-[16px]">groups</span>
 </span>

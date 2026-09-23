@@ -285,7 +285,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
               <div className={`bg-secondary h-full transition-all duration-1000 ${activeAirline === 'cm' ? 'opacity-20' : ''}`} style={{ width: `${apPercent}%` }}></div>
               <div className={`bg-primary-container h-full transition-all duration-1000 ${activeAirline === '7p' ? 'opacity-20' : ''}`} style={{ width: `${cmPercent}%` }}></div>
             </div>
-            <div className="flex justify-between font-label-sm text-[10px]">
+            <div className="flex justify-between font-label-sm text-[11px]">
               <span className={`text-secondary font-semibold ${activeAirline === 'cm' ? 'opacity-40' : ''}`}>Air Panama: {metrics.apCount}</span>
               <span className={`text-primary-container font-semibold ${activeAirline === '7p' ? 'opacity-40' : ''}`}>Copa: {metrics.cmCount}</span>
             </div>
@@ -295,7 +295,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
         <div className="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between space-y-space-xs border border-black/5">
           <div className="flex items-start justify-between">
             <span className="font-label-sm text-label-sm text-on-surface-variant font-semibold">OTP {activeAirline !== 'all' && (activeAirline === '7p' ? '(Air Panama)' : '(Copa)')}</span>
-            <span className={`inline-flex items-center font-label-sm text-[10px] font-bold px-1.5 py-0.5 rounded ${metrics.otp >= 90 ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
+            <span className={`inline-flex items-center font-label-sm text-[11px] font-bold px-1.5 py-0.5 rounded ${metrics.otp >= 90 ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
               {metrics.otp >= 90 ? '▲ Óptimo' : '▼ Riesgo'}
             </span>
           </div>
@@ -328,7 +328,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
         <div className="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between space-y-space-xs border border-black/5 opacity-80">
           <div className="flex items-start justify-between">
             <span className="font-label-sm text-label-sm text-on-surface-variant font-semibold">TURNAROUND</span>
-            <span className="inline-flex items-center text-emerald-700 font-label-sm text-[10px] font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+            <span className="inline-flex items-center text-emerald-700 font-label-sm text-[11px] font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
               Óptimo
             </span>
           </div>
@@ -336,7 +336,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
             <div className="font-headline-md text-headline-md font-bold text-on-surface tracking-tight">32 min</div>
             <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Tiempo en rampa est.</p>
           </div>
-          <div className="flex items-center gap-1 font-label-sm text-[10px] text-emerald-600 font-semibold mt-2">
+          <div className="flex items-center gap-1 font-label-sm text-[11px] text-emerald-600 font-semibold mt-2">
             <span className="material-symbols-outlined text-[14px]">schedule</span>
             <span>Dentro de la meta (40m)</span>
           </div>
@@ -350,10 +350,10 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
             <p className="font-body-sm text-body-sm text-on-surface-variant">Pasajeros transportados por día (Air Panama vs Copa)</p>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <span className="flex items-center gap-1 font-label-sm text-[11px] text-secondary font-bold">
+            <span className="flex items-center gap-1 font-label-sm text-[12px] text-secondary font-bold">
               <span className="w-2.5 h-2.5 rounded-full bg-secondary"></span> Air Panama
             </span>
-            <span className="flex items-center gap-1 font-label-sm text-[11px] text-primary-container font-bold">
+            <span className="flex items-center gap-1 font-label-sm text-[12px] text-primary-container font-bold">
               <span className="w-2.5 h-2.5 rounded-full bg-primary-container"></span> Copa
             </span>
           </div>
@@ -454,7 +454,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
               <span className="font-headline-md text-headline-md font-bold text-on-surface">
                 {metrics.totalPax.toLocaleString()}
               </span>
-              <span className="font-label-sm text-[10px] text-on-surface-variant uppercase tracking-wider">Pax Totales</span>
+              <span className="font-label-sm text-[11px] text-on-surface-variant uppercase tracking-wider">Pax Totales</span>
             </div>
           </div>
         </div>
@@ -521,7 +521,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
                   </div>
                   <div>
                     <p className="font-label-md text-label-md font-bold text-on-surface">{r.route}</p>
-                    <p className="font-label-sm text-[11px] text-on-surface-variant">{r.flights} Vuelos • {r.pax.toLocaleString()} pax</p>
+                    <p className="font-label-sm text-[12px] text-on-surface-variant">{r.flights} Vuelos • {r.pax.toLocaleString()} pax</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -563,7 +563,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
                     title={`${h.hour} - ${h.pax} pasajeros`}
                   >
                   </div>
-                  <span className="font-label-sm text-[9px] text-on-surface-variant">{h.hour.split(':')[0]}h</span>
+                  <span className="font-label-sm text-[11px] text-on-surface-variant">{h.hour.split(':')[0]}h</span>
                 </div>
               ))}
             </div>

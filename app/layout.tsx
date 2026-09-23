@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
@@ -16,6 +16,14 @@ export const metadata: Metadata = {
   description: "Plataforma operativa y estadística de Air Panama",
 };
 
+// Se permite el zoom con dos dedos (accesibilidad). El zoom automático de iOS
+// al tocar un campo se evita con inputs de 16px en móvil (ver globals.css).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -24,7 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${jakarta.className} h-full antialiased`}
     >
       <head>
-        <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport" />
         <meta content="mobile_tab" name="shell-type" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />

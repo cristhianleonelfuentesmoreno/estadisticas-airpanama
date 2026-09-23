@@ -263,7 +263,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                 </div>
                 <div className="flex items-center gap-1 text-on-surface-variant/60">
                   <span className="material-symbols-outlined text-[14px]">swipe_vertical</span>
-                  <span className="text-[11px]">Desliza para ver todos</span>
+                  <span className="text-[12px]">Desliza para ver todos</span>
                 </div>
               </div>
               <div className="bg-surface-container rounded-2xl border border-outline-variant/30 flex flex-col overflow-hidden" style={{ maxHeight: '420px' }}>

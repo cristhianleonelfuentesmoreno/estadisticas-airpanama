@@ -6,25 +6,8 @@ import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalida
 import * as XLSX from 'xlsx';
 import { FlightAuditBoard } from "./FlightAuditBoard";
 import { ExcelImportPreviewModal, ParsedFlight } from "./ExcelImportPreviewModal";
+import { DailyFlightCard, MalekFlight, formatTime, getAirlineBadge } from "./DailyFlightCard";
 
-interface MalekFlight {
-  id: string;
-  fecha: string;
-  aerolinea: string;
-  numero_vuelo: string;
-  origen: string;
-  destino?: string;
-  hora_itinerario_salida?: string;
-  hora_real_salida?: string;
-  hora_itinerario_llegada?: string;
-  hora_real_llegada?: string;
-  estado_final: string;
-  pasajeros_abordo: number;
-  capacidad_total: number;
-  avion?: string;
-  creado_en?: string;
-  actualizado_en?: string;
-}
 
 const AIRCRAFT_MODELS = [
   { id: 'F50', label: 'F50 (Air Panama)', cap: 50 },
@@ -250,21 +233,6 @@ export default function TablasDiariasClient({
     setTimeout(() => window.location.reload(), 600);
   };
 
-  const getAirlineBadge = (airline: string) => {
-    if (airline === 'Air Panama') return 'bg-red-600 text-white';
-    if (airline === 'Copa Airlines') return 'bg-[#0032A0] text-white';
-    return 'bg-slate-100 text-slate-700';
-  };
-
-  const formatTime = (isoString?: string) => {
-    if (!isoString) return '--:--';
-    try {
-      const date = new Date(isoString);
-      return date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Panama' });
-    } catch {
-      return '--:--';
-    }
-  };
 
   const toTimeStringForInput = (isoString?: string) => {
     if (!isoString) return '00:00';
@@ -741,7 +709,7 @@ export default function TablasDiariasClient({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span className="font-label-sm text-[11px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">EN LINEA</span>
+                <span className="font-label-sm text-[12px] uppercase tracking-wider text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">EN LINEA</span>
               </div>
               <h1 className="font-headline-md text-2xl md:text-3xl text-white font-black tracking-tight drop-shadow-sm">
                 Registro Histórico
@@ -777,21 +745,21 @@ export default function TablasDiariasClient({
             <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shadow-inner w-full md:w-fit">
               <button 
                 onClick={() => setViewType('todos')}
-                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-bold transition-all leading-tight ${viewType === 'todos' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[12px] md:text-sm font-bold transition-all leading-tight ${viewType === 'todos' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
               >
                 <span className="material-symbols-outlined text-[18px] md:text-[16px]">swap_vert</span>
                 <span className="whitespace-nowrap">Todos ({llegadasAprobadas.length + salidasAprobadas.length})</span>
               </button>
               <button 
                 onClick={() => setViewType('llegadas')}
-                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-bold transition-all leading-tight ${viewType === 'llegadas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[12px] md:text-sm font-bold transition-all leading-tight ${viewType === 'llegadas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
               >
                 <span className="material-symbols-outlined text-[18px] md:text-[16px]">flight_land</span>
                 <span className="whitespace-nowrap">Llegadas ({llegadasAprobadas.length})</span>
               </button>
               <button 
                 onClick={() => setViewType('salidas')}
-                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[11px] md:text-sm font-bold transition-all leading-tight ${viewType === 'salidas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-[12px] md:text-sm font-bold transition-all leading-tight ${viewType === 'salidas' ? 'bg-white text-primary shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
               >
                 <span className="material-symbols-outlined text-[18px] md:text-[16px]">flight_takeoff</span>
                 <span className="whitespace-nowrap">Salidas ({salidasAprobadas.length})</span>
@@ -826,7 +794,7 @@ export default function TablasDiariasClient({
             
             {/* Operador Filters */}
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full lg:w-auto">
-              <span className="text-[11px] font-black text-white/50 uppercase tracking-widest mr-1">OPERADOR:</span>
+              <span className="text-[12px] font-black text-white/50 uppercase tracking-widest mr-1">OPERADOR:</span>
               <button 
                 onClick={() => setActiveFilter("all")}
                 className={`whitespace-nowrap px-4 py-2 rounded-lg text-[13px] font-bold transition-all border ${activeFilter === 'all' ? 'bg-white text-primary border-white shadow-md' : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10 hover:text-white'}`}
@@ -871,7 +839,7 @@ export default function TablasDiariasClient({
                   </span>
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleToday(); }} 
-                    className={`text-[10px] px-1.5 py-0.5 rounded font-black uppercase ml-1 transition-all z-10 relative ${isToday ? 'bg-white text-primary' : 'bg-white/20 hover:bg-white/30 text-white'}`}
+                    className={`text-[11px] px-1.5 py-0.5 rounded font-black uppercase ml-1 transition-all z-10 relative ${isToday ? 'bg-white text-primary' : 'bg-white/20 hover:bg-white/30 text-white'}`}
                   >
                     HOY
                   </button>
@@ -890,11 +858,32 @@ export default function TablasDiariasClient({
       <section className="px-4 flex flex-col gap-2 flex-1 pb-6 mt-4">
 
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        {/* Celular: tarjetas apiladas */}
+        <div className="md:hidden flex flex-col gap-2">
+          {sortedData.length > 0 ? (
+            sortedData.map((flight) => (
+              <DailyFlightCard
+                key={flight.id}
+                flight={flight}
+                showType={viewType === 'todos'}
+                onEdit={() => openEditDrawer(flight)}
+                onDelete={() => handleDeleteClick(flight)}
+              />
+            ))
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 py-12 text-center text-slate-500 text-sm">
+              <span className="material-symbols-outlined text-4xl text-slate-300 block mb-2">flight_takeoff</span>
+              No se encontraron vuelos para estos filtros.
+            </div>
+          )}
+        </div>
+
+        {/* Tablet y escritorio: tabla completa */}
+        <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
             <table className="w-full text-left text-sm border-collapse min-w-[700px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <tr className="bg-slate-50 border-b border-slate-200 text-[12px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="sticky left-0 z-20 bg-slate-50 px-4 py-3.5 shadow-[2px_0_5px_rgba(0,0,0,0.04)] min-w-[150px]">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">flight</span>
@@ -956,8 +945,8 @@ export default function TablasDiariasClient({
                             </span>
                             <div>
                               <span className="font-bold text-primary block leading-tight text-[14px]">{flight.numero_vuelo}</span>
-                              <span className="text-[11px] text-slate-500 block truncate w-24">
-                                {flight.aerolinea} {viewType === 'todos' && <span className="font-bold text-[9px] uppercase ml-1 opacity-60">({isLlegada ? 'Llegada' : 'Salida'})</span>}
+                              <span className="text-[12px] text-slate-500 block truncate w-24">
+                                {flight.aerolinea} {viewType === 'todos' && <span className="font-bold text-[11px] uppercase ml-1 opacity-60">({isLlegada ? 'Llegada' : 'Salida'})</span>}
                               </span>
                             </div>
                           </div>
@@ -996,7 +985,7 @@ export default function TablasDiariasClient({
                                     <div className={`h-full rounded-full transition-all ${isDelayed ? 'bg-rose-500' : 'bg-emerald-400'}`} style={{ width: `${isDelayed ? pct : 100}%` }}></div>
                                   </div>
                                   <div className="flex justify-end mt-0.5">
-                                    <span className={`text-[10px] font-bold ${isDelayed ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                    <span className={`text-[11px] font-bold ${isDelayed ? 'text-rose-600' : 'text-emerald-600'}`}>
                                       {isDelayed ? `+${diffMins}m retraso` : 'A Tiempo'}
                                     </span>
                                   </div>
@@ -1033,7 +1022,7 @@ export default function TablasDiariasClient({
                                     <div className={`h-full rounded-full transition-all ${isDelayed ? 'bg-rose-500' : 'bg-emerald-400'}`} style={{ width: `${isDelayed ? pct : 100}%` }}></div>
                                   </div>
                                   <div className="flex justify-end mt-0.5">
-                                    <span className={`text-[10px] font-bold ${isDelayed ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                    <span className={`text-[11px] font-bold ${isDelayed ? 'text-rose-600' : 'text-emerald-600'}`}>
                                       {isDelayed ? `+${diffMins}m retraso` : 'A Tiempo'}
                                     </span>
                                   </div>
@@ -1045,7 +1034,7 @@ export default function TablasDiariasClient({
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5 text-[12px] mb-1">
                             <span className="font-bold text-slate-700">{paxCount}/{paxMax}</span>
-                            <span className="text-[10px] text-slate-400 font-semibold">({paxPct}%)</span>
+                            <span className="text-[11px] text-slate-400 font-semibold">({paxPct}%)</span>
                           </div>
                           <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                             <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${paxPct}%` }}></div>
@@ -1093,7 +1082,7 @@ export default function TablasDiariasClient({
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
           <div className="flex flex-col">
             <span className="text-[13px] font-bold text-primary">Histórico AODB</span>
-            <span className="text-[11px] text-slate-500">Última actualización: Hoy</span>
+            <span className="text-[12px] text-slate-500">Última actualización: Hoy</span>
           </div>
         </div>
         <button 
@@ -1135,7 +1124,7 @@ export default function TablasDiariasClient({
               <div className="p-6 overflow-y-auto flex flex-col gap-5">
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Fecha</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Fecha</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="date" required value={editFormData.fecha}
@@ -1143,7 +1132,7 @@ export default function TablasDiariasClient({
                     />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Aerolínea</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Aerolínea</label>
                     <select 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       required value={editFormData.aerolinea}
@@ -1157,7 +1146,7 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Avión</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Avión</label>
                     <select 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       required value={editFormData.avion}
@@ -1173,7 +1162,7 @@ export default function TablasDiariasClient({
                     </select>
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
                     <input list="edit-flight-numbers"
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="text" required value={editFormData.numero_vuelo}
@@ -1186,7 +1175,7 @@ export default function TablasDiariasClient({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.hora_real_llegada ? 'Origen' : 'Destino'}</label>
+                  <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.hora_real_llegada ? 'Origen' : 'Destino'}</label>
                   <select 
                     className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none w-full" 
                     required 
@@ -1204,7 +1193,7 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Itin. Salida</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Hora Itin. Salida</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="time" value={editFormData.hora_itinerario_salida}
@@ -1212,7 +1201,7 @@ export default function TablasDiariasClient({
                     />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real Salida</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Hora Real Salida</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="time" value={editFormData.hora_real_salida}
@@ -1223,7 +1212,7 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Itin. Llegada</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Hora Itin. Llegada</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="time" value={editFormData.hora_itinerario_llegada}
@@ -1231,7 +1220,7 @@ export default function TablasDiariasClient({
                     />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Hora Real Llegada</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Hora Real Llegada</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="time" value={editFormData.hora_real_llegada}
@@ -1242,7 +1231,7 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Pasajeros</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Pasajeros</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="number" min="0" required value={editFormData.pasajeros_abordo}
@@ -1250,7 +1239,7 @@ export default function TablasDiariasClient({
                     />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Capacidad</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Capacidad</label>
                     <input 
                       className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       type="number" min="0" required value={editFormData.capacidad_total}
@@ -1260,7 +1249,7 @@ export default function TablasDiariasClient({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
+                  <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
                   <select 
                     className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                     value={editFormData.estado_final}
@@ -1315,7 +1304,7 @@ export default function TablasDiariasClient({
               <div className="p-6 overflow-y-auto flex flex-col gap-5">
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Tipo de Operación</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Tipo de Operación</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.type} onChange={(e) => setAddFormData({...addFormData, type: e.target.value as any})} required>
                       <option value="llegadas">Llegada</option>
@@ -1323,7 +1312,7 @@ export default function TablasDiariasClient({
                     </select>
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Fecha (YYYY-MM-DD)</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Fecha (YYYY-MM-DD)</label>
                     <input type="date" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.fecha} onChange={(e) => setAddFormData({...addFormData, fecha: e.target.value})} required />
                   </div>
@@ -1331,7 +1320,7 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Aerolínea</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Aerolínea</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.aerolinea} onChange={(e) => setAddFormData({...addFormData, aerolinea: e.target.value})} required>
                       <option value="Air Panama">Air Panama</option>
@@ -1342,7 +1331,7 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Avión</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Avión</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.avion} 
                       onChange={(e) => {
@@ -1356,7 +1345,7 @@ export default function TablasDiariasClient({
                     </select>
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
                     <input list="add-flight-numbers" type="text" placeholder="Ej: 7P-972" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.numero_vuelo} onChange={(e) => setAddFormData({...addFormData, numero_vuelo: e.target.value})} required />
                     <datalist id="add-flight-numbers">
@@ -1367,7 +1356,7 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">{addFormData.type === 'llegadas' ? 'Origen' : 'Destino'}</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">{addFormData.type === 'llegadas' ? 'Origen' : 'Destino'}</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.type === 'llegadas' ? addFormData.origen : addFormData.destino} 
                       onChange={(e) => addFormData.type === 'llegadas' ? setAddFormData({...addFormData, origen: e.target.value}) : setAddFormData({...addFormData, destino: e.target.value})} required>
@@ -1378,7 +1367,7 @@ export default function TablasDiariasClient({
                     </select>
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.estado_final} onChange={(e) => setAddFormData({...addFormData, estado_final: e.target.value})} required>
                       <option value="LLEGÓ">Arribo</option>
@@ -1391,14 +1380,14 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5 hidden">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">
                       Hora Itin. Salida (HH:MM)
                     </label>
                     <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.hora_itinerario_salida} onChange={(e) => setAddFormData({...addFormData, hora_itinerario_salida: e.target.value})} />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5 w-1/2">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">
                       Hora Real Salida (HH:MM)
                     </label>
                     <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
@@ -1408,14 +1397,14 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5 hidden">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">
                       Hora Itin. Llegada (HH:MM)
                     </label>
                     <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.hora_itinerario_llegada} onChange={(e) => setAddFormData({...addFormData, hora_itinerario_llegada: e.target.value})} />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5 w-1/2">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">
                       Hora Real Llegada (HH:MM)
                     </label>
                     <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
@@ -1425,12 +1414,12 @@ export default function TablasDiariasClient({
 
                 <div className="flex items-center gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Pasajeros</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Pasajeros</label>
                     <input type="number" min="0" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.pasajeros_abordo} onChange={(e) => setAddFormData({...addFormData, pasajeros_abordo: parseInt(e.target.value)})} required />
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Capacidad</label>
+                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Capacidad</label>
                     <input type="number" min="0" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                       value={addFormData.capacidad_total} onChange={(e) => setAddFormData({...addFormData, capacidad_total: parseInt(e.target.value)})} required />
                   </div>
