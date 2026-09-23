@@ -95,19 +95,17 @@ export default function DashboardLayoutShell({
     if (isRefreshing || refreshSuccess) return;
     setIsRefreshing(true);
     
-    // Soft reload de Next.js (no congela la página)
-    router.refresh();
-    
-    // Delay simulado para que la animación se vea fluida
-    await new Promise(r => setTimeout(r, 1200));
+    // Animación de carga para que el usuario sienta respuesta inmediata
+    await new Promise(r => setTimeout(r, 600));
     
     setIsRefreshing(false);
     setRefreshSuccess(true);
     
-    // Quitar el estado de éxito después de 2 segundos
+    // Refresco profundo real (hard reload) justo al mostrar el check verde
+    // para garantizar que todos los `useEffect` de la app vuelvan a pedir datos al backend
     setTimeout(() => {
-      setRefreshSuccess(false);
-    }, 2000);
+      window.location.reload();
+    }, 400);
   };
 
   const navLinks = [
