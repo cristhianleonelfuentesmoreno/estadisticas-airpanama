@@ -24,6 +24,8 @@ export default function DashboardLayoutShell({
   isAdmin = false,
 }: DashboardLayoutShellProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshSuccess, setRefreshSuccess] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -87,6 +89,25 @@ export default function DashboardLayoutShell({
     }
     await supabase.auth.signOut();
     router.push("/login");
+  };
+
+  const handleRefresh = async () => {
+    if (isRefreshing || refreshSuccess) return;
+    setIsRefreshing(true);
+    
+    // Soft reload de Next.js (no congela la página)
+    router.refresh();
+    
+    // Delay simulado para que la animación se vea fluida
+    await new Promise(r => setTimeout(r, 1200));
+    
+    setIsRefreshing(false);
+    setRefreshSuccess(true);
+    
+    // Quitar el estado de éxito después de 2 segundos
+    setTimeout(() => {
+      setRefreshSuccess(false);
+    }, 2000);
   };
 
   const navLinks = [
@@ -184,12 +205,22 @@ export default function DashboardLayoutShell({
             )}
             
             <button 
-              onClick={() => window.location.reload()}
+              onClick={handleRefresh}
               aria-label="Recargar página"
               title="Recargar página"
-              className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-white ring-1 ring-white/20 active:scale-95 transition-all shadow-sm mx-1"
+              className={`w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-white/20 shadow-sm mx-1 transition-all duration-300 ${
+                refreshSuccess 
+                  ? "bg-emerald-500 text-white scale-105" 
+                  : "bg-secondary text-white hover:bg-secondary/90 active:scale-95"
+              }`}
             >
-              <span className="material-symbols-outlined text-[18px]">refresh</span>
+              {isRefreshing ? (
+                <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+              ) : refreshSuccess ? (
+                <span className="material-symbols-outlined text-[18px] animate-in zoom-in">check</span>
+              ) : (
+                <span className="material-symbols-outlined text-[18px]">refresh</span>
+              )}
             </button>
             <button 
               onClick={handleLogout}
@@ -247,12 +278,22 @@ export default function DashboardLayoutShell({
             <div className="w-px h-6 bg-outline-variant/30 hidden md:block mx-1"></div>
             
             <button 
-              onClick={() => window.location.reload()}
+              onClick={handleRefresh}
               aria-label="Recargar página"
               title="Recargar página"
-              className="hidden md:flex w-10 h-10 rounded-full bg-secondary items-center justify-center text-white ring-1 ring-white/20 hover:opacity-90 active:scale-95 transition-all shadow-sm mx-1"
+              className={`hidden md:flex w-10 h-10 rounded-full items-center justify-center ring-1 ring-white/20 shadow-sm mx-1 transition-all duration-300 ${
+                refreshSuccess 
+                  ? "bg-emerald-500 text-white scale-105" 
+                  : "bg-secondary text-white hover:bg-secondary/90 active:scale-95"
+              }`}
             >
-              <span className="material-symbols-outlined text-[20px]">refresh</span>
+              {isRefreshing ? (
+                <span className="material-symbols-outlined text-[20px] animate-spin">refresh</span>
+              ) : refreshSuccess ? (
+                <span className="material-symbols-outlined text-[20px] animate-in zoom-in">check</span>
+              ) : (
+                <span className="material-symbols-outlined text-[20px]">refresh</span>
+              )}
             </button>
 
             <button 

@@ -85,7 +85,12 @@ export async function updateUserRole(userId: string, role: "administrador" | "us
   const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
-  const { error } = await supabase
+  const adminAuthClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!
+  );
+
+  const { error } = await adminAuthClient
     .from("perfiles")
     .update({ role })
     .eq("id", userId);
@@ -106,7 +111,12 @@ export async function updateUserCargo(userId: string, cargo: string | null) {
   const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
-  const { error } = await supabase
+  const adminAuthClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!
+  );
+
+  const { error } = await adminAuthClient
     .from("perfiles")
     .update({ cargo: cargo || null })
     .eq("id", userId);
@@ -127,7 +137,12 @@ export async function updateUserName(userId: string, nombre: string | null) {
   const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
-  const { error } = await supabase
+  const adminAuthClient = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!
+  );
+
+  const { error } = await adminAuthClient
     .from("perfiles")
     .update({ nombre: nombre || null })
     .eq("id", userId);

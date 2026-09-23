@@ -109,13 +109,13 @@ export default function DashboardPage() {
 <div className="bg-primary-container text-on-primary rounded-xl p-space-md shadow-md relative overflow-hidden">
 <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-secondary-container/15 rounded-full blur-2xl pointer-events-none"></div>
 <div className="flex items-center justify-between gap-space-sm relative z-10">
-<div className="flex flex-col">
+<div className="flex flex-col min-w-0 flex-1 pr-4">
 <div className="flex items-center gap-space-xs">
 <span className="inline-flex w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
 <span className="font-label-sm text-label-sm text-on-primary-container tracking-wider uppercase">Turno Activo</span>
 </div>
-<h1 className="font-headline-md text-headline-md font-extrabold tracking-tight mt-0.5 capitalize">{userName}</h1>
-<p className="font-body-sm text-body-sm text-on-primary-container capitalize">{userCargo}</p>
+<h1 className="font-headline-md text-headline-md font-extrabold tracking-tight mt-0.5 capitalize truncate" title={userName}>{userName}</h1>
+<p className="font-body-sm text-body-sm text-on-primary-container capitalize truncate" title={userCargo}>{userCargo}</p>
 </div>
 <div className="w-12 h-12 rounded-xl bg-surface-container-highest/20 flex items-center justify-center text-secondary-fixed ring-1 ring-white/20 overflow-hidden shadow-sm">
 {avatarUrl ? (
