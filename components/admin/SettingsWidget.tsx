@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { updateAppSettings, getAppSettings } from "@/app/actions/admin";
 
@@ -44,12 +44,6 @@ export function SettingsWidget() {
     }
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      loadSettings();
-    }
-  }, [isOpen]);
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -79,7 +73,7 @@ export function SettingsWidget() {
       const res = await updateAppSettings(formData);
       if (res.error) throw new Error(res.error);
       
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-emerald-500 p-4 rounded-xl shadow-lg flex items-start gap-4">
           <div className="bg-emerald-100 text-emerald-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
             <span className="material-symbols-outlined text-xl">check_circle</span>
@@ -93,8 +87,8 @@ export function SettingsWidget() {
         </div>
       ));
       setIsOpen(false);
-    } catch (error: any) {
-      toast.error(`Error: ${error.message}`);
+    } catch (error) {
+      toast.error(`Error: ${(error as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -108,7 +102,7 @@ export function SettingsWidget() {
   return (
     <>
       <button 
-        onClick={() => setIsOpen(true)}
+        onClick={() => { setIsOpen(true); loadSettings(); }}
         className="w-full bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-outline-variant/30 flex items-center gap-6 hover:bg-surface-container-lowest/80 transition-colors group cursor-pointer text-left"
       >
         <div className="w-14 h-14 rounded-2xl bg-secondary-container text-on-secondary-container flex items-center justify-center transition-transform group-hover:scale-105">

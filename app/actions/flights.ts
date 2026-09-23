@@ -49,7 +49,7 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
   const manualFlights = await getManualFlightsForDate(targetDate);
   
   // El itinerario real transcrito directamente de la imagen + Simulados de Copa (como fallback si la BD está vacía o no existe)
-  let itinerary = manualFlights.map(f => ({
+  const itinerary = manualFlights.map(f => ({
     num: f.flightNumber,
     date: f.flightDate,
     dep: f.departureTimeLocal,
@@ -75,8 +75,8 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
 
   const flights: FlightData[] = itinerary.map((flight) => {
     const fallbackDate = new Date(`${flight.date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' })}T00:00:00-05:00`);
-    let depDate = parseTime(flight.dep, flight.date) ?? fallbackDate;
-    let arrDate = parseTime(flight.arr, flight.date) ?? new Date(depDate.getTime() + 3600000); // +1h si no hay arrival
+    const depDate = parseTime(flight.dep, flight.date) ?? fallbackDate;
+    const arrDate = parseTime(flight.arr, flight.date) ?? new Date(depDate.getTime() + 3600000); // +1h si no hay arrival
     
     if (arrDate < depDate) {
       arrDate.setDate(arrDate.getDate() + 1);
@@ -269,7 +269,7 @@ export async function getLlegadasMalek(dateStr?: string) {
   return enhancedData;
 }
 
-type HistoricoUpdates = {
+export type HistoricoUpdates = {
   fecha?: string;
   aerolinea?: string;
   numero_vuelo?: string;
@@ -460,7 +460,26 @@ export async function deleteSalidaMalek(id: string) {
   return { success: true };
 }
 
-export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salidas') {
+// Registro de llegada/salida tal como lo arma el formulario o la importación de Excel
+export interface FlightRecordInput {
+  fecha: string;
+  aerolinea: string;
+  numero_vuelo: string;
+  origen?: string;
+  destino?: string;
+  hora_itinerario: string;
+  hora_itinerario_llegada?: string;
+  hora_real_llegada?: string;
+  hora_itinerario_salida?: string;
+  hora_real_salida?: string;
+  estado_final: string;
+  pasajeros_abordo: number;
+  capacidad_total: number;
+  avion?: string;
+  matricula?: string;
+}
+
+export async function insertFlightRecords(data: FlightRecordInput[], type: 'llegadas' | 'salidas') {
   await requireApprovedUser();
   if (!Array.isArray(data) || (type !== 'llegadas' && type !== 'salidas')) {
     return { success: false, error: 'Datos inválidos' };
@@ -493,13 +512,13 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
     // Mapeo hacia el esquema en INGLÉS de manual_flights_log
     // flightNumber en la BD guarda solo el número sin prefijo (670, 682, CM013, etc.)
     // Limpiar prefijos 7P-, CM-, y sufijos como ' A', ' B'
-    let flightNum = d.numero_vuelo
+    const flightNum = d.numero_vuelo
       .replace(/^7P-?/i, '')
       .replace(/^CM-?/i, 'CM')
       .replace(/\s+[A-Z]$/, '') // quitar sufijos tipo ' A'
       .trim();
     const regRaw = (d.matricula || '').toString().trim().replace(/[^A-Z0-9-]/gi, '');
-    const mappedRecord: any = {
+    const mappedRecord: Record<string, string | number | boolean | null> = {
        flightDate: d.fecha,
        airline: d.aerolinea,
        flightNumber: flightNum.substring(0, 10),

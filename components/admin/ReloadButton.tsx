@@ -1,10 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export function ReloadButton() {
-  const router = useRouter();
   const [isReloading, setIsReloading] = useState(false);
 
   const handleReload = () => {

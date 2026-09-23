@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Estadísticas Aeropuerto Enrique Malek (DAV)
 
-## Getting Started
+Aplicación web para registrar y analizar el movimiento de vuelos y pasajeros del
+Aeropuerto Enrique Malek (David, Panamá): Air Panama, Copa Airlines y vuelos privados.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router, Server Actions) · React 19 · Supabase (Auth, Postgres, Storage) · Tailwind CSS 4 · Recharts · Tesseract.js · Vercel
+
+## Puesta en marcha
 
 ```bash
+npm install
+cp .env.template .env.local   # y completa los valores
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Variables de entorno:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Uso |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (cliente y servidor con RLS) |
+| `SUPABASE_SECRET_KEY` | Service role, **solo servidor** (`lib/supabase/admin.ts`) |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Acceso
 
-## Learn More
+- Login con Supabase Auth (Google o correo/contraseña).
+- Cada usuario tiene un perfil en `perfiles` con `status` (`pendiente` · `aprobado` · `rechazado`)
+  y `role` (`usuario` · `administrador`). Solo los aprobados entran a `/dashboard`.
+- `proxy.ts` refresca la sesión en cada petición.
+- **Toda Server Action debe llamar a `requireApprovedUser()` o `requireAdmin()`** (`lib/auth.ts`)
+  antes de tocar datos. El cliente admin (service role) se salta RLS: úsalo solo después de esa verificación.
 
-To learn more about Next.js, take a look at the following resources:
+## Flujo de datos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Itinerario** – se carga desde imagen (OCR local con Tesseract, `app/actions/imageParser.ts`),
+   CSV/Excel (`ManualFlightUploadModal`) o a mano. Se guarda en `manual_flights_log`.
+2. **Tablero en vivo** – `getUpcomingFlights()` (`app/actions/flights.ts`) calcula el estado y el progreso
+   de cada vuelo en hora de Panamá (`America/Panama`).
+3. **Histórico** – los vuelos completados pasan a `llegadas_malek_historico` y `salidas_malek_historico`,
+   que alimentan las tablas diarias y los reportes mensuales.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Rutas
 
-## Deploy on Vercel
+| Ruta | Contenido |
+| --- | --- |
+| `/login`, `/forgot-password`, `/update-password` | Autenticación |
+| `/dashboard` | Vuelos del día y decisiones por clima (TAF de aviationweather.gov) |
+| `/dashboard/diario` | Tablas diarias de llegadas/salidas (editables) |
+| `/dashboard/mensual` | Consolidado mensual con gráficos |
+| `/dashboard/admin` | Usuarios, sesiones/dispositivos, auditoría, APIs y ajustes (solo administradores) |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Estructura
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/
+  (auth)/          páginas de login y contraseña
+  actions/         Server Actions (vuelos, admin, sesiones, clima, OCR…)
+  api/auth/        callback de OAuth
+  dashboard/       páginas del panel
+components/        UI por área (admin, dashboard, layout, auth)
+lib/               auth, clientes Supabase, auditoría
+supabase/migrations/  migraciones SQL (RLS)
+proxy.ts           refresco de sesión (middleware de Next 16)
+```
+
+## Notas
+
+- El OCR de Copa usa un itinerario fijo por mes cuando existe (`COPA_HARDCODED` en `imageParser.ts`);
+  para los demás meses lee la imagen.
+- `npm run lint` ejecuta ESLint.

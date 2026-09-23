@@ -48,7 +48,7 @@ export default function DashboardLayoutShell({
           }
           navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-            (err) => {
+            () => {
               alert("Permiso de ubicación denegado. Es obligatorio para acceder al sistema.");
               supabase.auth.signOut().then(() => router.push("/login"));
               resolve(null);

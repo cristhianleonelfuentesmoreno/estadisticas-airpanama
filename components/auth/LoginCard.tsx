@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import "./LoginCard.css";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { logFailedLogin } from "@/app/actions/sessions";
 
@@ -22,7 +21,7 @@ interface LoginCardProps {
   };
 }
 
-const CardBackground = ({ activeView, bgStyle }: { activeView: string, bgStyle: any }) => (
+const CardBackground = ({ activeView, bgStyle }: { activeView: string, bgStyle: React.CSSProperties }) => (
   <div className={`card-bg ${activeView === "login" ? "login" : ""}`} style={bgStyle} />
 );
 
@@ -53,7 +52,16 @@ const GoogleButton = ({ text, onClick, loading }: { text: string, onClick: () =>
   );
 };
 
-const HeroPanel = ({ type, activeView, title, text, buttonText, onToggle }: any) => (
+type HeroPanelProps = {
+  type: "login" | "register";
+  activeView: string;
+  title: string;
+  text?: string;
+  buttonText: string;
+  onToggle: () => void;
+};
+
+const HeroPanel = ({ type, activeView, title, text, buttonText, onToggle }: HeroPanelProps) => (
   <div className={`hero ${type} ${activeView === type ? "active" : ""}`}>
     <h2 style={{ fontSize: '2rem', margin: '0 0 10px 0' }}>{title}</h2>
     {text && <p>{text}</p>}
@@ -75,7 +83,6 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
   const [showLogPassword, setShowLogPassword] = useState(false);
   const [logEmail, setLogEmail] = useState("");
   const [logPassword, setLogPassword] = useState("");
-  const router = useRouter();
 
   const supabase = createClient();
 
@@ -106,7 +113,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     const params = new URLSearchParams(window.location.search);
     
     if (params.get("error") === "true") {
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
           <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
             <span className="material-symbols-outlined text-xl">error</span>
@@ -121,7 +128,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     }
     
     if (params.get("status") === "pending") {
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-amber-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
           <div className="bg-amber-100 text-amber-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
             <span className="material-symbols-outlined text-xl">pending_actions</span>
@@ -136,7 +143,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     }
     
     if (params.get("error") === "not_registered") {
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
           <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
             <span className="material-symbols-outlined text-xl">error</span>
@@ -151,7 +158,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     }
     
     if (params.get("status") === "registered_google") {
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-emerald-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
           <div className="bg-emerald-100 text-emerald-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
             <span className="material-symbols-outlined text-xl">check_circle</span>
@@ -166,7 +173,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     }
     
     if (params.get("error") === "rejected") {
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
           <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
             <span className="material-symbols-outlined text-xl">block</span>
@@ -196,7 +203,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         alert("Error con Google: " + error.message);
         setLoading(false);
       }
-    } catch (err) {
+    } catch {
       setLoading(false);
     }
   };
@@ -207,7 +214,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     if (regPassword !== regConfirmPassword) return toast.error("Las contraseñas no coinciden.");
     
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: regEmail,
       password: regPassword,
       options: { data: { full_name: regName } }
@@ -242,7 +249,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
       // Registrar auditoría de fallo
       logFailedLogin(logEmail).catch(console.error);
 
-      return toast.custom((t) => (
+      return toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
           <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
             <span className="material-symbols-outlined text-xl">error</span>
@@ -268,7 +275,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         setLoading(false);
         
         if (!perfil || perfil.status === 'pendiente') {
-          return toast.custom((t) => (
+          return toast.custom(() => (
             <div className="bg-surface-container-lowest border-l-4 border-amber-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
               <div className="bg-amber-100 text-amber-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
                 <span className="material-symbols-outlined text-xl">pending_actions</span>
@@ -280,7 +287,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
             </div>
           ), { duration: 6000 });
         } else if (perfil.status === 'rechazado') {
-          return toast.custom((t) => (
+          return toast.custom(() => (
             <div className="bg-surface-container-lowest border-l-4 border-red-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
               <div className="bg-red-100 text-red-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
                 <span className="material-symbols-outlined text-xl">block</span>
@@ -293,7 +300,9 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
           ), { duration: 6000 });
         }
       } else {
-        // Credenciales correctas y estatus 'aprobado'
+        // Credenciales correctas y estatus 'aprobado'.
+        // Recarga completa a propósito: el layout del servidor debe leer las cookies de sesión nuevas.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.href = "/dashboard?login=success";
       }
     }

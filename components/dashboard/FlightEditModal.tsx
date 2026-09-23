@@ -65,8 +65,8 @@ export function FlightEditModal({
       toast.success("Vuelo actualizado con éxito");
       onSuccess();
       onClose();
-    } catch (err: any) {
-      toast.error(err.message || "Error al actualizar");
+    } catch (err) {
+      toast.error((err as Error).message || "Error al actualizar");
     } finally {
       setLoading(false);
     }
@@ -81,8 +81,8 @@ export function FlightEditModal({
         toast.success("Vuelo eliminado correctamente");
         onSuccess();
         onClose();
-      } catch (err: any) {
-        toast.error("Error al eliminar el vuelo: " + err.message);
+      } catch (err) {
+        toast.error("Error al eliminar el vuelo: " + (err as Error).message);
         setLoading(false);
       }
     }

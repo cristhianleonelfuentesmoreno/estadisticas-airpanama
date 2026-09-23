@@ -17,15 +17,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // Reloj en vivo
+    // Siempre en hora de Panamá, sin importar la zona horaria del dispositivo
     const updateTime = () => {
-      const now = new Date();
-      let hours = now.getHours();
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      const minutes = now.getMinutes().toString().padStart(2, '0');
-      const seconds = now.getSeconds().toString().padStart(2, '0');
-      setCurrentTime(`${hours}:${minutes}:${seconds} ${ampm} Local`);
+      const time = new Date().toLocaleTimeString('en-US', {
+        timeZone: 'America/Panama',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      });
+      setCurrentTime(`${time} Local`);
     };
     
     updateTime();
@@ -34,7 +35,7 @@ export default function DashboardPage() {
     const fetchUser = async () => {
       try {
         const { getCurrentUserProfile } = await import("@/app/actions/user");
-        const profile = await getCurrentUserProfile(Date.now());
+        const profile = await getCurrentUserProfile();
         if (profile) {
           setUserName(profile.nombre);
           setUserCargo(profile.cargo);

@@ -58,18 +58,6 @@ const COPA_DAV_SCHEDULE: Record<string, { origin: string; destination: string; e
 // --------------------------------------------------------------------------
 // Helpers
 // --------------------------------------------------------------------------
-function parseAmPm(timeStr: string): string {
-  if (!timeStr) return '';
-  const m = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-  if (!m) return '';
-  let h = parseInt(m[1], 10);
-  const min = m[2];
-  const ampm = (m[3] || '').toUpperCase();
-  if (ampm === 'PM' && h < 12) h += 12;
-  if (ampm === 'AM' && h === 12) h = 0;
-  return `${String(h).padStart(2, '0')}:${min}`;
-}
-
 // --------------------------------------------------------------------------
 // PARSER DE AIR PANAMA (DIARIO) — OCR local con Tesseract
 // --------------------------------------------------------------------------
@@ -134,7 +122,7 @@ async function parseAirPanamaDaily(base64Data: string, targetDateStr: string): P
         d.setHours(h, mn, 0, 0);
         d.setMinutes(d.getMinutes() + (ROUTE_TIMES_MAP[`${ori}-${des}`] || 60));
         arrivalTimeLocal = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      } catch (_) { /* silencioso */ }
+      } catch { /* silencioso */ }
 
       flights.push({
         flightNumber:       flightNum,
@@ -333,8 +321,8 @@ export async function parseItineraryImage(
 
     console.log('OCR local — Air Panama diario...');
     return await parseAirPanamaDaily(base64Data, targetDateStr);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error en parseItineraryImage:', error);
-    throw new Error(error.message || 'Error al procesar la imagen con el motor OCR local.');
+    throw new Error((error as Error).message || 'Error al procesar la imagen con el motor OCR local.');
   }
 }

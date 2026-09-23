@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 import { ManualFlightUploadModal } from "./ManualFlightUploadModal";
-import { addMultipleManualFlights, updateFlightStatusOverride } from "@/app/actions/manualFlights";
+import { updateFlightStatusOverride } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
 import { toast } from "sonner";
 
@@ -201,7 +201,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
           )}
           {visibleFlights.length === 0 && (
             <div className="p-space-xl text-center text-on-surface-variant font-body-md text-body-md bg-surface-container-lowest rounded-xl border border-white/5">
-              No hay vuelos programados para esta ruta hoy.
+              {loading && flights.length === 0 ? 'Cargando vuelos...' : 'No hay vuelos programados para esta ruta hoy.'}
             </div>
           )}
         </div>
@@ -317,8 +317,8 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
       await updateFlightStatusOverride(flight.manualLogId, payload);
       toast.success(`Vuelo ${actionType} correctamente`);
       if (onRefresh) onRefresh();
-    } catch (err: any) {
-      toast.error(err.message || "Error al actualizar");
+    } catch (err) {
+      toast.error((err as Error).message || "Error al actualizar");
     } finally {
       setLoadingAction(false);
     }

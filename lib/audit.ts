@@ -45,7 +45,7 @@ export async function logAudit({ tipo_evento, usuario_id, nombre_referencia, des
     let ubicacion = 'Ubicación Desconocida';
     // Decodificar los headers de Vercel que vienen url-encoded
     if (city && country) {
-      try { ubicacion = `${decodeURIComponent(city)} (${decodeURIComponent(region || country)})`; } catch (e) {}
+      try { ubicacion = `${decodeURIComponent(city)} (${decodeURIComponent(region || country)})`; } catch {}
     }
 
     // Insertar en Supabase

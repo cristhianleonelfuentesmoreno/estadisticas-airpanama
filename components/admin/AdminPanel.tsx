@@ -63,7 +63,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       } : u));
 
       // Mensaje estético
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="bg-surface-container-lowest border-l-4 border-emerald-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5">
           <div className="bg-emerald-100 text-emerald-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
             <span className="material-symbols-outlined text-xl">check_circle</span>
@@ -78,7 +78,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       ), { duration: 4000 });
 
       setEditingUser(null);
-    } catch (error) {
+    } catch {
       toast.error("Ocurrió un error al guardar los cambios.");
     } finally {
       setIsSaving(false);
@@ -97,8 +97,8 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       setUsers(users.filter(u => u.id !== editingUser.id));
       toast.success("Usuario eliminado exitosamente.");
       setEditingUser(null);
-    } catch (error: any) {
-      toast.error(`Error al eliminar usuario: ${error.message}`);
+    } catch (error) {
+      toast.error(`Error al eliminar usuario: ${(error as Error).message}`);
     } finally {
       setIsDeleting(false);
     }
@@ -353,7 +353,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
                 <label className="font-label-md font-bold text-on-surface">Rol del Sistema</label>
                 <select 
                   value={tempRole}
-                  onChange={(e) => setTempRole(e.target.value as any)}
+                  onChange={(e) => setTempRole(e.target.value as User['role'])}
                   className="h-12 px-4 rounded-xl bg-surface-container text-on-surface font-label-md focus:outline-none focus:ring-2 ring-primary/20"
                 >
                   <option value="usuario">Usuario Estándar</option>

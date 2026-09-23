@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getHistorialSesionesUser } from "@/app/actions/sessions";
+import { getHistorialSesionesUser, type Sesion } from "@/app/actions/sessions";
 
 interface Props {
   userId: string;
@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function HistorialSesionesModal({ userId, onClose }: Props) {
-  const [historial, setHistorial] = useState<any[]>([]);
+  const [historial, setHistorial] = useState<Sesion[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

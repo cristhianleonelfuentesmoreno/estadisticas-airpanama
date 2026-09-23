@@ -4,6 +4,16 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { logAudit } from "@/lib/audit";
+import { requireAdmin, type SessionUser } from "@/lib/auth";
+
+// Estas acciones devuelven { error } en vez de lanzar, porque la UI lo muestra en un toast
+async function getAdminOrNull(): Promise<SessionUser | null> {
+  try {
+    return await requireAdmin();
+  } catch {
+    return null;
+  }
+}
 
 async function logAdminAction(adminId: string, targetId: string, actionDesc: string, eventType: 'edicion' | 'eliminacion' = 'edicion', extra = {}) {
   const supabase = await createClient();
@@ -21,18 +31,9 @@ async function logAdminAction(adminId: string, targetId: string, actionDesc: str
 }
 
 export async function fetchAllUsers() {
+  const admin = await getAdminOrNull();
+  if (!admin) return { error: "No autorizado" };
   const supabase = await createClient();
-  
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return { error: "No autorizado" };
-
-  const { data: perfil } = await supabase
-    .from("perfiles")
-    .select("role")
-    .eq("id", authData.user.id)
-    .single();
-
-  if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
   const { data, error } = await supabase
     .from("perfiles")
@@ -44,13 +45,9 @@ export async function fetchAllUsers() {
 }
 
 export async function updateUserStatus(userId: string, status: "aprobado" | "pendiente" | "rechazado") {
+  const admin = await getAdminOrNull();
+  if (!admin) return { error: "No autorizado" };
   const supabase = await createClient();
-  
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return { error: "No autorizado" };
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
-  
-  if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
   const { error } = await supabase
     .from("perfiles")
@@ -68,19 +65,15 @@ export async function updateUserStatus(userId: string, status: "aprobado" | "pen
     }
   }
   
-  await logAdminAction(authData.user.id, userId, `cambió el estado a "${status}"`);
+  await logAdminAction(admin.id, userId, `cambió el estado a "${status}"`);
   
   revalidatePath("/dashboard");
   return { success: true };
 }
 
 export async function updateUserRole(userId: string, role: "administrador" | "usuario") {
-  const supabase = await createClient();
-  
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return { error: "No autorizado" };
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
-  if (perfil?.role !== "administrador") return { error: "No autorizado" };
+  const admin = await getAdminOrNull();
+  if (!admin) return { error: "No autorizado" };
 
   const adminAuthClient = createAdminClient();
 
@@ -91,19 +84,15 @@ export async function updateUserRole(userId: string, role: "administrador" | "us
 
   if (error) return { error: error.message };
   
-  await logAdminAction(authData.user.id, userId, `modificó el rol a "${role}"`);
+  await logAdminAction(admin.id, userId, `modificó el rol a "${role}"`);
   
   revalidatePath("/dashboard");
   return { success: true };
 }
 
 export async function updateUserCargo(userId: string, cargo: string | null) {
-  const supabase = await createClient();
-  
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return { error: "No autorizado" };
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
-  if (perfil?.role !== "administrador") return { error: "No autorizado" };
+  const admin = await getAdminOrNull();
+  if (!admin) return { error: "No autorizado" };
 
   const adminAuthClient = createAdminClient();
 
@@ -114,19 +103,15 @@ export async function updateUserCargo(userId: string, cargo: string | null) {
 
   if (error) return { error: error.message };
   
-  await logAdminAction(authData.user.id, userId, `actualizó el cargo a "${cargo || 'Vacío'}"`);
+  await logAdminAction(admin.id, userId, `actualizó el cargo a "${cargo || 'Vacío'}"`);
   
   revalidatePath("/dashboard");
   return { success: true };
 }
 
 export async function updateUserName(userId: string, nombre: string | null) {
-  const supabase = await createClient();
-  
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return { error: "No autorizado" };
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
-  if (perfil?.role !== "administrador") return { error: "No autorizado" };
+  const admin = await getAdminOrNull();
+  if (!admin) return { error: "No autorizado" };
 
   const adminAuthClient = createAdminClient();
 
@@ -137,7 +122,7 @@ export async function updateUserName(userId: string, nombre: string | null) {
 
   if (error) return { error: error.message };
   
-  await logAdminAction(authData.user.id, userId, `modificó el nombre a "${nombre || 'Vacío'}"`);
+  await logAdminAction(admin.id, userId, `modificó el nombre a "${nombre || 'Vacío'}"`);
   
   revalidatePath("/dashboard");
   return { success: true };
@@ -145,12 +130,8 @@ export async function updateUserName(userId: string, nombre: string | null) {
 
 
 export async function deleteUserAction(userId: string) {
-  const supabase = await createClient();
-  
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return { error: "No autorizado" };
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
-  if (perfil?.role !== "administrador") return { error: "No autorizado" };
+  const admin = await getAdminOrNull();
+  if (!admin) return { error: "No autorizado" };
 
   const supabaseAdmin = createAdminClient();
 
@@ -162,12 +143,13 @@ export async function deleteUserAction(userId: string) {
 
   if (error) return { error: error.message };
   
-  await logAdminAction(authData.user.id, userId, `eliminó permanentemente la cuenta del sistema`, 'eliminacion');
+  await logAdminAction(admin.id, userId, `eliminó permanentemente la cuenta del sistema`, 'eliminacion');
   
   revalidatePath("/dashboard");
   return { success: true };
 }
 
+// Pública a propósito: la pantalla de login necesita el fondo y los textos antes de tener sesión
 export async function getAppSettings() {
   const supabase = await createClient();
   const { data, error } = await supabase.storage.from('assets').download('settings.json');
@@ -183,11 +165,8 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
 };
 
 export async function updateAppSettings(formData: FormData) {
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return { error: "No autorizado" };
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
-  if (perfil?.role !== "administrador") return { error: "No autorizado" };
+  const admin = await getAdminOrNull();
+  if (!admin) return { error: "No autorizado" };
 
   let bgUrl = formData.get("bgUrl") as string;
   const imageFile = formData.get("imageFile") as File | null;

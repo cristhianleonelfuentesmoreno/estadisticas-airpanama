@@ -90,7 +90,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
     const extension = file.name.split('.').pop()?.toLowerCase();
     
     if (extension === 'csv') {
-      Papa.parse(file, {
+      Papa.parse<Record<string, unknown>>(file, {
         header: true,
         complete: (results) => {
           processParsedData(results.data);
@@ -103,7 +103,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
+        const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
         processParsedData(data);
       };
       reader.readAsBinaryString(file);
@@ -138,17 +138,18 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
         try {
           const flights = await parseItineraryImage(base64Image, targetDate, selectedAirline);
           if (flights && flights.length > 0) {
-            setFileData(flights as any);
+            // El OCR no trae nombres de origen/destino; el resto de campos se completa al editar
+            setFileData(flights as ManualFlightInput[]);
             toast.success(`Se encontraron ${flights.length} vuelos en la imagen.`, { id: toastId });
           } else {
             toast.error("No se encontraron vuelos válidos en la imagen.", { id: toastId });
           }
-        } catch (error: any) {
-          const isTimeout = (error.message || "").includes(">35s") || (error.message || "").includes("sobrecargada");
+        } catch (error) {
+          const isTimeout = ((error as Error).message || "").includes(">35s") || ((error as Error).message || "").includes("sobrecargada");
           toast.error(
             isTimeout
-              ? "La IA tardó demasiado. Gemini está sobrecargado — espera 1-2 minutos e intenta de nuevo."
-              : error.message,
+              ? "El análisis de la imagen tardó demasiado. Espera un momento e intenta de nuevo."
+              : (error as Error).message,
             { id: toastId, duration: 8000 }
           );
         } finally {
@@ -157,7 +158,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
         }
       };
       reader.readAsDataURL(file);
-    } catch (e) {
+    } catch {
       toast.error("Error leyendo la imagen", { id: toastId });
       stopTimer();
       setLoading(false);
@@ -176,10 +177,10 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
     if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
-  const processParsedData = (data: any[]) => {
+  const processParsedData = (data: Record<string, unknown>[]) => {
     const flights: ManualFlightInput[] = data
-      .filter((row: any) => row.num || row.flightNumber)
-      .map((row: any) => ({
+      .filter((row) => row.num || row.flightNumber)
+      .map((row) => ({
         flightNumber: String(row.num || row.flightNumber),
         aircraft: String(row.type || row.aircraft || 'Desconocido'),
         aircraftReg: String(row.reg || row.aircraftReg || ''),
@@ -212,8 +213,8 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
       toast.success("Vuelos subidos correctamente");
       onSuccess();
       onClose();
-    } catch (error: any) {
-      toast.error("Error al subir: " + error.message);
+    } catch (error) {
+      toast.error("Error al subir: " + (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -256,8 +257,8 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
       toast.success("Vuelo agregado correctamente");
       resetManualForm();
       onSuccess();
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e) {
+      toast.error((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -516,7 +517,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                     <span className="material-symbols-outlined text-primary">calendar_month</span>
                     <div className="flex flex-col flex-1">
                       <label className="text-xs font-bold text-on-surface-variant uppercase">Fecha de Carga Masiva</label>
-                      <span className="text-xs text-on-surface-variant/70">Aplica a todos los vuelos si el archivo no tiene columna 'date'</span>
+                      <span className="text-xs text-on-surface-variant/70">Aplica a todos los vuelos si el archivo no tiene columna &apos;date&apos;</span>
                     </div>
                     <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} className="h-10 px-3 bg-surface-container-high rounded-lg border border-outline-variant/30 text-sm focus:ring-1 focus:ring-primary" />
                   </div>

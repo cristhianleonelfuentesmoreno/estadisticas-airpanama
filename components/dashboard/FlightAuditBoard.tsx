@@ -6,7 +6,16 @@ import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 import { archiveFlight, updateFlightDetails, deleteManualFlight } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
 
-export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string; onClose: () => void }) {
+// Vuelos de DAV que ya llegaron o se cancelaron y aún no se archivan
+export async function fetchPendingAudit(date: string): Promise<FlightData[]> {
+  const data = await getUpcomingFlights(date);
+  return data.filter(f =>
+    (f.origin === 'DAV' || f.destination === 'DAV') &&
+    (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived
+  );
+}
+
+export function FlightAuditBoard({ onClose }: { onClose: () => void }) {
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingFlight, setEditingFlight] = useState<FlightData | null>(null);
@@ -24,13 +33,7 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
   const loadData = async () => {
     setLoading(true);
     try {
-      const data = await getUpcomingFlights(boardDate);
-      // Filtramos solo los vuelos que llegaron o fueron cancelados, y que NO están archivados
-      const pendingAudit = data.filter(f => 
-        (f.origin === 'DAV' || f.destination === 'DAV') &&
-        (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived
-      );
-      setFlights(pendingAudit);
+      setFlights(await fetchPendingAudit(boardDate));
     } catch (err) {
       console.error(err);
     } finally {
@@ -39,8 +42,19 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
   };
 
   useEffect(() => {
-    loadData();
+    let cancelled = false;
+    fetchPendingAudit(boardDate)
+      .then(list => { if (!cancelled) setFlights(list); })
+      .catch(err => console.error(err))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [boardDate]);
+
+  const changeBoardDate = (date: string) => {
+    if (date === boardDate) return;
+    setLoading(true);
+    setBoardDate(date);
+  };
 
   const handleArchive = async (id: string, manualLogId?: string) => {
     if (!manualLogId) {
@@ -51,8 +65,8 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
       await archiveFlight(manualLogId);
       toast.success("Vuelo archivado correctamente en el histórico");
       loadData();
-    } catch (err: any) {
-      toast.error("Error al archivar: " + err.message);
+    } catch (err) {
+      toast.error("Error al archivar: " + (err as Error).message);
     }
   };
 
@@ -61,8 +75,8 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
       await updateFlightDetails(manualLogId, { paxCount });
       toast.success("Pasajeros actualizados");
       loadData();
-    } catch (err: any) {
-      toast.error("Error al actualizar pax: " + err.message);
+    } catch (err) {
+      toast.error("Error al actualizar pax: " + (err as Error).message);
     }
   };
 
@@ -81,8 +95,8 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
       await Promise.all(promises);
       toast.success(`${filteredFlights.length} vuelos archivados correctamente`);
       loadData();
-    } catch (err: any) {
-      toast.error("Error al archivar múltiples vuelos: " + err.message);
+    } catch (err) {
+      toast.error("Error al archivar múltiples vuelos: " + (err as Error).message);
     } finally {
       setIsApprovingAll(false);
     }
@@ -99,8 +113,8 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
       await deleteManualFlight(confirmDeleteId);
       toast.success("Vuelo eliminado correctamente");
       loadData();
-    } catch (err: any) {
-      toast.error("Error al eliminar el vuelo: " + err.message);
+    } catch (err) {
+      toast.error("Error al eliminar el vuelo: " + (err as Error).message);
     } finally {
       setConfirmDeleteId(null);
     }
@@ -121,8 +135,8 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
       await Promise.all(promises);
       toast.success(`${filteredFlights.length} vuelos descartados correctamente`);
       loadData();
-    } catch (err: any) {
-      toast.error("Error al descartar múltiples vuelos: " + err.message);
+    } catch (err) {
+      toast.error("Error al descartar múltiples vuelos: " + (err as Error).message);
     } finally {
       setIsDeletingAll(false);
     }
@@ -187,7 +201,7 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
             )}
             <div className="h-6 w-px bg-outline-variant/30 hidden sm:block"></div>
             <button 
-              onClick={() => setBoardDate('TODOS')}
+              onClick={() => changeBoardDate('TODOS')}
               className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors shadow-sm ${boardDate === 'TODOS' ? 'bg-primary text-on-primary border border-primary' : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/50 hover:bg-surface-container'}`}
             >
               TODOS
@@ -196,7 +210,7 @@ export function FlightAuditBoard({ initialDate, onClose }: { initialDate: string
               <input 
                 type="date"
                 value={boardDate === 'TODOS' ? '' : boardDate}
-                onChange={(e) => setBoardDate(e.target.value)}
+                onChange={(e) => changeBoardDate(e.target.value)}
                 className="bg-transparent border-none outline-none font-label-sm text-on-surface font-medium focus:ring-0 cursor-pointer p-0 w-[115px]"
               />
             </div>

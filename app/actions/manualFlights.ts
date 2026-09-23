@@ -48,7 +48,7 @@ export async function getManualFlightsForDate(dateStr?: string): Promise<ManualF
   try {
     const supabase = getAdminSupabase();
     
-    let targetDate = dateStr;
+    const targetDate = dateStr;
     let query = supabase.from('manual_flights_log').select('*');
     
     if (targetDate !== 'TODOS') {
@@ -70,7 +70,7 @@ export async function getManualFlightsForDate(dateStr?: string): Promise<ManualF
     }
     
     return data as ManualFlightInput[];
-  } catch (error) {
+  } catch {
     return [];
   }
 }

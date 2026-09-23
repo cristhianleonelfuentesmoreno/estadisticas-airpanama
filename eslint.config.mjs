@@ -12,7 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "_local/**",
   ]),
+  {
+    rules: {
+      // Permite quitar campos con ({ id, ...rest }) sin marcar `id` como no usado
+      "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }],
+    },
+  },
 ]);
 
 export default eslintConfig;

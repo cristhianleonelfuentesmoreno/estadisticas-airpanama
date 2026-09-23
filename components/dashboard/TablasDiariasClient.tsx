@@ -2,12 +2,15 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords, getUpcomingFlights } from "@/app/actions/flights";
+import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords, type FlightRecordInput, type HistoricoUpdates } from "@/app/actions/flights";
 import * as XLSX from 'xlsx';
-import { FlightAuditBoard } from "./FlightAuditBoard";
-import { ExcelImportPreviewModal, ParsedFlight } from "./ExcelImportPreviewModal";
+import { FlightAuditBoard, fetchPendingAudit } from "./FlightAuditBoard";
+import { ExcelImportPreviewModal } from "./ExcelImportPreviewModal";
 import { DailyFlightCard, MalekFlight, formatTime, getAirlineBadge } from "./DailyFlightCard";
 
+
+// Valor de una celda leída con sheet_to_json({ raw: true })
+type ExcelCell = string | number | boolean;
 
 const AIRCRAFT_MODELS = [
   { id: 'F50', label: 'F50 (Air Panama)', cap: 50 },
@@ -78,8 +81,6 @@ export default function TablasDiariasClient({
   const salidasPendientes = useMemo(() => initialData.salidas.filter(f => f.estado_final === 'PENDIENTE'), [initialData.salidas]);
   const salidasAprobadas = useMemo(() => initialData.salidas.filter(f => f.estado_final !== 'PENDIENTE'), [initialData.salidas]);
 
-  const totalPendientes = llegadasPendientes.length + salidasPendientes.length;
-
   const activeDataList = useMemo(() => {
     let combined = [];
     if (viewType === 'llegadas') {
@@ -101,33 +102,30 @@ export default function TablasDiariasClient({
   const [importing, setImporting] = useState(false);
   const [importWorkbook, setImportWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
-  const [submittingAction, setSubmittingAction] = useState<string | null>(null);
   
   // Preview State
-  const [previewData, setPreviewData] = useState<{ llegadas: any[]; salidas: any[] } | null>(null);
+  const [previewData, setPreviewData] = useState<{ llegadas: FlightRecordInput[]; salidas: FlightRecordInput[] } | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const loadPendingAudit = async () => {
     try {
-      const data = await getUpcomingFlights('TODOS');
-      const pendingAudit = data.filter(f => 
-        (f.origin === 'DAV' || f.destination === 'DAV') &&
-        (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived
-      );
-      setPendingAuditCount(pendingAudit.length);
+      setPendingAuditCount((await fetchPendingAudit('TODOS')).length);
     } catch (err) {
       console.error("Error loading pending audit", err);
     }
   };
 
   useEffect(() => {
-    loadPendingAudit();
+    let cancelled = false;
+    fetchPendingAudit('TODOS')
+      .then(list => { if (!cancelled) setPendingAuditCount(list.length); })
+      .catch(err => console.error("Error loading pending audit", err));
+    return () => { cancelled = true; };
   }, [currentDateStr]);
 
   const [importResult, setImportResult] = useState<{show: boolean, type: 'success' | 'error', message: string}>({show: false, type: 'success', message: ''});
   const [flightToDelete, setFlightToDelete] = useState<MalekFlight | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   
   // Add Flight Form State
   const [addFormData, setAddFormData] = useState({
@@ -209,11 +207,9 @@ export default function TablasDiariasClient({
     });
   }, [activeDataList, searchQuery, activeFilter]);
 
-  const totalFlights = filteredData.length;
-  const aTiempo = filteredData.filter(f => f.estado_final === "LLEGÓ" || f.estado_final === "CUMPLIDO").length;
 
   const sortedData = useMemo(() => {
-    let sorted = [...filteredData];
+    const sorted = [...filteredData];
     if (sortColumn === 'ruta') {
       sorted.sort((a, b) => {
         const routeA = a.hora_real_llegada ? `${a.origen}-DAV` : `DAV-${a.destino}`;
@@ -248,8 +244,6 @@ export default function TablasDiariasClient({
 
   const openEditDrawer = (flight: MalekFlight) => {
     setEditingFlight(flight);
-    const timeValue = flight.hora_real_llegada ? flight.hora_real_llegada : flight.hora_real_salida;
-    
     setEditFormData({
       fecha: flight.fecha || "",
       aerolinea: flight.aerolinea || "",
@@ -279,7 +273,7 @@ export default function TablasDiariasClient({
     const itinLlegada = new Date(`${editFormData.fecha}T${editFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
     const realLlegada = new Date(`${editFormData.fecha}T${editFormData.hora_real_llegada || editFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
 
-    const updates: any = {
+    const updates: HistoricoUpdates = {
       fecha: editFormData.fecha,
       aerolinea: editFormData.aerolinea,
       numero_vuelo: editFormData.numero_vuelo,
@@ -323,7 +317,6 @@ export default function TablasDiariasClient({
   const executeDelete = async () => {
     if (!flightToDelete) return;
 
-    setDeletingId(flightToDelete.id);
     setIsDeleteModalOpen(false);
 
     try {
@@ -340,10 +333,9 @@ export default function TablasDiariasClient({
       } else {
         alert("Error al eliminar: " + res.error);
       }
-    } catch (err: any) {
-      alert("Error inesperado: " + err.message);
+    } catch (err) {
+      alert("Error inesperado: " + (err as Error).message);
     } finally {
-      setDeletingId(null);
       setFlightToDelete(null);
     }
   };
@@ -357,7 +349,7 @@ export default function TablasDiariasClient({
     const realLlegada = new Date(`${addFormData.fecha}T${addFormData.hora_real_llegada || '00:00'}:00-05:00`);
     const itinLlegada = realLlegada;
     
-    const record: any = {
+    const record: FlightRecordInput = {
       fecha: addFormData.fecha,
       aerolinea: addFormData.aerolinea,
       numero_vuelo: addFormData.numero_vuelo,
@@ -367,16 +359,15 @@ export default function TablasDiariasClient({
       hora_itinerario_salida: itinSalida.toISOString(),
       hora_real_salida: realSalida.toISOString(),
       hora_itinerario_llegada: itinLlegada.toISOString(),
-      hora_real_llegada: realLlegada.toISOString()
+      hora_real_llegada: realLlegada.toISOString(),
+      hora_itinerario: (isLlegada ? itinLlegada : itinSalida).toISOString(),
     };
 
     if (isLlegada) {
       record.origen = addFormData.origen;
-      record.hora_itinerario = itinLlegada.toISOString();
       record.hora_real_llegada = realLlegada.toISOString();
     } else {
       record.destino = addFormData.destino;
-      record.hora_itinerario = itinSalida.toISOString();
       record.hora_real_salida = realSalida.toISOString();
     }
 
@@ -396,11 +387,11 @@ export default function TablasDiariasClient({
       const ws = wb.Sheets[sheetName];
 
       // Leer con raw:true para obtener números seriales de Excel tal cual (fechas como decimales)
-      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as any[][];
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as ExcelCell[][];
 
-      const normalizeKey = (key: any): string => {
+      const normalizeKey = (key: ExcelCell | null | undefined): string => {
         if (key === null || key === undefined || key === '') return '';
-        return key.toString().trim().toLowerCase()
+        return String(key).trim().toLowerCase()
           .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
           .replace(/\.$/, ''); // quita punto final (reg. -> reg)
       };
@@ -415,7 +406,7 @@ export default function TablasDiariasClient({
       for (let i = 0; i < Math.min(30, rawData.length); i++) {
         const row = rawData[i];
         if (!row || row.length === 0) continue;
-        const normalizedRow = row.map((cell: any) => normalizeKey(cell));
+        const normalizedRow = row.map((cell) => normalizeKey(cell));
         if (HEADER_KEYWORDS.some(kw => normalizedRow.includes(kw))) {
           headerRowIndex = i;
           headers = normalizedRow;
@@ -437,7 +428,7 @@ export default function TablasDiariasClient({
         return new Date(excelEpoch.getTime() + serial * 86400000);
       };
 
-      const parseDateTimeCell = (cellValue: any): { fechaStr: string; timeStr: string } => {
+      const parseDateTimeCell = (cellValue: ExcelCell | undefined): { fechaStr: string; timeStr: string } => {
         if (cellValue === null || cellValue === undefined || cellValue === '') return { fechaStr: '', timeStr: '' };
 
         // Número serial de Excel
@@ -480,11 +471,11 @@ export default function TablasDiariasClient({
       // ================================================================
       // PASO 3: Construir filas como objetos { header -> valor }
       // ================================================================
-      const data: any[] = [];
+      const data: Record<string, ExcelCell>[] = [];
       for (let i = headerRowIndex + 1; i < rawData.length; i++) {
         const row = rawData[i];
         if (!row || row.length === 0) continue;
-        const obj: any = {};
+        const obj: Record<string, ExcelCell> = {};
         let hasData = false;
         for (let j = 0; j < headers.length; j++) {
           if (headers[j] && row[j] !== undefined && row[j] !== null && row[j] !== '') {
@@ -498,8 +489,8 @@ export default function TablasDiariasClient({
       // ================================================================
       // PASO 4: Procesar filas → llegadas / salidas
       // ================================================================
-      const llegadasToInsert: any[] = [];
-      const salidasToInsert: any[] = [];
+      const llegadasToInsert: FlightRecordInput[] = [];
+      const salidasToInsert: FlightRecordInput[] = [];
 
       for (const row of data) {
         // Leg: Arrival / Departure
@@ -568,7 +559,7 @@ export default function TablasDiariasClient({
 
         const od = (row['o/d'] || row['origen'] || row['destino'] || row['ruta'] || 'PAC').toString().trim().toUpperCase();
 
-        const record: any = {
+        const record: FlightRecordInput = {
           fecha: fechaStr,
           aerolinea,
           numero_vuelo: rawFlight,
@@ -602,9 +593,9 @@ export default function TablasDiariasClient({
         setImportResult({ show: true, type: 'error', message: 'No se encontraron vuelos válidos en el archivo.' });
       }
       setImporting(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error importando Excel:", err);
-      setImportResult({ show: true, type: 'error', message: "Error procesando archivo. Verifica el formato. Detalles: " + err.message });
+      setImportResult({ show: true, type: 'error', message: "Error procesando archivo. Verifica el formato. Detalles: " + (err as Error).message });
       setImporting(false);
     } finally {
       setImporting(false);
@@ -632,9 +623,9 @@ export default function TablasDiariasClient({
           // Si solo hay 1 pestaña, la importamos directamente
           await processExcelSheet(wb, wb.SheetNames[0]);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Error leyendo Excel:", err);
-        alert("Error procesando archivo. Detalles: " + err.message);
+        alert("Error procesando archivo. Detalles: " + (err as Error).message);
         setImporting(false);
       }
     };
@@ -1314,7 +1305,7 @@ export default function TablasDiariasClient({
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Tipo de Operación</label>
                     <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.type} onChange={(e) => setAddFormData({...addFormData, type: e.target.value as any})} required>
+                      value={addFormData.type} onChange={(e) => setAddFormData({...addFormData, type: e.target.value as 'llegadas' | 'salidas'})} required>
                       <option value="llegadas">Llegada</option>
                       <option value="salidas">Salida</option>
                     </select>
@@ -1532,7 +1523,6 @@ export default function TablasDiariasClient({
       {/* Flight Audit Modal */}
       {isAuditModalOpen && (
         <FlightAuditBoard 
-          initialDate={currentDateStr}
           onClose={() => { 
             setIsAuditModalOpen(false); 
             loadPendingAudit(); 
@@ -1563,8 +1553,8 @@ export default function TablasDiariasClient({
             </div>
             
             <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
-              {[...llegadasPendientes.map(f => ({...f, type: 'llegadas'})), ...salidasPendientes.map(f => ({...f, type: 'salidas'}))].map(flight => (
-                <PendingFlightCard key={flight.id} flight={flight as any} onApprove={handleApprovePending} />
+              {[...llegadasPendientes.map(f => ({...f, type: 'llegadas' as const})), ...salidasPendientes.map(f => ({...f, type: 'salidas' as const}))].map(flight => (
+                <PendingFlightCard key={flight.id} flight={flight} onApprove={handleApprovePending} />
               ))}
             </div>
           </div>
@@ -1704,9 +1694,9 @@ export default function TablasDiariasClient({
               } else {
                 window.location.reload();
               }
-            } catch (err: any) {
+            } catch (err) {
               console.error("Error saving previewed data:", err);
-              setImportResult({ show: true, type: 'error', message: "Error al guardar los datos verificados. Detalles: " + err.message });
+              setImportResult({ show: true, type: 'error', message: "Error al guardar los datos verificados. Detalles: " + (err as Error).message });
             } finally {
               setImporting(false);
             }

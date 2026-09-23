@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getSesionesActivas } from "@/app/actions/sessions";
+import { getSesionesActivas, type SesionConUsuario } from "@/app/actions/sessions";
 import { HistorialSesionesModal } from "./HistorialSesionesModal";
 
 export function DispositivosPanel() {
-  const [sesiones, setSesiones] = useState<any[]>([]);
+  const [sesiones, setSesiones] = useState<SesionConUsuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);

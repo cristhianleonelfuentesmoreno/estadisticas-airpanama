@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { fetchAllUsers } from "@/app/actions/admin";
-import { AdminPanel } from "@/components/admin/AdminPanel";
+import { AdminPanel, type User } from "@/components/admin/AdminPanel";
 import { ReloadButton } from "@/components/admin/ReloadButton";
 
 export default async function AdminPage() {
@@ -24,7 +24,7 @@ export default async function AdminPage() {
   }
 
   // Cargar usuarios inicialmente en el servidor para renderizado inicial rápido
-  const { users, error: fetchError } = await fetchAllUsers();
+  const { users } = await fetchAllUsers();
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-7xl mx-auto pb-10">
@@ -40,7 +40,7 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      <AdminPanel initialUsers={(users as any) || []} />
+      <AdminPanel initialUsers={(users as User[] | undefined) ?? []} />
     </div>
   );
 }

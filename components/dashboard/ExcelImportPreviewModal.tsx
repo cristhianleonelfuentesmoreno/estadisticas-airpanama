@@ -1,22 +1,8 @@
 import { useState, useMemo } from "react";
+import type { FlightRecordInput } from "@/app/actions/flights";
 
-export interface ParsedFlight {
+export interface ParsedFlight extends FlightRecordInput {
   id?: string; // used internally for keys
-  fecha: string;
-  aerolinea: string;
-  numero_vuelo: string;
-  origen?: string;
-  destino?: string;
-  hora_itinerario: string;
-  hora_itinerario_llegada?: string;
-  hora_real_llegada?: string;
-  hora_itinerario_salida?: string;
-  hora_real_salida?: string;
-  estado_final: string;
-  pasajeros_abordo: number;
-  capacidad_total: number;
-  avion?: string;
-  matricula?: string;
   type: 'llegada' | 'salida';
 }
 
@@ -25,8 +11,8 @@ export function ExcelImportPreviewModal({
   onConfirm,
   onCancel
 }: {
-  data: { llegadas: any[]; salidas: any[] };
-  onConfirm: (data: { llegadas: any[]; salidas: any[] }) => void;
+  data: { llegadas: FlightRecordInput[]; salidas: FlightRecordInput[] };
+  onConfirm: (data: { llegadas: FlightRecordInput[]; salidas: FlightRecordInput[] }) => void;
   onCancel: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<'ALL' | 'Air Panama' | 'Copa Airlines'>('ALL');
@@ -34,7 +20,7 @@ export function ExcelImportPreviewModal({
 
   // Unify and add internal IDs for editing
   const [flights, setFlights] = useState<ParsedFlight[]>(() => {
-    let combined: ParsedFlight[] = [];
+    const combined: ParsedFlight[] = [];
     data.llegadas.forEach((f, i) => {
       combined.push({ ...f, id: `arr_${i}`, type: 'llegada' });
     });

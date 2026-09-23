@@ -19,8 +19,8 @@ export function ManualFlightUploadWidget() {
       toast.success("Vuelos cargados manualmente al sistema");
       setIsOpen(false);
       setFlightDataText("");
-    } catch (error: any) {
-      toast.error(error.message || "Error al cargar los vuelos");
+    } catch (error) {
+      toast.error((error as Error).message || "Error al cargar los vuelos");
     } finally {
       setLoading(false);
     }

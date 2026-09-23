@@ -10,7 +10,7 @@ interface AuditLog {
   usuario_id: string | null;
   nombre_referencia: string;
   descripcion: string;
-  detalles_extra: any;
+  detalles_extra: Record<string, unknown> | null;
   ip: string;
   ubicacion: string;
   dispositivo: string;
@@ -29,7 +29,7 @@ export function AuditoriaPanel() {
   useEffect(() => {
     const fetchLogs = async () => {
       const data = await getAuditLogs();
-      setLogs(data as any);
+      setLogs(data as AuditLog[]);
       setLoading(false);
     };
     fetchLogs();

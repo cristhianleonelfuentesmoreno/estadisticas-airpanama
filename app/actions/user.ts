@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { unstable_noStore as noStore } from 'next/cache';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
-export async function getCurrentUserProfile(timestamp?: number) {
+export async function getCurrentUserProfile() {
   noStore();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

@@ -9,9 +9,13 @@ export default function TransitionLoader() {
   const searchParams = useSearchParams();
 
   // Ocultar el spinner cuando la ruta cambie efectivamente
-  useEffect(() => {
+  // (se ajusta durante el render, como recomienda React, en vez de en un efecto)
+  const routeKey = `${pathname}?${searchParams.toString()}`;
+  const [prevRouteKey, setPrevRouteKey] = useState(routeKey);
+  if (routeKey !== prevRouteKey) {
+    setPrevRouteKey(routeKey);
     setIsNavigating(false);
-  }, [pathname, searchParams]);
+  }
 
   // Interceptar clicks en enlaces para mostrar el spinner inmediatamente
   useEffect(() => {

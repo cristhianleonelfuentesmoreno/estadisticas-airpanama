@@ -42,3 +42,9 @@ yarn-error.log*
 next-env.d.ts
 resources/
 scratch.js
+
+# scripts de pruebas/depuración locales (fuera del repo)
+_local/
+
+# caché de idioma de Tesseract (se descarga sola)
+eng.traineddata

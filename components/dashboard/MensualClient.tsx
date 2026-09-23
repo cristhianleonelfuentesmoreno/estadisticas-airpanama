@@ -2,10 +2,34 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar, YAxis, Legend } from 'recharts';
+import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar, YAxis } from 'recharts';
+
+// Fila de llegadas_malek_historico / salidas_malek_historico
+export interface ReporteVuelo {
+  fecha: string;
+  aerolinea: string | null;
+  numero_vuelo: string | null;
+  origen?: string | null;
+  destino?: string | null;
+  estado_final: string | null;
+  pasajeros_abordo: number | null;
+  capacidad_total: number;
+  hora_itinerario: string | null;
+  hora_real_llegada?: string | null;
+  hora_real_salida?: string | null;
+}
+
+// Hora (0-23) en Panamá de un timestamp ISO; acepta también "HH:MM" por si hay datos viejos
+function horaPanama(value: string): number {
+  const d = new Date(value);
+  if (!isNaN(d.getTime())) {
+    return Number(d.toLocaleString('en-US', { timeZone: 'America/Panama', hour: '2-digit', hourCycle: 'h23' }));
+  }
+  return parseInt(value.split(':')[0], 10);
+}
 
 interface Props {
-  rawFlights: any[];
+  rawFlights: ReporteVuelo[];
   initialYear: number;
   initialMonth: number;
   initialRange: string;
@@ -15,6 +39,33 @@ const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ];
+
+type DailyTooltipProps = {
+  active?: boolean;
+  payload?: { value?: number }[];
+  label?: string | number;
+  monthLabel: string;
+};
+
+// Recharts inyecta active/payload/label al clonar el elemento pasado en `content`
+const CustomTooltip = ({ active, payload, label, monthLabel }: DailyTooltipProps) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-primary-container text-on-primary px-3 py-2 rounded-lg shadow-xl text-center pointer-events-none border border-white/10">
+        <p className="font-label-sm text-label-sm font-bold text-secondary-fixed mb-1">{label} {monthLabel}</p>
+        <div className="flex flex-col gap-0.5 text-left">
+           <p className="font-label-sm text-label-sm leading-tight text-white flex items-center gap-1">
+             <span className="w-2 h-2 rounded-full bg-secondary"></span> Air Panama: {payload[1]?.value || 0} pax
+           </p>
+           <p className="font-label-sm text-label-sm leading-tight text-white flex items-center gap-1">
+             <span className="w-2 h-2 rounded-full bg-[#1e40af]"></span> Copa: {payload[0]?.value || 0} pax
+           </p>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function MensualClient({ rawFlights, initialYear, initialMonth, initialRange }: Props) {
   const router = useRouter();
@@ -91,9 +142,9 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
       }
 
       // Heatmap (Franja horaria real o itinerario)
-      const timeStr = f.hora_llegada_real || f.hora_salida_real || f.hora_itinerario;
+      const timeStr = f.hora_real_llegada || f.hora_real_salida || f.hora_itinerario;
       if (timeStr) {
-        const hour = parseInt(timeStr.split(':')[0], 10);
+        const hour = horaPanama(timeStr);
         if (!isNaN(hour) && hour >= 0 && hour <= 23) {
           hourlyDataMap[hour] += pax; // Volumen de tráfico por pasajeros
         }
@@ -146,24 +197,6 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
     router.push(`/dashboard/mensual?year=${year}&month=${month}&range=${range}`);
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-primary-container text-on-primary px-3 py-2 rounded-lg shadow-xl text-center pointer-events-none border border-white/10">
-          <p className="font-label-sm text-label-sm font-bold text-secondary-fixed mb-1">{label} {MONTHS[initialMonth - 1].substring(0, 3)}</p>
-          <div className="flex flex-col gap-0.5 text-left">
-             <p className="font-label-sm text-label-sm leading-tight text-white flex items-center gap-1">
-               <span className="w-2 h-2 rounded-full bg-secondary"></span> Air Panama: {payload[1]?.value || 0} pax
-             </p>
-             <p className="font-label-sm text-label-sm leading-tight text-white flex items-center gap-1">
-               <span className="w-2 h-2 rounded-full bg-[#1e40af]"></span> Copa: {payload[0]?.value || 0} pax
-             </p>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
 
   const isCurrentMonth = initialRange === 'month' && initialMonth === new Date().getMonth() + 1 && initialYear === new Date().getFullYear();
 
@@ -382,7 +415,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
                 interval="preserveStartEnd"
                 minTickGap={20}
               />
-              <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#c4c6ce', strokeWidth: 1, strokeDasharray: '4 4' }} />
+              <Tooltip content={<CustomTooltip monthLabel={MONTHS[initialMonth - 1].substring(0, 3)} />} cursor={{ stroke: '#c4c6ce', strokeWidth: 1, strokeDasharray: '4 4' }} />
               {(activeAirline === 'all' || activeAirline === 'cm') && (
                 <Area 
                   type="monotone" 
@@ -445,7 +478,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
                   <Cell key="cell-cm" fill="#0a2540" />
                 </Pie>
                 <Tooltip 
-                  formatter={(value: any) => [`${Number(value).toLocaleString()} pax`, 'Total']} 
+                  formatter={(value) => [`${Number(value).toLocaleString()} pax`, 'Total']} 
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
               </PieChart>
@@ -492,7 +525,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e0e3e5" />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#444' }} width={80} />
-                <Tooltip cursor={{ fill: '#f1f3f4' }} formatter={(val: any) => Math.round(Number(val)).toLocaleString()} />
+                <Tooltip cursor={{ fill: '#f1f3f4' }} formatter={(val) => Math.round(Number(val)).toLocaleString()} />
                 <Bar dataKey="pax" stackId="a" fill="#0a2540" name="Ocupados" radius={[0, 0, 0, 0]}>
                   { [0, 1].map((_, i) => <Cell key={`cell-${i}`} fill={i === 0 ? '#bb001d' : '#0a2540'} />) }
                 </Bar>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { getApiConfigs, saveApiConfig } from "@/app/actions/apiConfig";
 
@@ -200,20 +200,14 @@ export function ApiManagementWidget() {
     }
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      loadConfigs();
-    }
-  }, [isOpen]);
-
   const handleSave = async () => {
     setLoading(true);
     try {
       await saveApiConfig("gemini", geminiKey, geminiActive);
       toast.success("Configuración de APIs guardada correctamente");
       setIsOpen(false);
-    } catch (error: any) {
-      toast.error(error.message || "Error al guardar configuración");
+    } catch (error) {
+      toast.error((error as Error).message || "Error al guardar configuración");
     } finally {
       setLoading(false);
     }
@@ -223,7 +217,7 @@ export function ApiManagementWidget() {
     <>
       {/* Trigger card */}
       <div
-        onClick={() => setIsOpen(true)}
+        onClick={() => { setIsOpen(true); loadConfigs(); }}
         className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-outline-variant/30 flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors group"
       >
         <div className="flex items-center gap-4">

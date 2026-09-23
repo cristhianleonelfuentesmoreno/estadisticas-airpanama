@@ -149,7 +149,28 @@ export async function logFailedLogin(email: string) {
   });
 }
 
-export async function getSesionesActivas() {
+export interface Sesion {
+  id: string;
+  user_id: string;
+  dispositivo_tipo: string | null;
+  dispositivo_modelo: string | null;
+  sistema_operativo: string | null;
+  navegador: string | null;
+  ip: string | null;
+  ubicacion_texto: string | null;
+  latitud: number | null;
+  longitud: number | null;
+  estado: string;
+  inicio_sesion: string;
+  ultima_actividad: string;
+  fin_sesion: string | null;
+}
+
+export type SesionConUsuario = Sesion & {
+  user: { nombre: string; email: string; role?: string; cargo?: string | null };
+};
+
+export async function getSesionesActivas(): Promise<SesionConUsuario[]> {
   await requireAdmin();
   const tenMinutesAgo = new Date(Date.now() - 10 * 60000).toISOString();
 
@@ -168,20 +189,17 @@ export async function getSesionesActivas() {
     .select('id, nombre, email, role, cargo')
     .in('id', userIds);
 
-  const perfilesMap = (perfiles || []).reduce((acc: any, p: any) => {
-    acc[p.id] = p;
-    return acc;
-  }, {});
+  const perfilesMap = new Map((perfiles || []).map(p => [p.id, p]));
 
   return sesiones.map(s => ({
     ...s,
-    user: perfilesMap[s.user_id] || { nombre: 'Desconocido', email: '' }
+    user: perfilesMap.get(s.user_id) || { nombre: 'Desconocido', email: '' }
   }));
 }
 
-export async function getHistorialSesionesUser(userId: string) {
+export async function getHistorialSesionesUser(userId: string): Promise<Sesion[]> {
   await requireAdmin();
-  const { data, error } = await supabaseAdmin
+  const { data } = await supabaseAdmin
     .from('sesiones')
     .select('*')
     .eq('user_id', userId)
