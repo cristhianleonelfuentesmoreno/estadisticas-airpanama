@@ -40,11 +40,10 @@ export default function DashboardPage() {
     updateTime();
     const interval = setInterval(updateTime, 1000);
 
-    // Obtener datos del usuario mediante server action
     const fetchUser = async () => {
       try {
         const { getCurrentUserProfile } = await import("@/app/actions/user");
-        const profile = await getCurrentUserProfile();
+        const profile = await getCurrentUserProfile(Date.now());
         if (profile) {
           setUserName(profile.nombre);
           setUserCargo(profile.cargo);

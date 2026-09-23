@@ -275,24 +275,7 @@ export default function DashboardLayoutShell({
             
             <div className="w-px h-6 bg-outline-variant/30 hidden md:block mx-1"></div>
             
-            <button 
-              onClick={handleRefresh}
-              aria-label="Recargar página"
-              title="Recargar página"
-              className={`hidden md:flex w-10 h-10 rounded-full items-center justify-center ring-1 ring-white/20 shadow-sm mx-1 transition-all duration-300 ${
-                refreshSuccess 
-                  ? "bg-emerald-500 text-white scale-105" 
-                  : "bg-secondary text-white hover:bg-secondary/90 active:scale-95"
-              }`}
-            >
-              {isRefreshing ? (
-                <span className="material-symbols-outlined text-[20px] animate-spin">refresh</span>
-              ) : refreshSuccess ? (
-                <span className="material-symbols-outlined text-[20px] animate-in zoom-in">check</span>
-              ) : (
-                <span className="material-symbols-outlined text-[20px]">refresh</span>
-              )}
-            </button>
+
 
             <button 
               onClick={handleLogout}
