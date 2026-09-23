@@ -25,8 +25,10 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // No poner código entre createServerClient y getUser()
-  await supabase.auth.getUser()
+  // No poner código entre createServerClient y getClaims().
+  // getClaims() renueva la sesión si venció y valida el JWT (ES256) localmente,
+  // sin el viaje al servidor de Auth que hacía getUser() en cada petición.
+  await supabase.auth.getClaims()
 
   return response
 }

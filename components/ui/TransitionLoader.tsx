@@ -3,30 +3,44 @@
 import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
+// Barra de progreso fina arriba mientras se navega. Antes era un overlay a pantalla
+// completa: tapar todo hace que la espera se sienta más larga que ver la página quieta.
+type Phase = "idle" | "loading" | "done";
+
 export default function TransitionLoader() {
-  const [isNavigating, setIsNavigating] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Ocultar el spinner cuando la ruta cambie efectivamente
+  // Al cambiar la ruta, completar la barra
   // (se ajusta durante el render, como recomienda React, en vez de en un efecto)
   const routeKey = `${pathname}?${searchParams.toString()}`;
   const [prevRouteKey, setPrevRouteKey] = useState(routeKey);
   if (routeKey !== prevRouteKey) {
     setPrevRouteKey(routeKey);
-    setIsNavigating(false);
+    if (phase === "loading") setPhase("done");
   }
 
-  // Interceptar clicks en enlaces para mostrar el spinner inmediatamente
+  // Tras completarse, desvanecer y ocultar
   useEffect(() => {
-    const handleStart = () => setIsNavigating(true);
-    
+    if (phase !== "done") return;
+    const id = setTimeout(() => setPhase("idle"), 350);
+    return () => clearTimeout(id);
+  }, [phase]);
+
+  // Interceptar clicks en enlaces para arrancar la barra de inmediato
+  useEffect(() => {
+    const handleStart = () => setPhase("loading");
+
     const handleClick = (e: MouseEvent) => {
+      // (no se mira defaultPrevented: next/link lo marca en sus propias navegaciones)
+      // Ctrl/Cmd+clic abre otra pestaña: esta página no navega
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const target = (e.target as HTMLElement).closest('a');
       if (
-        target && 
-        target.href && 
-        target.href.startsWith(window.location.origin) && 
+        target &&
+        target.href &&
+        target.href.startsWith(window.location.origin) &&
         target.target !== '_blank'
       ) {
         const url = new URL(target.href);
@@ -37,7 +51,7 @@ export default function TransitionLoader() {
       }
     };
 
-    // Escuchar un evento personalizado por si acaso
+    // Evento propio para navegaciones hechas con router.push()
     window.addEventListener("start-navigation", handleStart);
     document.addEventListener('click', handleClick);
 
@@ -47,23 +61,11 @@ export default function TransitionLoader() {
     };
   }, []);
 
-  if (!isNavigating) return null;
+  if (phase === "idle") return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-[#0A192F]/80 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-200">
-      <div className="spinner mb-8">
-        <div></div>
-        <div></div>
-        <div></div>
-        <div></div>
-        <div></div>
-        <div></div>
-      </div>
-      <h2 className="text-white font-headline-md font-bold tracking-widest uppercase flex items-center gap-2">
-        <span className="material-symbols-outlined text-[24px] text-red-600">flight_takeoff</span>
-        Air Panama
-      </h2>
-      <p className="text-white/60 font-body-sm mt-2 animate-pulse">Sincronizando módulos...</p>
+    <div className="nav-progress" data-phase={phase} role="progressbar" aria-label="Cargando página">
+      <span className="nav-progress__bar" />
     </div>
   );
 }

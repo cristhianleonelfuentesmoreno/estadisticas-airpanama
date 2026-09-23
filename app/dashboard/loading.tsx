@@ -1,19 +1,14 @@
+// Esqueleto mientras carga una sección del dashboard. El header y la navegación
+// siguen visibles (antes era un overlay a pantalla completa que tapaba todo).
 export default function Loading() {
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#0A192F]/80 backdrop-blur-sm flex flex-col items-center justify-center">
-      <div className="spinner mb-8">
-        <div></div>
-        <div></div>
-        <div></div>
-        <div></div>
-        <div></div>
-        <div></div>
+    <div className="flex flex-col gap-space-md pt-space-md animate-pulse" aria-busy="true" aria-label="Cargando">
+      <div className="h-32 rounded-xl bg-surface-container" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-space-sm">
+        <div className="h-28 rounded-xl bg-surface-container" />
+        <div className="h-28 rounded-xl bg-surface-container" />
       </div>
-      <h2 className="text-white font-headline-md font-bold tracking-widest uppercase flex items-center gap-2">
-        <span className="material-symbols-outlined text-[24px] text-red-600">flight_takeoff</span>
-        Air Panama
-      </h2>
-      <p className="text-white/60 font-body-sm mt-2 animate-pulse">Cargando módulos...</p>
+      <div className="h-64 rounded-xl bg-surface-container" />
     </div>
   );
 }

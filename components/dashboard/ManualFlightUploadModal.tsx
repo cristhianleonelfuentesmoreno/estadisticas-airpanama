@@ -6,6 +6,7 @@ import { addMultipleManualFlights, getFlightFormSuggestions, ManualFlightInput, 
 import { parseItineraryImage } from "@/app/actions/imageParser";
 import * as Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { UploadProgress, type UploadJob } from "@/components/ui/UploadProgress";
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +22,10 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Progreso visual de la subida (análisis de imagen o guardado)
+  const [uploadJob, setUploadJob] = useState<UploadJob | null>(null);
+  const uploadSeq = useRef(0);
+  const afterUploadRef = useRef<(() => void) | null>(null);
 
   const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
   const todayStr = new Date(todayPanama).toISOString().split('T')[0];
@@ -122,7 +127,15 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
     loadingTimerRef.current = setInterval(() => {
       setLoadingSeconds(prev => prev + 1);
     }, 1000);
-    const toastId = toast.loading("Analizando imagen con IA...");
+    setUploadJob({
+      id: ++uploadSeq.current,
+      label: "Analizando imagen…",
+      fileName: file.name,
+      fileSize: file.size,
+      actual: 0,
+      creepTo: 0.2,
+      status: "running",
+    });
     
     const stopTimer = () => {
       if (loadingTimerRef.current) {
@@ -133,25 +146,32 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
     
     try {
       const reader = new FileReader();
+      // Lectura real del archivo: 0 → 20 %
+      reader.onprogress = (ev) => {
+        if (ev.lengthComputable) setUploadJob(j => j && { ...j, actual: (ev.loaded / ev.total) * 0.2 });
+      };
       reader.onloadend = async () => {
         const base64Image = reader.result as string;
+        // El OCR en el servidor no informa avance: la barra avanza despacio hacia 92 %
+        setUploadJob(j => j && { ...j, actual: 0.2, creepTo: 0.92, label: "Leyendo vuelos de la imagen…" });
         try {
           const flights = await parseItineraryImage(base64Image, targetDate, selectedAirline);
           if (flights && flights.length > 0) {
             // El OCR no trae nombres de origen/destino; el resto de campos se completa al editar
             setFileData(flights as ManualFlightInput[]);
-            toast.success(`Se encontraron ${flights.length} vuelos en la imagen.`, { id: toastId });
+            afterUploadRef.current = () => toast.success(`Se encontraron ${flights.length} vuelos en la imagen.`);
+            setUploadJob(j => j && { ...j, status: "success", label: `${flights.length} vuelos encontrados` });
           } else {
-            toast.error("No se encontraron vuelos válidos en la imagen.", { id: toastId });
+            afterUploadRef.current = () => toast.error("No se encontraron vuelos válidos en la imagen.");
+            setUploadJob(j => j && { ...j, status: "error", errorText: "No se encontraron vuelos en la imagen" });
           }
         } catch (error) {
           const isTimeout = ((error as Error).message || "").includes(">35s") || ((error as Error).message || "").includes("sobrecargada");
-          toast.error(
-            isTimeout
-              ? "El análisis de la imagen tardó demasiado. Espera un momento e intenta de nuevo."
-              : (error as Error).message,
-            { id: toastId, duration: 8000 }
-          );
+          const message = isTimeout
+            ? "El análisis de la imagen tardó demasiado. Espera un momento e intenta de nuevo."
+            : (error as Error).message;
+          afterUploadRef.current = () => toast.error(message, { duration: 8000 });
+          setUploadJob(j => j && { ...j, status: "error", errorText: "No se pudo analizar la imagen" });
         } finally {
           stopTimer();
           setLoading(false);
@@ -159,7 +179,8 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
       };
       reader.readAsDataURL(file);
     } catch {
-      toast.error("Error leyendo la imagen", { id: toastId });
+      toast.error("Error leyendo la imagen");
+      setUploadJob(null);
       stopTimer();
       setLoading(false);
     }
@@ -172,6 +193,8 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
     }
     setLoading(false);
     setLoadingSeconds(0);
+    setUploadJob(null);
+    afterUploadRef.current = null;
     toast.dismiss();
     // Reset the file input so the same file can be selected again
     if (imageInputRef.current) imageInputRef.current.value = "";
@@ -208,13 +231,27 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const handleSaveFile = async () => {
     if (fileData.length === 0) return;
     setLoading(true);
+    const n = fileData.length;
+    setUploadJob({
+      id: ++uploadSeq.current,
+      label: `Subiendo ${n} ${n === 1 ? "vuelo" : "vuelos"}…`,
+      actual: 0,
+      creepTo: 0.9,
+      status: "running",
+    });
     try {
       await addMultipleManualFlights(fileData);
-      toast.success("Vuelos subidos correctamente");
-      onSuccess();
-      onClose();
+      // Se cierra después del check
+      afterUploadRef.current = () => {
+        toast.success("Vuelos subidos correctamente");
+        onSuccess();
+        onClose();
+      };
+      setUploadJob(j => j && { ...j, status: "success", label: "Itinerario cargado" });
     } catch (error) {
-      toast.error("Error al subir: " + (error as Error).message);
+      const message = "Error al subir: " + (error as Error).message;
+      afterUploadRef.current = () => toast.error(message);
+      setUploadJob(j => j && { ...j, status: "error", errorText: "No se pudieron subir los vuelos" });
     } finally {
       setLoading(false);
     }
@@ -265,6 +302,16 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   };
 
   return (
+    <>
+    <UploadProgress
+      job={uploadJob}
+      onCancel={uploadJob?.label.startsWith("Analizando") || uploadJob?.label.startsWith("Leyendo") ? handleCancelAnalysis : undefined}
+      onFinished={() => {
+        setUploadJob(null);
+        afterUploadRef.current?.();
+        afterUploadRef.current = null;
+      }}
+    />
     <div className="fixed inset-0 z-[100] bg-surface/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-surface-container-lowest rounded-[28px] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[92vh]">
         
@@ -665,5 +712,6 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
 
       </div>
     </div>
+    </>
   );
 }

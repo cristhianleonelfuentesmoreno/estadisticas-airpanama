@@ -6,6 +6,7 @@ import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalida
 import * as XLSX from 'xlsx';
 import { FlightAuditBoard, fetchPendingAudit } from "./FlightAuditBoard";
 import { ExcelImportPreviewModal } from "./ExcelImportPreviewModal";
+import { UploadGlyph, UploadProgress, type UploadJob } from "@/components/ui/UploadProgress";
 import { DailyFlightCard, MalekFlight, formatTime, getAirlineBadge } from "./DailyFlightCard";
 
 
@@ -100,6 +101,11 @@ export default function TablasDiariasClient({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  // Progreso de la subida al guardar una importación
+  const [uploadJob, setUploadJob] = useState<UploadJob | null>(null);
+  const uploadSeq = useRef(0);
+  const importFileRef = useRef<{ name: string; size: number } | null>(null);
+  const afterUploadRef = useRef<(() => void) | null>(null);
   const [importWorkbook, setImportWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
   
@@ -606,6 +612,7 @@ export default function TablasDiariasClient({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    importFileRef.current = { name: file.name, size: file.size };
     
     setImporting(true);
     const reader = new FileReader();
@@ -712,8 +719,8 @@ export default function TablasDiariasClient({
               <span className="material-symbols-outlined text-[18px]">add</span>
               <span className="text-[12px] md:text-[13px] whitespace-nowrap">Agregar Vuelo</span>
             </button>
-            <button onClick={() => setIsImportModalOpen(true)} className="col-span-1 md:flex-none justify-center bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
-              <span className="material-symbols-outlined text-[18px]">upload_file</span>
+            <button onClick={() => setIsImportModalOpen(true)} className="upbtn col-span-1 md:flex-none justify-center bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
+              <UploadGlyph />
               <span className="text-[12px] md:text-[13px]">Importar</span>
             </button>
 {isAdmin && (
@@ -1606,19 +1613,15 @@ export default function TablasDiariasClient({
         </div>
       )}
 
-      {/* FULLSCREEN CUBE LOADER DURANTE LA IMPORTACIÓN */}
-      {importing && (
-        <div className="fixed inset-0 z-[10000] bg-[#0A192F]/80 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-200">
-          <div className="spinner mb-8">
-            <div></div><div></div><div></div><div></div><div></div><div></div>
-          </div>
-          <h2 className="text-white font-headline-md font-bold tracking-widest uppercase flex items-center gap-2">
-            <span className="material-symbols-outlined text-[24px] text-red-600">flight_takeoff</span>
-            Air Panama
-          </h2>
-          <p className="text-white/60 font-body-sm mt-2 animate-pulse">Su solicitud está en proceso...</p>
-        </div>
-      )}
+      {/* Progreso de la subida: el aro se desenrolla en la barra (antes: cubo a pantalla completa) */}
+      <UploadProgress
+        job={uploadJob}
+        onFinished={() => {
+          setUploadJob(null);
+          afterUploadRef.current?.();
+          afterUploadRef.current = null;
+        }}
+      />
 
       {/* MODAL DE RESULTADO DE IMPORTACIÓN */}
       {importResult.show && (
@@ -1661,7 +1664,20 @@ export default function TablasDiariasClient({
           data={previewData}
           onConfirm={async (finalData) => {
             setIsPreviewOpen(false);
-            setImporting(true); // show loading state if needed
+            setImporting(true);
+
+            // Progreso por etapas: llegadas 0→50 %, salidas 50→100 % (o todo en una si falta una)
+            const hasBoth = finalData.llegadas.length > 0 && finalData.salidas.length > 0;
+            const total = finalData.llegadas.length + finalData.salidas.length;
+            setUploadJob({
+              id: ++uploadSeq.current,
+              label: `Guardando ${total} ${total === 1 ? 'vuelo' : 'vuelos'}…`,
+              fileName: importFileRef.current?.name,
+              fileSize: importFileRef.current?.size,
+              actual: 0,
+              creepTo: hasBoth ? 0.48 : 0.95,
+              status: 'running',
+            });
             
             try {
               let totalInserted = 0;
@@ -1673,6 +1689,7 @@ export default function TablasDiariasClient({
                   totalInserted += res.inserted || 0;
                   totalUpdated  += res.updated  || 0;
                 }
+                if (hasBoth) setUploadJob(j => j && { ...j, actual: 0.5, creepTo: 0.95, label: `Guardando salidas…` });
               }
               if (finalData.salidas.length > 0) {
                 const res = await insertFlightRecords(finalData.salidas, 'salidas');
@@ -1685,7 +1702,9 @@ export default function TablasDiariasClient({
               let msg = `Importación completada: ${totalInserted} vuelos nuevos agregados.`;
               if (totalUpdated > 0) msg += ` ${totalUpdated} vuelos actualizados.`;
               
-              setImportResult({ show: true, type: 'success', message: msg });
+              // El resumen aparece después del check
+              afterUploadRef.current = () => setImportResult({ show: true, type: 'success', message: msg });
+              setUploadJob(j => j && { ...j, status: 'success', label: 'Importación completa' });
               setPreviewData(null);
               // reload data
               if (dateInputRef.current) {
@@ -1696,7 +1715,9 @@ export default function TablasDiariasClient({
               }
             } catch (err) {
               console.error("Error saving previewed data:", err);
-              setImportResult({ show: true, type: 'error', message: "Error al guardar los datos verificados. Detalles: " + (err as Error).message });
+              const message = "Error al guardar los datos verificados. Detalles: " + (err as Error).message;
+              afterUploadRef.current = () => setImportResult({ show: true, type: 'error', message });
+              setUploadJob(j => j && { ...j, status: 'error', errorText: 'No se pudieron guardar los vuelos' });
             } finally {
               setImporting(false);
             }

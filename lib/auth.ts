@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 
-// Helpers de autorización para Server Actions.
+// Helpers de autorización para Server Actions y Server Components.
 // Cada Server Action es un endpoint POST público, así que TODAS deben llamar
 // a uno de estos helpers antes de tocar datos.
 
@@ -11,26 +11,51 @@ export type SessionUser = {
   role: 'administrador' | 'usuario'
 }
 
-// cache() evita repetir la consulta dentro de la misma petición
-const getSessionUser = cache(async (): Promise<SessionUser | null> => {
+export type SessionProfile = {
+  id: string
+  email: string | undefined
+  status: string | null
+  role: 'administrador' | 'usuario'
+  nombre: string | null
+  cargo: string | null
+  fullName: string | undefined
+  avatarUrl: string | undefined
+}
+
+// Sesión + perfil, UNA vez por petición: cache() lo comparte entre el layout,
+// la página y las acciones que corran en la misma petición.
+// getClaims() valida el JWT (ES256) localmente con la clave pública del proyecto,
+// sin el viaje al servidor de Auth que hace getUser() en cada llamada.
+export const getSessionProfile = cache(async (): Promise<SessionProfile | null> => {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const { data, error } = await supabase.auth.getClaims()
+  const claims = data?.claims
+  if (error || !claims?.sub) return null
 
   const { data: perfil } = await supabase
     .from('perfiles')
-    .select('status, role')
-    .eq('id', user.id)
+    .select('status, role, nombre, cargo')
+    .eq('id', claims.sub)
     .single()
 
-  if (perfil?.status !== 'aprobado') return null
-
+  const meta = (claims.user_metadata ?? {}) as { full_name?: string; avatar_url?: string }
   return {
-    id: user.id,
-    email: user.email,
-    role: perfil.role === 'administrador' ? 'administrador' : 'usuario',
+    id: claims.sub,
+    email: claims.email,
+    status: perfil?.status ?? null,
+    role: perfil?.role === 'administrador' ? 'administrador' : 'usuario',
+    nombre: perfil?.nombre ?? null,
+    cargo: perfil?.cargo ?? null,
+    fullName: meta.full_name,
+    avatarUrl: meta.avatar_url,
   }
 })
+
+async function getSessionUser(): Promise<SessionUser | null> {
+  const profile = await getSessionProfile()
+  if (!profile || profile.status !== 'aprobado') return null
+  return { id: profile.id, email: profile.email, role: profile.role }
+}
 
 export async function requireApprovedUser(): Promise<SessionUser> {
   const user = await getSessionUser()

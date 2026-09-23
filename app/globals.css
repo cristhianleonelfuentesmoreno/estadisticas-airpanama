@@ -217,3 +217,46 @@
     transform: rotate(45deg) rotateX(-385deg) rotateY(385deg);
   }
 }
+
+/* Barra de progreso de navegación (components/ui/TransitionLoader.tsx).
+   Mismo brillo que la navegación del header: primary-fixed-dim #b0c8eb */
+.nav-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 10000;
+  height: 3px;
+  pointer-events: none;
+}
+
+.nav-progress__bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #b0c8eb;
+  box-shadow: 0 0 8px rgb(176 200 235 / 0.9), 0 0 16px rgb(176 200 235 / 0.5);
+  border-radius: 0 999px 999px 0;
+}
+
+/* Avanza rápido al principio y se frena cerca del final mientras espera al servidor */
+.nav-progress[data-phase="loading"] .nav-progress__bar {
+  animation: nav-progress-grow 8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+
+.nav-progress[data-phase="done"] .nav-progress__bar {
+  width: 100%;
+  opacity: 0;
+  transition: width 0.2s ease-out, opacity 0.3s ease 0.15s;
+}
+
+@keyframes nav-progress-grow {
+  0% { width: 0; }
+  15% { width: 45%; }
+  100% { width: 88%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress[data-phase="loading"] .nav-progress__bar {
+    animation: none;
+    width: 60%;
+  }
+}

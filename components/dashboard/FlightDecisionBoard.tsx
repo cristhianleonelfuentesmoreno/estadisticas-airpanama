@@ -29,10 +29,17 @@ function criticalPeriod(decision: FlightDecision) {
   return decision.forecasts.find(f => f.isCritical)?.shortPeriod ?? null;
 }
 
-export function FlightDecisionBoard() {
-  const [decisions, setDecisions] = useState<FlightDecision[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+type BoardProps = {
+  // Datos que ya trajo el servidor junto con la página (evita una acción extra en fila)
+  initial?: { decisions: FlightDecision[]; fetchedAt: number };
+  // Solo el esqueleto de carga, sin pedir datos (fallback de Suspense)
+  pending?: boolean;
+};
+
+export function FlightDecisionBoard({ initial, pending = false }: BoardProps = {}) {
+  const [decisions, setDecisions] = useState<FlightDecision[]>(initial?.decisions ?? []);
+  const [loading, setLoading] = useState(!initial);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(initial ? new Date(initial.fetchedAt) : null);
   const [expandedTaf, setExpandedTaf] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,10 +54,11 @@ export function FlightDecisionBoard() {
         setLoading(false);
       }
     }
-    loadData();
+    if (pending) return;
+    if (!initial) loadData();
     const interval = setInterval(loadData, 300000); // 5 min
     return () => clearInterval(interval);
-  }, []);
+  }, [pending, initial]);
 
   // Resumen de una línea pensado para gerencia
   const summary = useMemo(() => {

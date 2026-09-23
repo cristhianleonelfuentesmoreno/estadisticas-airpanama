@@ -1,6 +1,6 @@
 import TablasDiariasClient from "@/components/dashboard/TablasDiariasClient";
 import { requireApprovedUser } from "@/lib/auth";
-import { getLlegadasMalek, saveCompletedMalekFlights, getSalidasMalek, saveCompletedMalekDepartures } from "@/app/actions/flights";
+import { getLlegadasMalek, getSalidasMalek, syncCompletedMalekFlights } from "@/app/actions/flights";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -14,16 +14,22 @@ export default async function TablasDiariasPage({
   const user = await requireApprovedUser();
   const dateParam = typeof params.date === 'string' ? params.date : undefined;
 
-  // Tratar de guardar cualquier vuelo completado recientemente de forma automatica
-  await saveCompletedMalekFlights();
-  await saveCompletedMalekDepartures();
-
-  // Traer los datos historicos
-  const llegadas = await getLlegadasMalek(dateParam);
-  const salidas = await getSalidasMalek(dateParam);
-
   // Determinar la fecha actual que se esta visualizando
-  const currentDateStr = dateParam || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+  const currentDateStr = dateParam || today;
+
+  // Guardar automáticamente los vuelos completados de hoy (itinerario consultado una sola vez).
+  // Si se ve hoy, hay que esperar a que termine para leer lo recién guardado;
+  // si se ve otro día, todo va en paralelo.
+  const sync = syncCompletedMalekFlights();
+  if (currentDateStr === today) await sync;
+
+  // Llegadas y salidas en paralelo
+  const [llegadas, salidas] = await Promise.all([
+    getLlegadasMalek(dateParam),
+    getSalidasMalek(dateParam),
+    sync,
+  ]);
 
   return (
     <div className="w-full h-full bg-[#f7f9fb]">

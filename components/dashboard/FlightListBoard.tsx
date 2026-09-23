@@ -5,11 +5,22 @@ import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 import { ManualFlightUploadModal } from "./ManualFlightUploadModal";
 import { updateFlightStatusOverride } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
+import { UploadGlyph } from "@/components/ui/UploadProgress";
 import { toast } from "sonner";
 
-export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
-  const [flights, setFlights] = useState<FlightData[]>([]);
-  const [loading, setLoading] = useState(true);
+type ListProps = {
+  isAdmin?: boolean;
+  // Vuelos que ya trajo el servidor junto con la página (evita una acción extra en fila)
+  initial?: { date: string; flights: FlightData[] };
+  // Solo el estado de carga, sin pedir datos (fallback de Suspense)
+  pending?: boolean;
+};
+
+export function FlightListBoard({ isAdmin = false, initial, pending = false }: ListProps) {
+  const [flights, setFlights] = useState<FlightData[]>(initial?.flights ?? []);
+  const [loading, setLoading] = useState(!initial);
+  // La primera carga ya vino del servidor para esta fecha
+  const skipFirstLoad = useRef(!!initial);
   
   // Filter & Modal State
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
@@ -48,10 +59,12 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
       }
     }
     
-    loadData();
+    if (pending) return;
+    if (skipFirstLoad.current && initial?.date === boardDate) skipFirstLoad.current = false;
+    else loadData();
     const interval = setInterval(loadData, 300000);
     return () => clearInterval(interval);
-  }, [boardDate, refreshCounter]);
+  }, [boardDate, refreshCounter, pending, initial?.date]);
 
   // 1. Filter Flights
   const filteredFlights = flights.filter(f => {
@@ -156,9 +169,9 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
 
             <button
               onClick={() => setIsManualModalOpen(true)}
-              className="flex items-center gap-2 px-4 h-11 bg-primary text-on-primary font-label-md font-bold rounded-full shadow-sm hover:bg-primary/90 transition-colors"
+              className="upbtn flex items-center gap-2 px-4 h-11 bg-primary text-on-primary font-label-md font-bold rounded-full shadow-sm hover:bg-primary/90 transition-colors"
             >
-              <span className="material-symbols-outlined text-[18px]">add</span>
+              <UploadGlyph />
               Cargar Itinerario
             </button>
           </div>

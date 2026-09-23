@@ -1,0 +1,227 @@
+/* Subidas: ícono de botón y progreso "aro → barra".
+   Colores de la paleta (globals.css):
+   primary-container #0a2540 · primary-fixed-dim #b0c8eb · on-primary-container #768dad · secondary #bb001d */
+
+/* ---------- Ícono del botón ---------- */
+.upglyph {
+  flex: none;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.upglyph__ring {
+  stroke-dasharray: 0.78 0.22;
+  transform-origin: 12px 12px;
+  transform: rotate(-90deg);
+  opacity: 0.9;
+}
+
+.upglyph__arrow {
+  transform-box: fill-box;
+}
+
+.upbtn:hover .upglyph__ring,
+.upbtn:focus-visible .upglyph__ring {
+  animation: upglyph-spin 1.1s linear infinite;
+}
+
+.upbtn:hover .upglyph__arrow,
+.upbtn:focus-visible .upglyph__arrow {
+  animation: upglyph-lift 1.1s ease-in infinite;
+}
+
+@keyframes upglyph-spin {
+  to { transform: rotate(270deg); }
+}
+
+/* La flecha sube, se va por arriba y vuelve a entrar desde abajo */
+@keyframes upglyph-lift {
+  0%   { transform: translateY(0); opacity: 1; }
+  45%  { transform: translateY(-9px); opacity: 0; }
+  46%  { transform: translateY(9px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* ---------- Progreso de la subida ---------- */
+.upprog {
+  --up-glow-rgb: 176 200 235;   /* primary-fixed-dim */
+  --up-muted: #768dad;          /* on-primary-container */
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 50% 45%, rgb(var(--up-glow-rgb) / 0.1), transparent 55%),
+    rgb(10 37 64 / 0.94);        /* primary-container */
+  backdrop-filter: blur(6px);
+  animation: upprog-in 0.2s ease-out;
+}
+
+.upprog__panel {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: #fff;
+}
+
+.upprog__stage {
+  width: 100%;
+  overflow: visible;
+}
+
+.upprog__rail {
+  fill: none;
+  stroke: rgb(var(--up-glow-rgb) / 0.16);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* pathLength=1, así el dashoffset ES el progreso: 0 … 1 */
+.upprog__rail--fill {
+  stroke: rgb(var(--up-glow-rgb));
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 5px rgb(var(--up-glow-rgb) / 0.75));
+}
+
+.upprog__rig {
+  fill: none;
+  stroke: rgb(var(--up-glow-rgb));
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity 0.25s ease;
+}
+
+.upprog__arrow {
+  filter: drop-shadow(0 0 6px rgb(var(--up-glow-rgb) / 0.8));
+}
+
+.upprog__trail line {
+  stroke-width: 2;
+  opacity: 0.5;
+  animation: upprog-trail 0.5s linear infinite;
+}
+
+.upprog__trail line:nth-child(2) { animation-delay: 0.15s; }
+.upprog__trail line:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes upprog-trail {
+  0%   { transform: translateY(0); opacity: 0.6; }
+  100% { transform: translateY(8px); opacity: 0; }
+}
+
+/* Al terminar, la flecha se vuelve un check */
+.upprog__check {
+  opacity: 0;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.upprog__check circle {
+  fill: rgb(var(--up-glow-rgb));
+  stroke: none;
+}
+
+.upprog__check path {
+  stroke: #0a2540;
+  stroke-width: 3;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+}
+
+.upprog[data-state="done"] .upprog__rig {
+  opacity: 0;
+}
+
+.upprog[data-state="done"] .upprog__check {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.upprog[data-state="done"] .upprog__check path {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.35s ease 0.1s;
+}
+
+/* Error: la barra se tiñe del rojo de la marca */
+.upprog[data-state="error"] .upprog__rail--fill {
+  stroke: #bb001d;
+  filter: none;
+}
+
+.upprog[data-state="error"] .upprog__rig {
+  opacity: 0;
+}
+
+.upprog__pct {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgb(var(--up-glow-rgb));
+  font-variant-numeric: tabular-nums;
+}
+
+.upprog__label {
+  margin: 10px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.upprog__file {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--up-muted);
+  word-break: break-all;
+}
+
+.upprog__file span {
+  margin-left: 6px;
+  opacity: 0.8;
+}
+
+.upprog__cancel {
+  margin-top: 18px;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  color: var(--up-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.upprog__cancel:hover {
+  color: #fff;
+}
+
+@keyframes upprog-in {
+  from { opacity: 0; }
+}
+
+/* Nada vuela si se pidió menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  .upprog__rig { display: none; }
+  .upbtn:hover .upglyph__ring,
+  .upbtn:hover .upglyph__arrow,
+  .upbtn:focus-visible .upglyph__ring,
+  .upbtn:focus-visible .upglyph__arrow,
+  .upprog__trail line {
+    animation: none;
+  }
+}

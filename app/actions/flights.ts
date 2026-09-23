@@ -167,9 +167,13 @@ const getAdminSupabase = createAdminClient;
 
 export async function saveCompletedMalekFlights() {
   await requireApprovedUser();
-  const supabase = getAdminSupabase();
+  return saveArrivals(await getUpcomingFlights());
+}
 
-  const flights = await getUpcomingFlights();
+// Interna (no exportada): recibe los vuelos ya consultados. No es una Server Action,
+// así nadie puede llamarla desde el navegador con vuelos inventados.
+async function saveArrivals(flights: FlightData[]) {
+  const supabase = getAdminSupabase();
   const arrivedMalekFlights = flights.filter(f => f.destination === 'DAV' && f.status === 'ARRIBÓ');
 
   if (arrivedMalekFlights.length === 0) return { success: true, count: 0 };
@@ -218,22 +222,24 @@ export async function getLlegadasMalek(dateStr?: string) {
   const supabase = await createClient();
   const today = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   
-  const { data, error } = await supabase
-    .from('llegadas_malek_historico')
-    .select('*')
-    .eq('fecha', today)
-    .order('hora_real_llegada', { ascending: false });
+  // Histórico e itinerario del mismo día, en paralelo
+  const [{ data, error }, { data: manualFlights }] = await Promise.all([
+    supabase
+      .from('llegadas_malek_historico')
+      .select('*')
+      .eq('fecha', today)
+      .order('hora_real_llegada', { ascending: false }),
+    supabase
+      .from('manual_flights_log')
+      .select('flightNumber, departureTimeLocal, arrivalTimeLocal')
+      .eq('flightDate', today),
+  ]);
 
   if (error) {
     console.log("Error in Supabase for Malek arrivals.", error?.message);
     return [];
   }
 
-  // Fetch manual_flights_log for the same date to get both times
-  const { data: manualFlights } = await supabase
-    .from('manual_flights_log')
-    .select('flightNumber, departureTimeLocal, arrivalTimeLocal')
-    .eq('flightDate', today);
 
   const enhancedData = (data || []).map(flight => {
     const manual = manualFlights?.find(m => 
@@ -325,9 +331,18 @@ export async function updateLlegadaMalek(id: string, updates: HistoricoUpdates) 
 
 export async function saveCompletedMalekDepartures() {
   await requireApprovedUser();
-  const supabase = getAdminSupabase();
+  return saveDepartures(await getUpcomingFlights());
+}
 
+// Guarda llegadas y salidas completadas consultando el itinerario UNA sola vez
+export async function syncCompletedMalekFlights() {
+  await requireApprovedUser();
   const flights = await getUpcomingFlights();
+  await Promise.all([saveArrivals(flights), saveDepartures(flights)]);
+}
+
+async function saveDepartures(flights: FlightData[]) {
+  const supabase = getAdminSupabase();
   const departedMalekFlights = flights.filter(f => f.origin === 'DAV' && f.status === 'ARRIBÓ');
 
   if (departedMalekFlights.length === 0) return { success: true, count: 0 };
@@ -375,22 +390,24 @@ export async function getSalidasMalek(dateStr?: string) {
   const supabase = await createClient();
   const today = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   
-  const { data, error } = await supabase
-    .from('salidas_malek_historico')
-    .select('*')
-    .eq('fecha', today)
-    .order('hora_real_salida', { ascending: false });
+  // Histórico e itinerario del mismo día, en paralelo
+  const [{ data, error }, { data: manualFlights }] = await Promise.all([
+    supabase
+      .from('salidas_malek_historico')
+      .select('*')
+      .eq('fecha', today)
+      .order('hora_real_salida', { ascending: false }),
+    supabase
+      .from('manual_flights_log')
+      .select('flightNumber, departureTimeLocal, arrivalTimeLocal')
+      .eq('flightDate', today),
+  ]);
 
   if (error) {
     console.log("Error in Supabase for Malek departures.", error?.message);
     return [];
   }
 
-  // Fetch manual_flights_log for the same date to get both times
-  const { data: manualFlights } = await supabase
-    .from('manual_flights_log')
-    .select('flightNumber, departureTimeLocal, arrivalTimeLocal')
-    .eq('flightDate', today);
 
   const enhancedData = (data || []).map(flight => {
     const manual = manualFlights?.find(m => 
@@ -599,17 +616,19 @@ export async function getReporteMensual(year: number, month: number, range: 'mon
     endDate = `${year}-${currentMStr}-${String(lastDay).padStart(2, '0')}`;
   }
 
-  const { data: llegadas } = await supabase
-    .from('llegadas_malek_historico')
-    .select('*')
-    .gte('fecha', startDate)
-    .lte('fecha', endDate);
-
-  const { data: salidas } = await supabase
-    .from('salidas_malek_historico')
-    .select('*')
-    .gte('fecha', startDate)
-    .lte('fecha', endDate);
+  // Llegadas y salidas del periodo, en paralelo
+  const [{ data: llegadas }, { data: salidas }] = await Promise.all([
+    supabase
+      .from('llegadas_malek_historico')
+      .select('*')
+      .gte('fecha', startDate)
+      .lte('fecha', endDate),
+    supabase
+      .from('salidas_malek_historico')
+      .select('*')
+      .gte('fecha', startDate)
+      .lte('fecha', endDate),
+  ]);
 
   return [...(llegadas || []), ...(salidas || [])];
 }
