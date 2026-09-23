@@ -1,16 +1,25 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { UAParser } from "ua-parser-js";
-import { logAudit } from "./audit";
+import { logAudit } from "@/lib/audit";
+import { requireAdmin, requireApprovedUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY!; // Service Role Key
+const supabaseAdmin = createAdminClient();
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+const isValidCoord = (v: unknown, max: number): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max;
 
-export async function registrarSesion(userId: string, lat: number | null, lon: number | null, userAgentStr: string) {
+export async function registrarSesion(lat: number | null, lon: number | null, userAgentStr: string) {
+  // El userId sale de la sesión, nunca del cliente (evita suplantar a otro usuario)
+  const { id: userId } = await requireApprovedUser();
+  if (!isValidCoord(lat, 90) || !isValidCoord(lon, 180)) {
+    lat = null;
+    lon = null;
+  }
+  userAgentStr = String(userAgentStr || '').slice(0, 512);
+
   const headersList = await headers();
   // Extraer IP de headers estándar (Vercel, proxies, etc.)
   let ip = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || 'IP desconocida';
@@ -87,19 +96,23 @@ export async function registrarSesion(userId: string, lat: number | null, lon: n
 
 export async function actualizarActividad(sessionId: string) {
   if (!sessionId) return { success: false };
+  const { id: userId } = await requireApprovedUser();
   const { error } = await supabaseAdmin
     .from('sesiones')
     .update({ ultima_actividad: new Date().toISOString() })
-    .eq('id', sessionId);
+    .eq('id', sessionId)
+    .eq('user_id', userId);
     
   return { success: !error };
 }
 
 export async function cerrarSesion(sessionId: string) {
   if (!sessionId) return { success: false };
-  
-  // Obtener info para auditoria antes de actualizar
-  const { data: sessionData } = await supabaseAdmin.from('sesiones').select('user_id').eq('id', sessionId).single();
+  const { id: userId } = await requireApprovedUser();
+
+  // Obtener info para auditoria antes de actualizar (solo sesiones propias)
+  const { data: sessionData } = await supabaseAdmin.from('sesiones').select('user_id').eq('id', sessionId).eq('user_id', userId).single();
+  if (!sessionData) return { success: false };
 
   const { error } = await supabaseAdmin
     .from('sesiones')
@@ -108,7 +121,8 @@ export async function cerrarSesion(sessionId: string) {
       fin_sesion: new Date().toISOString(),
       ultima_actividad: new Date().toISOString()
     })
-    .eq('id', sessionId);
+    .eq('id', sessionId)
+    .eq('user_id', userId);
 
   if (!error && sessionData) {
     const { data: perfil } = await supabaseAdmin.from('perfiles').select('nombre, email').eq('id', sessionData.user_id).single();
@@ -124,15 +138,19 @@ export async function cerrarSesion(sessionId: string) {
   return { success: !error };
 }
 
+// Pública a propósito (se llama antes de tener sesión): solo registra
+// un evento fijo y limita el tamaño del texto recibido.
 export async function logFailedLogin(email: string) {
+  const ref = typeof email === 'string' ? email.trim().slice(0, 254) : '';
   await logAudit({
     tipo_evento: 'acceso_fallido',
-    nombre_referencia: email || 'Intento Anónimo',
+    nombre_referencia: ref || 'Intento Anónimo',
     descripcion: 'Credenciales inválidas o acceso bloqueado por política de firewall.',
   });
 }
 
 export async function getSesionesActivas() {
+  await requireAdmin();
   const tenMinutesAgo = new Date(Date.now() - 10 * 60000).toISOString();
 
   const { data: sesiones, error } = await supabaseAdmin
@@ -162,6 +180,7 @@ export async function getSesionesActivas() {
 }
 
 export async function getHistorialSesionesUser(userId: string) {
+  await requireAdmin();
   const { data, error } = await supabaseAdmin
     .from('sesiones')
     .select('*')

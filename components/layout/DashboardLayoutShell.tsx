@@ -59,7 +59,7 @@ export default function DashboardLayoutShell({
 
         if (!location) return; // Bloqueado por falta de GPS
 
-        const res = await registrarSesion(user.id, location.lat, location.lon, navigator.userAgent);
+        const res = await registrarSesion(location.lat, location.lon, navigator.userAgent);
         if (res.success && res.sessionId) {
           sessionId = res.sessionId as string;
           localStorage.setItem('sessionId', sessionId as string);

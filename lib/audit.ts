@@ -1,12 +1,10 @@
-"use server";
-
-import { createClient } from "@supabase/supabase-js";
+// Logger interno de auditoría. NO lleva "use server": así no queda expuesto
+// como Server Action y nadie puede insertar registros falsos desde fuera.
 import { headers } from "next/headers";
 import { UAParser } from "ua-parser-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY!; // Service Role Key para poder insertar sin restricciones de RLS
-const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+const supabaseAdmin = createAdminClient();
 
 export type TipoEventoAuditoria = 'acceso_fallido' | 'inicio_sesion' | 'cierre_sesion' | 'edicion' | 'eliminacion' | 'alerta_sistema';
 
@@ -66,18 +64,4 @@ export async function logAudit({ tipo_evento, usuario_id, nombre_referencia, des
     console.error("Error al registrar auditoría:", error);
     // No queremos que un fallo en el log rompa la app, así que lo atrapamos silenciosamente.
   }
-}
-
-export async function getAuditLogs() {
-  const { data, error } = await supabaseAdmin
-    .from('registros_auditoria')
-    .select('*')
-    .order('creado_en', { ascending: false })
-    .limit(500); // Limitar a 500 para rendimiento en panel
-
-  if (error) {
-    console.error("Error obteniendo logs de auditoría:", error);
-    return [];
-  }
-  return data || [];
 }

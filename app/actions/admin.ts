@@ -1,9 +1,9 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { logAudit } from "./audit";
+import { logAudit } from "@/lib/audit";
 
 async function logAdminAction(adminId: string, targetId: string, actionDesc: string, eventType: 'edicion' | 'eliminacion' = 'edicion', extra = {}) {
   const supabase = await createClient();
@@ -61,10 +61,7 @@ export async function updateUserStatus(userId: string, status: "aprobado" | "pen
   
   if (status === "aprobado") {
     try {
-      const adminAuthClient = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SECRET_KEY!
-      );
+      const adminAuthClient = createAdminClient();
       await adminAuthClient.auth.admin.updateUserById(userId, { email_confirm: true });
     } catch (err) {
       console.error("Error auto-confirming email:", err);
@@ -85,10 +82,7 @@ export async function updateUserRole(userId: string, role: "administrador" | "us
   const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
-  const adminAuthClient = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
+  const adminAuthClient = createAdminClient();
 
   const { error } = await adminAuthClient
     .from("perfiles")
@@ -111,10 +105,7 @@ export async function updateUserCargo(userId: string, cargo: string | null) {
   const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
-  const adminAuthClient = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
+  const adminAuthClient = createAdminClient();
 
   const { error } = await adminAuthClient
     .from("perfiles")
@@ -137,10 +128,7 @@ export async function updateUserName(userId: string, nombre: string | null) {
   const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
-  const adminAuthClient = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
+  const adminAuthClient = createAdminClient();
 
   const { error } = await adminAuthClient
     .from("perfiles")
@@ -164,10 +152,7 @@ export async function deleteUserAction(userId: string) {
   const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
-  const supabaseAdmin = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
+  const supabaseAdmin = createAdminClient();
 
   // Intentamos borrar el perfil primero por si no hay CASCADE
   await supabaseAdmin.from("perfiles").delete().eq("id", userId);
@@ -191,25 +176,31 @@ export async function getAppSettings() {
   return JSON.parse(text);
 }
 
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
 export async function updateAppSettings(formData: FormData) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
-  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user?.id).single();
+  if (!authData.user) return { error: "No autorizado" };
+  const { data: perfil } = await supabase.from("perfiles").select("role").eq("id", authData.user.id).single();
   if (perfil?.role !== "administrador") return { error: "No autorizado" };
 
   let bgUrl = formData.get("bgUrl") as string;
   const imageFile = formData.get("imageFile") as File | null;
 
-  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
-  const supabaseAdmin = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
+  const supabaseAdmin = createAdminClient();
 
   if (imageFile && imageFile.size > 0) {
-    const ext = imageFile.name.split('.').pop();
+    // El bucket es público: solo aceptamos imágenes reales (evita subir HTML/JS)
+    const ext = ALLOWED_IMAGE_TYPES[imageFile.type];
+    if (!ext) return { error: "Formato de imagen no permitido (usa JPG, PNG o WEBP)" };
+    if (imageFile.size > 8 * 1024 * 1024) return { error: "La imagen supera 8 MB" };
     const fileName = `bg-${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabaseAdmin.storage.from('assets').upload(fileName, imageFile, { upsert: true });
+    const { error: uploadError } = await supabaseAdmin.storage.from('assets').upload(fileName, imageFile, { upsert: true, contentType: imageFile.type });
     if (uploadError) return { error: uploadError.message };
     
     const { data: urlData } = supabaseAdmin.storage.from('assets').getPublicUrl(fileName);

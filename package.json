@@ -23,7 +23,7 @@
     "sonner": "^2.0.8",
     "tesseract.js": "^7.0.0",
     "ua-parser-js": "^2.0.10",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

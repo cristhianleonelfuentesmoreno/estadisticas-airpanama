@@ -1,5 +1,7 @@
 "use server";
 
+import { requireApprovedUser } from "@/lib/auth";
+
 interface TafForecast {
   timeFrom: number;
   timeTo: number;
@@ -96,6 +98,7 @@ function getOverallStatus(colors: StatusColor[]): { color: StatusColor, text: st
 }
 
 export async function getFlightDecisions(): Promise<FlightDecision[]> {
+  await requireApprovedUser();
   try {
     const res = await fetch("https://aviationweather.gov/api/data/taf?ids=MPDA,MPMG,MPTO,MPBO,MPCE&format=json", {
       next: { revalidate: 300 }

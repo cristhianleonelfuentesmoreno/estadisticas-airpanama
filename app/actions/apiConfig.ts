@@ -1,21 +1,19 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from '@supabase/supabase-js';
-
-// Cliente admin para bypassear RLS
-const getAdminSupabase = () => {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
-};
+import { requireAdmin } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ApiConfig = {
   id: string; // 'flightaware' | 'flightradar24'
   api_key: string;
   is_active: boolean;
 };
+
+// Prefijo que marca una clave enmascarada: si vuelve así desde el cliente,
+// significa que el administrador no la cambió.
+const MASK = '••••••••';
+
+const maskKey = (key: string) => (key ? `${MASK}${key.slice(-4)}` : '');
 
 const FALLBACK_CONFIGS: Record<string, ApiConfig> = {
   gemini: {
@@ -25,41 +23,46 @@ const FALLBACK_CONFIGS: Record<string, ApiConfig> = {
   }
 };
 
+// Devuelve las claves ENMASCARADAS: la clave completa nunca sale del servidor.
 export async function getApiConfigs(): Promise<Record<string, ApiConfig>> {
+  await requireAdmin();
+
+  const configs: Record<string, ApiConfig> = { ...FALLBACK_CONFIGS };
   try {
-    const supabase = getAdminSupabase();
-    const { data, error } = await supabase.from('api_configurations').select('*');
-    
-    if (error || !data) {
-      // Si la tabla no existe o hay error, usar fallback de .env
-      return FALLBACK_CONFIGS;
+    const { data, error } = await createAdminClient().from('api_configurations').select('*');
+    // Si la tabla no existe o hay error, usar fallback de .env
+    if (!error && data) {
+      data.forEach((row) => {
+        configs[row.id] = {
+          id: row.id,
+          api_key: row.api_key,
+          is_active: row.is_active
+        };
+      });
     }
-
-    const configs: Record<string, ApiConfig> = { ...FALLBACK_CONFIGS };
-    data.forEach((row) => {
-      configs[row.id] = {
-        id: row.id,
-        api_key: row.api_key,
-        is_active: row.is_active
-      };
-    });
-
-    return configs;
-  } catch (error) {
-    return FALLBACK_CONFIGS;
+  } catch {
+    // usar fallback
   }
+
+  return Object.fromEntries(
+    Object.entries(configs).map(([id, c]) => [id, { ...c, api_key: maskKey(c.api_key) }])
+  );
 }
 
 export async function saveApiConfig(id: string, apiKey: string, isActive: boolean) {
-  const supabase = getAdminSupabase();
-  const { error } = await supabase
+  await requireAdmin();
+
+  const row: Record<string, unknown> = {
+    id,
+    is_active: isActive,
+    updated_at: new Date().toISOString()
+  };
+  // Solo guardar la clave si el administrador escribió una nueva
+  if (!apiKey.startsWith(MASK)) row.api_key = apiKey;
+
+  const { error } = await createAdminClient()
     .from('api_configurations')
-    .upsert({ 
-      id, 
-      api_key: apiKey, 
-      is_active: isActive,
-      updated_at: new Date().toISOString()
-    });
+    .upsert(row);
 
   if (error) {
     console.error("Error saving API config:", error);

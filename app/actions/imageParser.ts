@@ -1,5 +1,7 @@
 "use server";
 
+import { requireApprovedUser } from "@/lib/auth";
+
 import { createWorker } from "tesseract.js";
 
 export interface ParsedFlight {
@@ -317,6 +319,10 @@ export async function parseItineraryImage(
   targetDateStr: string,
   airline: string = 'airpanama'
 ): Promise<ParsedFlight[]> {
+  await requireApprovedUser();
+  if (typeof base64Image !== 'string' || base64Image.length > 15_000_000) {
+    throw new Error('Imagen inválida o demasiado grande.');
+  }
   try {
     const base64Data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
 

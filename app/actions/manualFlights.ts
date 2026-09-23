@@ -1,13 +1,9 @@
 "use server";
 
-import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { requireApprovedUser } from '@/lib/auth';
+import { createAdminClient } from '@/lib/supabase/admin';
 
-const getAdminSupabase = () => {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
-};
+const getAdminSupabase = createAdminClient;
 
 export type ManualFlightInput = {
   id?: string;
@@ -31,7 +27,24 @@ export type ManualFlightInput = {
   is_archived?: boolean;
 };
 
+// Columnas que el cliente puede escribir. Cualquier otra propiedad se descarta.
+const WRITABLE_FIELDS = [
+  'flightNumber', 'aircraft', 'aircraftReg', 'origin', 'originName', 'destination',
+  'destinationName', 'departureTimeLocal', 'arrivalTimeLocal', 'airline', 'pilot',
+  'paxCount', 'paxMax', 'flightDate', 'actual_departure_time', 'actual_arrival_time',
+  'status_override', 'is_archived',
+] as const;
+
+function pickWritable(input: Partial<ManualFlightInput>) {
+  const out: Record<string, unknown> = {};
+  for (const key of WRITABLE_FIELDS) {
+    if (input && key in input) out[key] = input[key];
+  }
+  return out;
+}
+
 export async function getManualFlightsForDate(dateStr?: string): Promise<ManualFlightInput[]> {
+  await requireApprovedUser();
   try {
     const supabase = getAdminSupabase();
     
@@ -63,10 +76,11 @@ export async function getManualFlightsForDate(dateStr?: string): Promise<ManualF
 }
 
 export async function addManualFlight(flight: ManualFlightInput) {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
   const { error } = await supabase
     .from('manual_flights_log')
-    .insert([flight]);
+    .insert([pickWritable(flight)]);
     
   if (error) {
     throw new Error(error.message);
@@ -75,7 +89,8 @@ export async function addManualFlight(flight: ManualFlightInput) {
 }
 
 export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
-  if (flights.length === 0) return true;
+  await requireApprovedUser();
+  if (!Array.isArray(flights) || flights.length === 0) return true;
 
   const supabase = getAdminSupabase();
   
@@ -107,7 +122,7 @@ export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
   // Insertar solo los nuevos
   const { error: insertError } = await supabase
     .from('manual_flights_log')
-    .insert(newFlights);
+    .insert(newFlights.map(pickWritable));
     
   if (insertError) {
     throw new Error(insertError.message);
@@ -117,16 +132,19 @@ export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
 }
 
 export async function updateFlightStatusOverride(id: string, override: { status_override?: string | null; actual_departure_time?: string | null; actual_arrival_time?: string | null }) {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
+  const { status_override, actual_departure_time, actual_arrival_time } = override;
   const { error } = await supabase
     .from('manual_flights_log')
-    .update(override)
+    .update({ status_override, actual_departure_time, actual_arrival_time })
     .eq('id', id);
   if (error) throw new Error(error.message);
   return true;
 }
 
 export async function archiveFlight(id: string) {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
 
   // Obtener detalles del vuelo manual para actualizar el histórico correspondiente
@@ -199,11 +217,11 @@ export async function archiveFlight(id: string) {
 }
 
 export async function updateFlightDetails(id: string, updates: Partial<ManualFlightInput>) {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
-  
-  // Clean up undefined/id fields
-  const payload = { ...updates };
-  delete payload.id;
+
+  // Solo columnas permitidas (descarta id y cualquier campo desconocido)
+  const payload = pickWritable(updates);
   
   const { error } = await supabase
     .from('manual_flights_log')
@@ -214,6 +232,7 @@ export async function updateFlightDetails(id: string, updates: Partial<ManualFli
 }
 
 export async function deleteManualFlight(id: string) {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
   const { error } = await supabase
     .from('manual_flights_log')

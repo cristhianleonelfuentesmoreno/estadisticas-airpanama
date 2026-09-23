@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getAuditLogs, TipoEventoAuditoria } from "@/app/actions/audit";
+import { getAuditLogs } from "@/app/actions/audit";
+import type { TipoEventoAuditoria } from "@/lib/audit";
 
 interface AuditLog {
   id: string;

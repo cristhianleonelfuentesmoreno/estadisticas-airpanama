@@ -1,5 +1,7 @@
 "use server";
 
+import { requireApprovedUser } from "@/lib/auth";
+
 export interface FlightData {
   id: string;
   flightNumber: string;
@@ -30,6 +32,7 @@ export interface FlightData {
 }
 
 export async function getUpcomingFlights(targetDate?: string): Promise<FlightData[]> {
+  await requireApprovedUser();
   const now = new Date(); // Obtenemos la hora local del dispositivo
 
   const parseTime = (timeStr: string | null | undefined, flightDateStr?: string) => {
@@ -157,17 +160,13 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
 }
 
 import { createClient } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 // Usar el cliente administrador (bypassa RLS) para tareas automáticas en background
-const getAdminSupabase = () => {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!
-  );
-};
+const getAdminSupabase = createAdminClient;
 
 export async function saveCompletedMalekFlights() {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
 
   const flights = await getUpcomingFlights();
@@ -215,6 +214,7 @@ export async function saveCompletedMalekFlights() {
 }
 
 export async function getLlegadasMalek(dateStr?: string) {
+  await requireApprovedUser();
   const supabase = await createClient();
   const today = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   
@@ -270,11 +270,12 @@ export async function getLlegadasMalek(dateStr?: string) {
 }
 
 export async function updateLlegadaMalek(id: string, updates: { hora_real_llegada?: string, pasajeros_abordo?: number, estado_final?: string }) {
+  await requireApprovedUser();
   const supabase = await createClient();
   
   const { error } = await supabase
     .from('llegadas_malek_historico')
-    .update(updates)
+    .update({ hora_real_llegada: updates.hora_real_llegada, pasajeros_abordo: updates.pasajeros_abordo, estado_final: updates.estado_final })
     .eq('id', id);
 
   if (error) {
@@ -286,6 +287,7 @@ export async function updateLlegadaMalek(id: string, updates: { hora_real_llegad
 }
 
 export async function saveCompletedMalekDepartures() {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
 
   const flights = await getUpcomingFlights();
@@ -332,6 +334,7 @@ export async function saveCompletedMalekDepartures() {
 }
 
 export async function getSalidasMalek(dateStr?: string) {
+  await requireApprovedUser();
   const supabase = await createClient();
   const today = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   
@@ -387,10 +390,11 @@ export async function getSalidasMalek(dateStr?: string) {
 }
 
 export async function updateSalidaMalek(id: string, updates: { hora_real_salida?: string, pasajeros_abordo?: number, estado_final?: string }) {
+  await requireApprovedUser();
   const supabase = await createClient();
   const { error } = await supabase
     .from('salidas_malek_historico')
-    .update(updates)
+    .update({ hora_real_salida: updates.hora_real_salida, pasajeros_abordo: updates.pasajeros_abordo, estado_final: updates.estado_final })
     .eq('id', id);
 
   if (error) {
@@ -400,6 +404,7 @@ export async function updateSalidaMalek(id: string, updates: { hora_real_salida?
   return { success: true, message: "Registro actualizado exitosamente." };
 }
 export async function deleteLlegadaMalek(id: string) {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
   const { error } = await supabase.from('llegadas_malek_historico').delete().eq('id', id);
   if (error) return { success: false, error: error.message };
@@ -407,6 +412,7 @@ export async function deleteLlegadaMalek(id: string) {
 }
 
 export async function deleteSalidaMalek(id: string) {
+  await requireApprovedUser();
   const supabase = getAdminSupabase();
   const { error } = await supabase.from('salidas_malek_historico').delete().eq('id', id);
   if (error) return { success: false, error: error.message };
@@ -414,6 +420,10 @@ export async function deleteSalidaMalek(id: string) {
 }
 
 export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salidas') {
+  await requireApprovedUser();
+  if (!Array.isArray(data) || (type !== 'llegadas' && type !== 'salidas')) {
+    return { success: false, error: 'Datos inválidos' };
+  }
   const supabase = getAdminSupabase();
   const table = 'manual_flights_log';
   
@@ -506,6 +516,7 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
 }
 
 export async function getReporteMensual(year: number, month: number, range: 'month' | 'year' | '6m' = 'month') {
+  await requireApprovedUser();
   const supabase = await createClient();
   let startDate = '';
   let endDate = '';
