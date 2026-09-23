@@ -57,6 +57,12 @@ async function getSessionUser(): Promise<SessionUser | null> {
   return { id: profile.id, email: profile.email, role: profile.role }
 }
 
+// Para tareas en segundo plano (latido de sesión, cierre): sin sesión válida
+// devuelven null en vez de lanzar, así no aparece un error sin capturar en la pantalla
+export async function getApprovedUserOrNull(): Promise<SessionUser | null> {
+  return getSessionUser()
+}
+
 export async function requireApprovedUser(): Promise<SessionUser> {
   const user = await getSessionUser()
   if (!user) throw new Error('No autorizado')

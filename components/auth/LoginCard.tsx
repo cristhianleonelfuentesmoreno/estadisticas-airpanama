@@ -177,6 +177,21 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
       window.history.replaceState(null, "", window.location.pathname);
     }
     
+    if (params.get("status") === "expired") {
+      toast.custom(() => (
+        <div className="bg-surface-container-lowest border-l-4 border-amber-500 p-4 rounded-xl shadow-lg flex items-start gap-4 animate-in slide-in-from-bottom-5 w-full max-w-sm">
+          <div className="bg-amber-100 text-amber-600 rounded-full p-1.5 flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-xl">schedule</span>
+          </div>
+          <div>
+            <h3 className="font-headline-sm text-sm font-bold text-on-surface">Sesión expirada</h3>
+            <p className="font-body-sm text-xs text-on-surface-variant mt-1">Tu sesión terminó. Inicia sesión de nuevo para continuar.</p>
+          </div>
+        </div>
+      ), { duration: 6000 });
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
     // Enlaces de recuperación de contraseña inválidos (ver /api/auth/confirm)
     const linkError = params.get("error");
     if (linkError === "link_expired" || linkError === "link_other_browser") {

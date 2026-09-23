@@ -33,6 +33,20 @@ export default function DashboardLayoutShell({
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
+    // La sesión venció o se cerró en otra pestaña: salir limpio y avisar en el login
+    const expireSession = async () => {
+      if (interval) clearInterval(interval);
+      localStorage.removeItem('sessionId');
+      await supabase.auth.signOut().catch(() => {});
+      router.replace("/login?status=expired");
+    };
+
+    const heartbeat = (id: string) => {
+      actualizarActividad(id)
+        .then(res => { if (res.expired) expireSession(); })
+        .catch(err => console.error("Latido de sesión:", err));
+    };
+
     const initSession = async () => {
       let sessionId = localStorage.getItem('sessionId');
       
@@ -59,7 +73,8 @@ export default function DashboardLayoutShell({
 
         if (!location) return; // Bloqueado por falta de GPS
 
-        const res = await registrarSesion(location.lat, location.lon, navigator.userAgent);
+        const res = await registrarSesion(location.lat, location.lon, navigator.userAgent).catch(() => null);
+        if (!res) return expireSession();
         if (res.success && res.sessionId) {
           sessionId = res.sessionId as string;
           localStorage.setItem('sessionId', sessionId as string);
@@ -67,10 +82,9 @@ export default function DashboardLayoutShell({
       }
 
       if (sessionId) {
-        actualizarActividad(sessionId);
-        interval = setInterval(() => {
-          actualizarActividad(sessionId);
-        }, 60000);
+        const id = sessionId;
+        heartbeat(id);
+        interval = setInterval(() => heartbeat(id), 60000);
       }
     };
 
@@ -81,14 +95,18 @@ export default function DashboardLayoutShell({
     };
   }, [supabase.auth, router]);
 
+  // Siempre termina en el login, aunque el registro del cierre en el servidor falle
   const handleLogout = async () => {
     const sessionId = localStorage.getItem('sessionId');
-    if (sessionId) {
-      await cerrarSesion(sessionId);
+    try {
+      if (sessionId) await cerrarSesion(sessionId);
+    } catch (err) {
+      console.error("No se pudo registrar el cierre de sesión:", err);
+    } finally {
       localStorage.removeItem('sessionId');
+      await supabase.auth.signOut().catch(() => {});
+      router.push("/login");
     }
-    await supabase.auth.signOut();
-    router.push("/login");
   };
 
   const handleRefresh = async () => {

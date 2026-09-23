@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { UAParser } from "ua-parser-js";
 import { logAudit } from "@/lib/audit";
-import { requireAdmin, requireApprovedUser } from "@/lib/auth";
+import { getApprovedUserOrNull, requireAdmin, requireApprovedUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 
@@ -94,9 +94,13 @@ export async function registrarSesion(lat: number | null, lon: number | null, us
   return { success: true, sessionId: data.id };
 }
 
+// Latido cada minuto. Si la sesión venció (o se cerró en otra pestaña) avisa con
+// `expired` en vez de lanzar: el cliente cierra la sesión local y va al login.
 export async function actualizarActividad(sessionId: string) {
   if (!sessionId) return { success: false };
-  const { id: userId } = await requireApprovedUser();
+  const user = await getApprovedUserOrNull();
+  if (!user) return { success: false, expired: true };
+  const userId = user.id;
   const supabaseAdmin = createAdminClient();
   const { error } = await supabaseAdmin
     .from('sesiones')
@@ -109,7 +113,10 @@ export async function actualizarActividad(sessionId: string) {
 
 export async function cerrarSesion(sessionId: string) {
   if (!sessionId) return { success: false };
-  const { id: userId } = await requireApprovedUser();
+  // Con la sesión ya vencida no hay nada que cerrar en el servidor; el cliente igual sale
+  const user = await getApprovedUserOrNull();
+  if (!user) return { success: false, expired: true };
+  const userId = user.id;
   const supabaseAdmin = createAdminClient();
 
   // Obtener info para auditoria antes de actualizar (solo sesiones propias)
