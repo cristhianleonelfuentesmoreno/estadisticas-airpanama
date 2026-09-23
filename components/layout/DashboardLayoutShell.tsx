@@ -91,7 +91,7 @@ export default function DashboardLayoutShell({
 
   const navLinks = [
     { name: "Inicio", path: "/dashboard", icon: "window" },
-    { name: "Tablas", path: "/dashboard/diario", icon: "data_table" },
+    { name: "Registro", path: "/dashboard/diario", icon: "edit_document" },
     { name: "Reportes", path: "/dashboard/mensual", icon: "analytics" },
   ];
 
@@ -284,32 +284,68 @@ export default function DashboardLayoutShell({
       {/* ========================================= */}
       {/* BOTTOM NAVIGATION (Solo Móvil)            */}
       {/* ========================================= */}
-      <div className="md:hidden fixed bottom-2 inset-x-3 z-40 pb-safe">
-        <nav className="flex items-center justify-around h-[60px] px-1 rounded-full bg-surface/40 backdrop-blur-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-outline-variant/30 ring-1 ring-white/20">
-          {navLinks.map((link) => {
-            const isActive = pathname === link.path;
-            return (
-              <Link 
-                key={link.path}
-                href={link.path}
-                className={`flex flex-col items-center justify-center w-[72px] h-full gap-0.5 active:scale-95 transition-all duration-300 group ${
-                  isActive ? "text-primary" : "text-on-surface-variant hover:text-on-surface"
-                }`}
-              >
-                <div className={`w-[48px] h-[28px] rounded-full flex items-center justify-center transition-all duration-300 ${
-                  isActive ? "bg-primary-fixed text-on-primary-fixed shadow-sm scale-100" : "bg-transparent scale-95 group-active:bg-surface-variant/50"
-                }`}>
-                  <span className={`material-symbols-outlined transition-all duration-300 ${isActive ? 'text-[22px] font-semibold' : 'text-[22px]'}`}>
-                    {link.icon}
-                  </span>
-                </div>
-                <span className={`font-label-sm text-[9px] tracking-wide transition-all duration-300 ${isActive ? "font-bold opacity-100" : "font-medium opacity-70"}`}>
-                  {link.name.split(" ")[0]}
-                </span>
-              </Link>
-            )
-          })}
-        </nav>
+      <div className="md:hidden fixed bottom-4 inset-x-4 z-40 pb-safe">
+        {(() => {
+          // If path is not exactly matching, we default to 0 so animation doesn't break, 
+          // or we can let it be -1 to hide it offscreen.
+          const activeIndex = Math.max(0, navLinks.findIndex(l => l.path === pathname));
+          const tabWidth = 100 / navLinks.length;
+          const centerOffset = (activeIndex * tabWidth) + (tabWidth / 2);
+
+          return (
+            <div className="relative w-full h-[64px] rounded-[32px] shadow-[0_10px_30px_rgba(10,25,47,0.3)]">
+              {/* Contenedor del fondo animado */}
+              <div className="absolute inset-0 flex rounded-[32px] overflow-hidden">
+                <div 
+                  className="h-full bg-[#1e2235] transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]" 
+                  style={{ width: `calc(${centerOffset}% - 48px)` }}
+                />
+                <svg width="96" height="64" viewBox="0 0 96 64" className="fill-[#1e2235] flex-shrink-0">
+                  <path d="M0,0 C24,0 28,36 48,36 C68,36 72,0 96,0 L96,64 L0,64 Z" />
+                </svg>
+                <div className="h-full bg-[#1e2235] flex-grow" />
+              </div>
+
+              {/* El indicador activo (Bead) flotante */}
+              <div 
+                className="absolute w-[48px] h-[48px] rounded-full bg-[#c9f24a] shadow-[0_0_20px_rgba(201,242,74,0.4)] transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center pointer-events-none"
+                style={{ 
+                  top: '-16px',
+                  left: `calc(${centerOffset}% - 24px)`
+                }}
+              />
+
+              {/* Los Botones */}
+              <nav className="relative z-10 flex h-full">
+                {navLinks.map((link, index) => {
+                  const isActive = index === activeIndex;
+                  return (
+                    <Link 
+                      key={link.path}
+                      href={link.path}
+                      className="flex-1 flex flex-col items-center justify-center relative active:scale-95 transition-transform"
+                    >
+                      <span 
+                        className={`material-symbols-outlined absolute transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                          isActive ? '-translate-y-6 text-[#1e2235] font-bold text-[24px]' : 'translate-y-0 text-slate-400 text-[26px] hover:text-slate-200'
+                        }`}
+                      >
+                        {link.icon}
+                      </span>
+                      <span 
+                        className={`font-label-sm text-[11px] absolute transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] tracking-wide ${
+                          isActive ? 'translate-y-4 text-[#c9f24a] font-bold opacity-100' : 'translate-y-8 opacity-0'
+                        }`}
+                      >
+                        {link.name}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </nav>
+            </div>
+          );
+        })()}
       </div>
     </>
   );
