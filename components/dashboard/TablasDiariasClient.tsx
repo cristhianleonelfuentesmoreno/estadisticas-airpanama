@@ -603,8 +603,10 @@ export default function TablasDiariasClient({
           estado_final: estadoFinal,
           pasajeros_abordo: Number(row['pax'] || row['pasajeros'] || row['total pax'] || row['pax abordo'] || 0) || 0,
           capacidad_total: capacidad,
+          // avion y matricula se pasan como campos extra para que insertFlightRecords
+          // los use en el mapeo hacia manual_flights_log (aircraft / aircraftReg)
           avion: acRaw || undefined,
-          matricula: regRaw || undefined,
+          matricula: regRaw.substring(0, 10) || undefined,
         };
 
         if (isLlegada) {

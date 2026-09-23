@@ -438,19 +438,25 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
     const destination = isLlegada ? (d.destino || 'DAV') : (d.destino || 'PAC');
 
     // Mapeo hacia el esquema en INGLÉS de manual_flights_log
-    // aircraftReg es varchar(5), truncar si viene más largo (ej: HP1856 → HP185)
-    const regRaw = (d.matricula || '').toString().trim();
+    // flightNumber en la BD guarda solo el número sin prefijo (670, 682, CM013, etc.)
+    // Limpiar prefijos 7P-, CM-, y sufijos como ' A', ' B'
+    let flightNum = d.numero_vuelo
+      .replace(/^7P-?/i, '')
+      .replace(/^CM-?/i, 'CM')
+      .replace(/\s+[A-Z]$/, '') // quitar sufijos tipo ' A'
+      .trim();
+    const regRaw = (d.matricula || '').toString().trim().replace(/[^A-Z0-9-]/gi, '');
     const mappedRecord: any = {
        flightDate: d.fecha,
        airline: d.aerolinea,
-       flightNumber: d.numero_vuelo, // Preservar tal como viene (7P-670, CM-013)
+       flightNumber: flightNum.substring(0, 10),
        origin: origin,
        destination: destination,
        status_override: d.estado_final || 'LLEGÓ',
        paxCount: d.pasajeros_abordo || 0,
        paxMax: d.capacidad_total || (d.aerolinea === 'Air Panama' ? 78 : 160),
        aircraft: (d.avion || (d.aerolinea === 'Air Panama' ? 'F50' : 'B738')).substring(0, 10),
-       aircraftReg: regRaw ? regRaw.substring(0, 5) : null
+       aircraftReg: regRaw ? regRaw.substring(0, 10) : null
     };
 
     // Tiempos
