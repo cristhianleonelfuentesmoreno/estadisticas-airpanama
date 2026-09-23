@@ -12,8 +12,7 @@ export function FlightListBoard({ isAdmin = false }: { isAdmin?: boolean }) {
   const [loading, setLoading] = useState(true);
   
   // Filter & Modal State
-  const todayPanama = new Date().toLocaleString("en-US", { timeZone: "America/Panama" });
-  const todayStr = new Date(todayPanama).toISOString().split('T')[0];
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   const [boardDate, setBoardDate] = useState<string>(todayStr);
   const dateInputRef = useRef<HTMLInputElement>(null);
 

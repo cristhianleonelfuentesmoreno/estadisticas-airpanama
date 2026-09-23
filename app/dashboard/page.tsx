@@ -40,20 +40,21 @@ export default function DashboardPage() {
     updateTime();
     const interval = setInterval(updateTime, 1000);
 
-    // Obtener datos del usuario
+    // Obtener datos del usuario mediante server action
     const fetchUser = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: perfil } = await supabase.from('perfiles').select('nombre, cargo, role, avatar_url').eq('id', user.id).single();
-        if (perfil) {
-          setUserName(perfil.nombre || user.email?.split('@')[0] || "Usuario");
-          setUserCargo(perfil.cargo || "Sin cargo asignado");
-          if (perfil.avatar_url) setAvatarUrl(perfil.avatar_url);
-          if (perfil.role === 'administrador') {
+      try {
+        const { getCurrentUserProfile } = await import("@/app/actions/user");
+        const profile = await getCurrentUserProfile();
+        if (profile) {
+          setUserName(profile.nombre);
+          setUserCargo(profile.cargo);
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+          if (profile.role === 'administrador') {
             setIsAdmin(true);
           }
         }
+      } catch (e) {
+        console.error("Error en fetchUser:", e);
       }
     };
     fetchUser();

@@ -3,43 +3,32 @@ const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SECRET_KEY
 );
 
-async function test() {
-  console.log("Testing arrivals...");
-  const { data, error } = await supabase
-    .from('llegadas_malek_historico')
-    .insert([
-      {
-        aerolinea: 'Copa Airlines',
-        numero_vuelo: 'CM-011',
-        origen: 'PTY',
-        hora_llegada_real: '2026-09-20T08:50:00Z',
-        estado_final: 'LLEGÓ',
-        pasajeros_abordo: 145,
-        capacidad_total: 160
-      }
-    ])
-    .select();
-  console.log("Arrival result:", error ? error.message : "Success", data);
+async function run() {
+  const table = 'manual_flights_log';
+  
+  const mappedRecord = {
+       fecha: '2026-01-01',
+       aerolinea: 'Copa Airlines',
+       numero_vuelo: 'CM-013',
+       origen: 'PAC',
+       destino: 'DAV',
+       estado_final: 'LLEGÓ',
+       pasajeros_abordo: 37,
+       capacidad_total: 160,
+       is_llegada: true,
+       avion: 'B738',
+       hora_itinerario_llegada: '2026-01-01T08:00:00.000Z',
+       hora_real_llegada: '2026-01-01T12:54:00.000Z'
+  };
 
-  console.log("Testing departures...");
-  const { data: data2, error: error2 } = await supabase
-    .from('salidas_malek_historico')
-    .insert([
-      {
-        aerolinea: 'Copa Airlines',
-        numero_vuelo: 'CM-012',
-        destino: 'PTY',
-        hora_salida_real: '2026-09-20T10:25:00Z',
-        estado_final: 'LLEGÓ',
-        pasajeros_abordo: 155,
-        capacidad_total: 160
-      }
-    ])
-    .select();
-  console.log("Departure result:", error2 ? error2.message : "Success", data2);
+  const { data, error } = await supabase.from(table).insert([mappedRecord]);
+  if (error) {
+    console.error("Insert Error:", error);
+  } else {
+    console.log("Insert Success:", data);
+  }
 }
-
-test();
+run();

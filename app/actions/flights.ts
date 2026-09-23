@@ -253,6 +253,10 @@ export async function getLlegadasMalek(dateStr?: string) {
       arrLocal = `${baseDate.getHours().toString().padStart(2, '0')}:${baseDate.getMinutes().toString().padStart(2, '0')}`;
     }
 
+    // Ensure they are 5 chars long (e.g. 08:30 instead of 8:30)
+    if (depLocal && depLocal.length === 4) depLocal = `0${depLocal}`;
+    if (arrLocal && arrLocal.length === 4) arrLocal = `0${arrLocal}`;
+
     return {
       ...flight,
       hora_itinerario_salida: `${today}T${depLocal}:00-05:00`,
@@ -366,6 +370,10 @@ export async function getSalidasMalek(dateStr?: string) {
       arrLocal = `${arrDate.getHours().toString().padStart(2, '0')}:${arrDate.getMinutes().toString().padStart(2, '0')}`;
     }
 
+    // Ensure they are 5 chars long (e.g. 08:30 instead of 8:30)
+    if (depLocal && depLocal.length === 4) depLocal = `0${depLocal}`;
+    if (arrLocal && arrLocal.length === 4) arrLocal = `0${arrLocal}`;
+
     return {
       ...flight,
       hora_itinerario_salida: `${today}T${depLocal}:00-05:00`,
@@ -408,47 +416,59 @@ export async function insertFlightRecords(data: any[], type: 'llegadas' | 'salid
   const table = 'manual_flights_log';
   
   const dates = [...new Set(data.map(d => d.fecha))];
+  // Seleccionamos los campos en inglés que necesitamos para la búsqueda
   const { data: existing, error: fetchError } = await supabase
     .from(table)
-    .select('id, fecha, numero_vuelo, is_llegada')
-    .in('fecha', dates)
-    .eq('is_llegada', type === 'llegadas');
+    .select('id, flightDate, flightNumber, origin, destination')
+    .in('flightDate', dates);
 
   if (fetchError) {
     return { success: false, error: fetchError.message };
   }
 
-  const existingMap = new Map(existing?.map(r => [`${r.fecha}_${r.numero_vuelo}`, r.id]) || []);
+  // Clave usando fecha y número de vuelo (quitando sufijos si los hay, pero normalmente coincide)
+  const existingMap = new Map(existing?.map(r => [`${r.flightDate}_${r.flightNumber}`, r.id]) || []);
   
   const newData = [];
   const toUpdate = [];
 
   for (const d of data) {
-    const key = `${d.fecha}_${d.numero_vuelo}`;
-    
-    // Mapeo seguro hacia el nuevo esquema
     const isLlegada = type === 'llegadas';
+    const origin = isLlegada ? (d.origen || 'PAC') : 'DAV';
+    const destination = isLlegada ? 'DAV' : (d.destino || 'PAC');
+
+    // Mapeo hacia el esquema en INGLÉS de manual_flights_log
     const mappedRecord: any = {
-       fecha: d.fecha,
-       aerolinea: d.aerolinea,
-       numero_vuelo: d.numero_vuelo,
-       origen: isLlegada ? (d.origen || 'PAC') : 'DAV',
-       destino: isLlegada ? 'DAV' : (d.destino || 'PAC'),
-       estado_final: d.estado_final || 'LLEGÓ',
-       pasajeros_abordo: d.pasajeros_abordo || 0,
-       capacidad_total: d.capacidad_total || (d.aerolinea === 'Air Panama' ? 78 : 160),
-       is_llegada: isLlegada,
-       avion: d.avion || (d.aerolinea === 'Air Panama' ? 'F50' : 'B738')
+       flightDate: d.fecha,
+       airline: d.aerolinea,
+       flightNumber: d.numero_vuelo.replace('7P-', '').replace('CM-', ''), // El schema guarda sin prefijo a veces, pero para asegurar, mejor lo dejamos tal cual o como venga. Espera, el schema actual puede guardar prefijos. Lo dejamos como venga.
+       origin: origin,
+       destination: destination,
+       status_override: d.estado_final || 'LLEGÓ',
+       paxCount: d.pasajeros_abordo || 0,
+       paxMax: d.capacidad_total || (d.aerolinea === 'Air Panama' ? 78 : 160),
+       aircraft: d.avion || (d.aerolinea === 'Air Panama' ? 'F50' : 'B738'),
+       aircraftReg: d.matricula || null
     };
 
-    if (isLlegada) {
-       mappedRecord.hora_itinerario_llegada = d.hora_itinerario_llegada || d.hora_itinerario;
-       mappedRecord.hora_real_llegada = d.hora_real_llegada;
-    } else {
-       mappedRecord.hora_itinerario_salida = d.hora_itinerario_salida || d.hora_itinerario;
-       mappedRecord.hora_real_salida = d.hora_real_salida;
+    // Restaurar prefijos para la base de datos si es necesario
+    if (d.aerolinea === 'Air Panama' && !mappedRecord.flightNumber.includes('7P')) {
+      mappedRecord.flightNumber = mappedRecord.flightNumber;
     }
 
+    // Tiempos
+    if (isLlegada) {
+       const rawTime = d.hora_itinerario_llegada || d.hora_itinerario;
+       mappedRecord.arrivalTimeLocal = rawTime ? new Date(rawTime).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : '12:00';
+       mappedRecord.actual_arrival_time = d.hora_real_llegada || null;
+    } else {
+       const rawTime = d.hora_itinerario_salida || d.hora_itinerario;
+       mappedRecord.departureTimeLocal = rawTime ? new Date(rawTime).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : '12:00';
+       mappedRecord.actual_departure_time = d.hora_real_salida || null;
+    }
+
+    // Buscamos si existe la llave para actualizar
+    const key = `${d.fecha}_${d.numero_vuelo}`;
     if (existingMap.has(key)) {
       toUpdate.push({ id: existingMap.get(key), ...mappedRecord });
     } else {
