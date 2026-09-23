@@ -36,10 +36,12 @@ const COMMON_FLIGHTS = [
 
 export default function TablasDiariasClient({
   initialData,
-  currentDateStr
+  currentDateStr,
+  isAdmin = false
 }: {
   initialData: { llegadas: MalekFlight[], salidas: MalekFlight[] };
   currentDateStr: string;
+  isAdmin?: boolean;
 }) {
   const [viewType, setViewType] = useState<'llegadas' | 'salidas' | 'todos'>('todos');
   const [searchQuery, setSearchQuery] = useState("");
@@ -284,19 +286,17 @@ export default function TablasDiariasClient({
       pasajeros_abordo: Number(editFormData.pasajeros_abordo),
       capacidad_total: Number(editFormData.capacidad_total),
       estado_final: editFormData.estado_final,
-      hora_itinerario_salida: itinSalida.toISOString(),
-      hora_real_salida: realSalida.toISOString(),
-      hora_itinerario_llegada: itinLlegada.toISOString(),
-      hora_real_llegada: realLlegada.toISOString()
     };
     
     if (isLlegada) {
       updates.origen = editFormData.origen;
       updates.hora_itinerario = itinLlegada.toISOString();
+      updates.hora_itinerario_llegada = itinLlegada.toISOString();
       updates.hora_real_llegada = realLlegada.toISOString();
     } else {
       updates.destino = editFormData.destino;
       updates.hora_itinerario = itinSalida.toISOString();
+      updates.hora_itinerario_salida = itinSalida.toISOString();
       updates.hora_real_salida = realSalida.toISOString();
     }
 
@@ -725,6 +725,7 @@ export default function TablasDiariasClient({
               <span className="material-symbols-outlined text-[18px]">upload_file</span>
               <span className="text-[12px] md:text-[13px]">Importar</span>
             </button>
+{isAdmin && (
             <button 
               onClick={() => setIsAuditModalOpen(true)} 
               className={`col-span-2 md:flex-none justify-center px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border transition-colors cursor-pointer text-white font-bold tracking-wide ${pendingAuditCount > 0 ? 'bg-amber-500 hover:bg-amber-400 border-amber-400/50 animate-[pulse_2s_infinite] shadow-amber-900/30' : 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20'}`}
@@ -732,6 +733,7 @@ export default function TablasDiariasClient({
               <span className="material-symbols-outlined text-[18px]">{pendingAuditCount > 0 ? 'notification_important' : 'fact_check'}</span>
               <span className="text-[12px] md:text-[13px]">Pendientes {pendingAuditCount > 0 && `(${pendingAuditCount})`}</span>
             </button>
+            )}
           </div>
         </div>
 
@@ -867,7 +869,7 @@ export default function TablasDiariasClient({
                 flight={flight}
                 showType={viewType === 'todos'}
                 onEdit={() => openEditDrawer(flight)}
-                onDelete={() => handleDeleteClick(flight)}
+                onDelete={isAdmin ? () => handleDeleteClick(flight) : undefined}
               />
             ))
           ) : (
@@ -1050,13 +1052,15 @@ export default function TablasDiariasClient({
                             >
                               <span className="material-symbols-outlined text-[16px]">edit</span>
                             </button>
-                            <button 
-                              onClick={() => handleDeleteClick(flight)}
-                              className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white active:scale-95 transition-all shadow-sm"
-                              title="Eliminar Vuelo Incorrecto"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">delete</span>
-                            </button>
+                            {isAdmin && (
+                              <button 
+                                onClick={() => handleDeleteClick(flight)}
+                                className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white active:scale-95 transition-all shadow-sm"
+                                title="Eliminar Vuelo Incorrecto"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">delete</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1254,11 +1258,15 @@ export default function TablasDiariasClient({
                     className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                     value={editFormData.estado_final}
                     onChange={(e) => setEditFormData({...editFormData, estado_final: e.target.value})}
+                    disabled={!isAdmin}
+                    title={!isAdmin ? 'Solo un administrador puede cambiar el estado final' : undefined}
                   >
                     <option value="LLEGÓ">Arribo</option>
                     <option value="CUMPLIDO">Cumplido</option>
                     <option value="DEMORADO">Demorado</option>
                     <option value="DESVIADO">Desviado</option>
+                    <option value="CANCELADO">Cancelado</option>
+                    <option value="PENDIENTE">Pendiente</option>
                   </select>
                 </div>
 

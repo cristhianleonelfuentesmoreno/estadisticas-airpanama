@@ -1,6 +1,6 @@
 "use server";
 
-import { requireApprovedUser } from "@/lib/auth";
+import { requireApprovedUser, requireAdmin } from "@/lib/auth";
 
 export interface FlightData {
   id: string;
@@ -269,13 +269,50 @@ export async function getLlegadasMalek(dateStr?: string) {
   return enhancedData;
 }
 
-export async function updateLlegadaMalek(id: string, updates: { hora_real_llegada?: string, pasajeros_abordo?: number, estado_final?: string }) {
-  await requireApprovedUser();
+type HistoricoUpdates = {
+  fecha?: string;
+  aerolinea?: string;
+  numero_vuelo?: string;
+  origen?: string;
+  destino?: string;
+  hora_itinerario?: string;
+  hora_itinerario_salida?: string;
+  hora_real_salida?: string;
+  hora_itinerario_llegada?: string;
+  hora_real_llegada?: string;
+  pasajeros_abordo?: number;
+  capacidad_total?: number;
+  estado_final?: string;
+};
+
+const HISTORICO_FIELDS = [
+  'fecha', 'aerolinea', 'numero_vuelo', 'hora_itinerario', 'hora_itinerario_salida',
+  'hora_real_salida', 'hora_itinerario_llegada', 'hora_real_llegada',
+  'pasajeros_abordo', 'capacidad_total', 'estado_final',
+] as const;
+
+// Filtra los campos editables del histórico. Solo un administrador puede
+// cambiar estado_final (es lo que aprueba/verifica un vuelo pendiente).
+function pickHistorico(updates: HistoricoUpdates, extra: 'origen' | 'destino', isAdmin: boolean) {
+  const out: Record<string, unknown> = {};
+  for (const key of [...HISTORICO_FIELDS, extra]) {
+    if (updates && updates[key] !== undefined) out[key] = updates[key];
+  }
+  if (!isAdmin) delete out.estado_final;
+  return out;
+}
+
+export async function updateLlegadaMalek(id: string, updates: HistoricoUpdates) {
+  const user = await requireApprovedUser();
   const supabase = await createClient();
-  
+
+  const payload = pickHistorico(updates, 'origen', user.role === 'administrador');
+  // Columna duplicada heredada: mantener ambas sincronizadas
+  if (payload.hora_real_llegada) payload.hora_llegada_real = payload.hora_real_llegada;
+
   const { error } = await supabase
     .from('llegadas_malek_historico')
-    .update({ hora_real_llegada: updates.hora_real_llegada, pasajeros_abordo: updates.pasajeros_abordo, estado_final: updates.estado_final })
+    .update(payload)
     .eq('id', id);
 
   if (error) {
@@ -389,12 +426,16 @@ export async function getSalidasMalek(dateStr?: string) {
   return enhancedData;
 }
 
-export async function updateSalidaMalek(id: string, updates: { hora_real_salida?: string, pasajeros_abordo?: number, estado_final?: string }) {
-  await requireApprovedUser();
+export async function updateSalidaMalek(id: string, updates: HistoricoUpdates) {
+  const user = await requireApprovedUser();
   const supabase = await createClient();
+
+  const payload = pickHistorico(updates, 'destino', user.role === 'administrador');
+  if (payload.hora_real_salida) payload.hora_salida_real = payload.hora_real_salida;
+
   const { error } = await supabase
     .from('salidas_malek_historico')
-    .update({ hora_real_salida: updates.hora_real_salida, pasajeros_abordo: updates.pasajeros_abordo, estado_final: updates.estado_final })
+    .update(payload)
     .eq('id', id);
 
   if (error) {
@@ -404,7 +445,7 @@ export async function updateSalidaMalek(id: string, updates: { hora_real_salida?
   return { success: true, message: "Registro actualizado exitosamente." };
 }
 export async function deleteLlegadaMalek(id: string) {
-  await requireApprovedUser();
+  await requireAdmin();
   const supabase = getAdminSupabase();
   const { error } = await supabase.from('llegadas_malek_historico').delete().eq('id', id);
   if (error) return { success: false, error: error.message };
@@ -412,7 +453,7 @@ export async function deleteLlegadaMalek(id: string) {
 }
 
 export async function deleteSalidaMalek(id: string) {
-  await requireApprovedUser();
+  await requireAdmin();
   const supabase = getAdminSupabase();
   const { error } = await supabase.from('salidas_malek_historico').delete().eq('id', id);
   if (error) return { success: false, error: error.message };

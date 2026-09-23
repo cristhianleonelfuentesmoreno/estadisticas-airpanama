@@ -5,10 +5,12 @@ import { updateFlightDetails, deleteManualFlight } from "@/app/actions/manualFli
 
 export function FlightEditModal({
   flight,
+  isAdmin = false,
   onClose,
   onSuccess
 }: {
   flight: FlightData;
+  isAdmin?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -165,6 +167,7 @@ export function FlightEditModal({
           </label>
 
           <div className="flex items-center gap-space-sm pt-space-md mt-2 border-t border-surface-container">
+{isAdmin && (
             <button 
               type="button" 
               disabled={loading} 
@@ -175,6 +178,7 @@ export function FlightEditModal({
               <span className="material-symbols-outlined text-[18px]">delete</span>
               Eliminar
             </button>
+            )}
             <button type="button" disabled={loading} onClick={onClose} className="flex-1 h-11 rounded-lg bg-surface-container text-on-surface font-label-md font-bold hover:bg-surface-container-high transition-colors">
               Cancelar
             </button>

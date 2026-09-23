@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
 import { ManualFlightUploadModal } from "./ManualFlightUploadModal";
-import { addMultipleManualFlights, updateFlightStatusOverride, deleteManualFlight } from "@/app/actions/manualFlights";
+import { addMultipleManualFlights, updateFlightStatusOverride } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
 import { toast } from "sonner";
 
@@ -337,22 +337,6 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
     }
   };
 
-  const handleDelete = async () => {
-    if (!flight.manualLogId) return;
-    if (confirm("¿Estás seguro de que deseas eliminar este vuelo? Esta acción no se puede deshacer.")) {
-      setLoadingAction(true);
-      try {
-        await deleteManualFlight(flight.manualLogId);
-        toast.success("Vuelo eliminado correctamente");
-        if (onRefresh) onRefresh();
-      } catch (err: any) {
-        toast.error("Error al eliminar el vuelo: " + err.message);
-      } finally {
-        setLoadingAction(false);
-      }
-    }
-  };
-
   // Determine status badge styling based on localStatus
   let badgeClass = 'text-primary border-primary/20 bg-primary-container/10';
   if (localStatus === 'RETRASADO') {
@@ -538,6 +522,7 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
       {isEditModalOpen && (
         <FlightEditModal 
           flight={flight}
+          isAdmin={isAdmin}
           onClose={() => setIsEditModalOpen(false)}
           onSuccess={() => {
             if (onRefresh) onRefresh();

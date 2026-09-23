@@ -1,6 +1,6 @@
 "use server";
 
-import { requireApprovedUser } from '@/lib/auth';
+import { requireApprovedUser, requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const getAdminSupabase = createAdminClient;
@@ -144,7 +144,7 @@ export async function updateFlightStatusOverride(id: string, override: { status_
 }
 
 export async function archiveFlight(id: string) {
-  await requireApprovedUser();
+  await requireAdmin();
   const supabase = getAdminSupabase();
 
   // Obtener detalles del vuelo manual para actualizar el histórico correspondiente
@@ -232,7 +232,7 @@ export async function updateFlightDetails(id: string, updates: Partial<ManualFli
 }
 
 export async function deleteManualFlight(id: string) {
-  await requireApprovedUser();
+  await requireAdmin();
   const supabase = getAdminSupabase();
   const { error } = await supabase
     .from('manual_flights_log')
@@ -240,4 +240,41 @@ export async function deleteManualFlight(id: string) {
     .eq('id', id);
   if (error) throw new Error(error.message);
   return true;
+}
+
+export type FleetSuggestion = { airline: string; aircraft: string; aircraftReg: string; paxMax: number };
+
+// Sugerencias para el ingreso manual, tomadas de los vuelos ya registrados:
+// matrículas conocidas (con su tipo y capacidad) y tripulaciones usadas.
+export async function getFlightFormSuggestions(): Promise<{ fleet: FleetSuggestion[]; pilots: string[] }> {
+  await requireApprovedUser();
+  const supabase = getAdminSupabase();
+  const { data, error } = await supabase
+    .from('manual_flights_log')
+    .select('airline, aircraft, aircraftReg, paxMax, pilot, created_at')
+    .order('created_at', { ascending: false })
+    .limit(2000);
+  if (error || !data) return { fleet: [], pilots: [] };
+
+  // La fila más reciente de cada matrícula define su tipo y capacidad
+  const fleet = new Map<string, FleetSuggestion>();
+  const pilots = new Set<string>();
+  for (const row of data) {
+    const reg = (row.aircraftReg || '').trim().toUpperCase();
+    if (reg && !fleet.has(reg)) {
+      fleet.set(reg, {
+        airline: row.airline || '',
+        aircraft: row.aircraft || '',
+        aircraftReg: reg,
+        paxMax: row.paxMax || 0,
+      });
+    }
+    const pilot = (row.pilot || '').trim();
+    if (pilot) pilots.add(pilot);
+  }
+
+  return {
+    fleet: [...fleet.values()].sort((a, b) => a.aircraftReg.localeCompare(b.aircraftReg)),
+    pilots: [...pilots].sort(),
+  };
 }

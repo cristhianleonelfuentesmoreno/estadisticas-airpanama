@@ -69,7 +69,7 @@ export function DailyFlightCard({ flight, showType, onEdit, onDelete }: {
   flight: MalekFlight;
   showType: boolean;
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 }) {
   const paxCount = flight.pasajeros_abordo || 0;
   const paxMax = flight.capacidad_total || 100;
@@ -101,9 +101,11 @@ export function DailyFlightCard({ flight, showType, onEdit, onDelete }: {
           <button onClick={onEdit} className="w-9 h-9 rounded-lg bg-slate-100 text-primary active:scale-95 transition-all flex items-center justify-center" title="Editar">
             <span className="material-symbols-outlined text-[18px]">edit</span>
           </button>
-          <button onClick={onDelete} className="w-9 h-9 rounded-lg bg-red-50 text-red-500 active:scale-95 transition-all flex items-center justify-center" title="Eliminar">
-            <span className="material-symbols-outlined text-[18px]">delete</span>
-          </button>
+          {onDelete && (
+            <button onClick={onDelete} className="w-9 h-9 rounded-lg bg-red-50 text-red-500 active:scale-95 transition-all flex items-center justify-center" title="Eliminar">
+              <span className="material-symbols-outlined text-[18px]">delete</span>
+            </button>
+          )}
         </div>
       </div>
 
