@@ -154,40 +154,44 @@ export async function archiveFlight(id: string) {
   }
 
   if (manualFlight.destination === 'DAV') {
+    const payload = {
+      fecha: manualFlight.flightDate,
+      aerolinea: manualFlight.airline,
+      numero_vuelo: manualFlight.flightNumber,
+      origen: manualFlight.origin,
+      hora_itinerario: `${manualFlight.flightDate}T${manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
+      hora_real_llegada: `${manualFlight.flightDate}T${manualFlight.actual_arrival_time?.padStart(5, '0') || manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
+      hora_llegada_real: `${manualFlight.flightDate}T${manualFlight.actual_arrival_time?.padStart(5, '0') || manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
+      estado_final: finalStatusArrival,
+      pasajeros_abordo: manualFlight.paxCount,
+      capacidad_total: manualFlight.paxMax
+    };
+
     const { data: existing } = await supabase.from('llegadas_malek_historico').select('id').eq('numero_vuelo', manualFlight.flightNumber).eq('fecha', manualFlight.flightDate).single();
     if (existing) {
-      await supabase.from('llegadas_malek_historico').update({ estado_final: finalStatusArrival }).eq('id', existing.id);
+      await supabase.from('llegadas_malek_historico').update(payload).eq('id', existing.id);
     } else {
-      await supabase.from('llegadas_malek_historico').insert({
-        fecha: manualFlight.flightDate,
-        aerolinea: manualFlight.airline,
-        numero_vuelo: manualFlight.flightNumber,
-        origen: manualFlight.origin,
-        hora_itinerario: `${manualFlight.flightDate}T${manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
-        hora_real_llegada: `${manualFlight.flightDate}T${manualFlight.actual_arrival_time?.padStart(5, '0') || manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
-        hora_llegada_real: `${manualFlight.flightDate}T${manualFlight.actual_arrival_time?.padStart(5, '0') || manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
-        estado_final: finalStatusArrival,
-        pasajeros_abordo: manualFlight.paxCount,
-        capacidad_total: manualFlight.paxMax
-      });
+      await supabase.from('llegadas_malek_historico').insert(payload);
     }
   } else if (manualFlight.origin === 'DAV') {
+    const payload = {
+      fecha: manualFlight.flightDate,
+      aerolinea: manualFlight.airline,
+      numero_vuelo: manualFlight.flightNumber,
+      destino: manualFlight.destination,
+      hora_itinerario: `${manualFlight.flightDate}T${manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
+      hora_real_salida: `${manualFlight.flightDate}T${manualFlight.actual_departure_time?.padStart(5, '0') || manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
+      hora_salida_real: `${manualFlight.flightDate}T${manualFlight.actual_departure_time?.padStart(5, '0') || manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
+      estado_final: finalStatusDeparture,
+      pasajeros_abordo: manualFlight.paxCount,
+      capacidad_total: manualFlight.paxMax
+    };
+
     const { data: existing } = await supabase.from('salidas_malek_historico').select('id').eq('numero_vuelo', manualFlight.flightNumber).eq('fecha', manualFlight.flightDate).single();
     if (existing) {
-      await supabase.from('salidas_malek_historico').update({ estado_final: finalStatusDeparture }).eq('id', existing.id);
+      await supabase.from('salidas_malek_historico').update(payload).eq('id', existing.id);
     } else {
-      await supabase.from('salidas_malek_historico').insert({
-        fecha: manualFlight.flightDate,
-        aerolinea: manualFlight.airline,
-        numero_vuelo: manualFlight.flightNumber,
-        destino: manualFlight.destination,
-        hora_itinerario: `${manualFlight.flightDate}T${manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
-        hora_real_salida: `${manualFlight.flightDate}T${manualFlight.actual_departure_time?.padStart(5, '0') || manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
-        hora_salida_real: `${manualFlight.flightDate}T${manualFlight.actual_departure_time?.padStart(5, '0') || manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
-        estado_final: finalStatusDeparture,
-        pasajeros_abordo: manualFlight.paxCount,
-        capacidad_total: manualFlight.paxMax
-      });
+      await supabase.from('salidas_malek_historico').insert(payload);
     }
   }
 

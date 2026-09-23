@@ -21,6 +21,8 @@ interface MalekFlight {
   pasajeros_abordo: number;
   capacidad_total: number;
   avion?: string;
+  creado_en?: string;
+  actualizado_en?: string;
 }
 
 const AIRCRAFT_MODELS = [
@@ -93,13 +95,18 @@ export default function TablasDiariasClient({
   const totalPendientes = llegadasPendientes.length + salidasPendientes.length;
 
   const activeDataList = useMemo(() => {
-    if (viewType === 'llegadas') return llegadasAprobadas;
-    if (viewType === 'salidas') return salidasAprobadas;
+    let combined = [];
+    if (viewType === 'llegadas') {
+      combined = [...llegadasAprobadas];
+    } else if (viewType === 'salidas') {
+      combined = [...salidasAprobadas];
+    } else {
+      combined = [...llegadasAprobadas, ...salidasAprobadas];
+    }
     
-    const combined = [...llegadasAprobadas, ...salidasAprobadas];
     return combined.sort((a, b) => {
-      const timeA = new Date(a.hora_real_llegada || a.hora_real_salida || 0).getTime();
-      const timeB = new Date(b.hora_real_llegada || b.hora_real_salida || 0).getTime();
+      const timeA = new Date(a.actualizado_en || a.creado_en || a.hora_real_llegada || a.hora_real_salida || 0).getTime();
+      const timeB = new Date(b.actualizado_en || b.creado_en || b.hora_real_llegada || b.hora_real_salida || 0).getTime();
       return timeB - timeA;
     });
   }, [llegadasAprobadas, salidasAprobadas, viewType]);
