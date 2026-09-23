@@ -1,0 +1,88 @@
+/* Navegación "eléctrica" del header (solo web).
+   El script no conoce colores ni tamaños: los lee de aquí.
+   Colores tomados de la paleta de globals.css */
+.surge {
+  --arc-core-rgb: 255 255 255;    /* on-primary */
+  --arc-glow-rgb: 176 200 235;    /* primary-fixed-dim #b0c8eb */
+  --label-idle: #768dad;          /* on-primary-container */
+  --label-hover: #b0c8eb;         /* primary-fixed-dim */
+  --label-active: #ffffff;        /* on-primary */
+  --arc-w: 44px;                  /* fijo, no una fracción de la palabra */
+  --arc-h: 4px;
+  --arc-gap: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.surge__list {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(20px, 3vw, 48px);
+}
+
+.surge__item {
+  /* El espacio de abajo es donde viaja la barra */
+  padding: 6px 2px calc(var(--arc-gap) + var(--arc-h));
+  color: var(--label-idle);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  transition: color 0.25s ease;
+  outline: none;
+}
+
+.surge__item:hover {
+  color: var(--label-hover);
+}
+
+.surge__item[aria-current="page"] {
+  color: var(--label-active);
+}
+
+.surge__item:focus-visible .surge__label {
+  outline: 2px solid var(--label-hover);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.surge__label {
+  position: relative;
+  display: inline-block;
+}
+
+.surge__arc,
+.surge:not(.surge--live) .surge__item[aria-current="page"] .surge__label::after {
+  height: var(--arc-h);
+  border-radius: 999px;
+  background: rgb(var(--arc-core-rgb));
+  box-shadow:
+    0 0 calc(6px + 6px * var(--energy, 0)) rgb(var(--arc-glow-rgb) / 0.9),
+    0 0 calc(14px + 14px * var(--energy, 0)) rgb(var(--arc-glow-rgb) / 0.55),
+    0 0 28px rgb(var(--arc-glow-rgb) / 0.3);
+  pointer-events: none;
+}
+
+.surge__arc {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--arc-w);
+  transition: opacity 0.3s ease;
+  will-change: transform, width;
+}
+
+/* Hasta que el script mide y coloca la barra, la de verdad es esta regla CSS */
+.surge:not(.surge--live) .surge__arc {
+  display: none;
+}
+
+.surge:not(.surge--live) .surge__item[aria-current="page"] .surge__label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + var(--arc-gap));
+  width: var(--arc-w);
+  transform: translateX(-50%);
+}

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { actualizarActividad, cerrarSesion, registrarSesion } from "@/app/actions/sessions";
 import { useEffect } from "react";
+import { SurgeNav } from "./SurgeNav";
 
 interface DashboardLayoutShellProps {
   children: React.ReactNode;
@@ -23,7 +24,6 @@ export default function DashboardLayoutShell({
   avatarUrl,
   isAdmin = false,
 }: DashboardLayoutShellProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
   const pathname = usePathname();
@@ -117,67 +117,6 @@ export default function DashboardLayoutShell({
   return (
     <>
       {/* ========================================= */}
-      {/* DESKTOP WEB OVERLAY MENU (Animated Circle)*/}
-      {/* ========================================= */}
-      
-      {/* Botón Hamburguesa Web (Oculto en Móvil) */}
-      <button
-        className="hidden md:flex fixed z-50 top-4 left-6 w-12 h-12 flex-col justify-center items-center gap-2 bg-transparent border-none cursor-pointer outline-none"
-        onClick={() => setIsMenuOpen(!isMenuOpen)}
-        aria-label="Alternar Menú"
-      >
-        <div className={`w-8 h-1 bg-white transition-all duration-300 rounded ${isMenuOpen ? 'rotate-45 translate-y-3 bg-[#E31837]' : ''}`}></div>
-        <div className={`w-8 h-1 bg-white transition-all duration-300 rounded ${isMenuOpen ? 'opacity-0' : ''}`}></div>
-        <div className={`w-8 h-1 bg-white transition-all duration-300 rounded ${isMenuOpen ? '-rotate-45 -translate-y-3 bg-[#E31837]' : ''}`}></div>
-      </button>
-
-      {/* Fondo Circular Animado Web */}
-      <div
-        className={`hidden md:block fixed z-40 top-10 left-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#0A192F]/95 backdrop-blur-xl transition-all duration-700 ease-in-out ${
-          isMenuOpen ? "h-[300vh] w-[300vh] opacity-100" : "h-24 w-24 opacity-0 pointer-events-none"
-        }`}
-      ></div>
-
-      {/* Navegación Web Desktop */}
-      <div
-        className={`hidden md:flex fixed inset-0 z-40 items-center transition-all duration-300 ${
-          isMenuOpen ? "opacity-100 visible" : "opacity-0 invisible delay-200"
-        }`}
-      >
-        <nav className="flex flex-col items-start pl-[15%] group w-full">
-          {navLinks.map((link, index) => (
-            <Link
-              key={link.name}
-              href={link.path}
-              onClick={() => setIsMenuOpen(false)}
-              className={`text-[#f9f9f9] text-3xl md:text-5xl py-5 transition-all duration-400 capitalize hover:text-[#E31837] hover:translate-x-4 group-hover:opacity-25 hover:!opacity-100 ${
-                isMenuOpen ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
-              }`}
-              style={{
-                transitionDelay: isMenuOpen ? `${0.1 * (index + 1)}s` : "0s",
-              }}
-            >
-              {link.name}
-            </Link>
-          ))}
-          
-          {/* Logout Button in Menu */}
-          <button
-            onClick={handleLogout}
-            className={`text-[#f9f9f9] mt-10 flex items-center gap-4 text-2xl py-5 transition-all duration-400 hover:text-[#E31837] hover:translate-x-4 group-hover:opacity-25 hover:!opacity-100 ${
-                isMenuOpen ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
-              }`}
-              style={{
-                transitionDelay: isMenuOpen ? `${0.1 * (navLinks.length + 1)}s` : "0s",
-              }}
-          >
-            <span className="material-symbols-outlined text-3xl">logout</span>
-            Cerrar Sesión
-          </button>
-        </nav>
-      </div>
-
-      {/* ========================================= */}
       {/* HEADER MOBILE (Oculto en Web)             */}
       {/* ========================================= */}
       <header className="md:hidden fixed top-0 inset-x-0 z-50 bg-primary-container/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.06)] pt-safe">
@@ -235,29 +174,33 @@ export default function DashboardLayoutShell({
       {/* DESKTOP HEADER (Fondo Azul)               */}
       {/* ========================================= */}
       <header className="hidden md:flex fixed top-0 inset-x-0 h-20 z-30 bg-primary-container shadow-md">
-        <div className="w-full h-full px-8 flex items-center justify-between max-w-[1600px] mx-auto ml-[72px]">
+        <div className="w-full h-full px-8 grid grid-cols-[1fr_auto_1fr] items-center gap-6 max-w-[1600px] mx-auto">
           {/* Logo Desktop (Blanco) */}
-          <Link href="/dashboard" className="flex items-center gap-space-xs hover:opacity-80 transition-opacity">
+          <Link href="/dashboard" className="justify-self-start flex items-center gap-space-xs hover:opacity-80 transition-opacity">
             <img src="/logo.png" alt="Air Panama Logo" className="w-10 h-10 object-contain drop-shadow-md" />
             <span className="font-headline-md text-headline-md font-black tracking-tighter text-on-primary italic pr-2">AirPanama</span>
           </Link>
           
+          {/* Secciones al centro (en móvil están en la barra inferior) */}
+          <SurgeNav items={navLinks} pathname={pathname} />
+
           {/* User profile Desktop */}
-          <div className="flex items-center gap-space-sm">
+          <div className="justify-self-end flex items-center gap-space-sm">
             {isAdmin && (
               <Link
                 href="/dashboard/admin"
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-container-highest/20 hover:bg-surface-container-highest/40 transition-colors border border-outline-variant/30 text-on-primary group"
+                title="Panel de administrador"
+                className="flex items-center gap-2 px-3 lg:px-4 py-2 rounded-full bg-surface-container-highest/20 hover:bg-surface-container-highest/40 transition-colors border border-outline-variant/30 text-on-primary group"
               >
                 <span className="material-symbols-outlined text-emerald-500/80 group-hover:text-emerald-400 transition-colors text-sm">admin_panel_settings</span>
-                <span className="font-label-sm text-label-sm uppercase font-bold tracking-wider group-hover:text-emerald-400 transition-colors">Admin</span>
+                <span className="hidden lg:inline font-label-sm text-label-sm uppercase font-bold tracking-wider group-hover:text-emerald-400 transition-colors">Admin</span>
               </Link>
             )}
             
             <div className="w-px h-6 bg-outline-variant/30 hidden md:block mx-1"></div>
 
             <div className="flex items-center gap-space-xs">
-              <span className="font-label-md text-label-md text-on-primary">
+              <span className="hidden lg:inline font-label-md text-label-md text-on-primary">
                 {userName || (userEmail ? userEmail.split('@')[0] : "Usuario")}
               </span>
               {avatarUrl ? (
@@ -290,12 +233,10 @@ export default function DashboardLayoutShell({
       </header>
 
       {/* ========================================= */}
-      {/* MAIN CONTENT CON EFECTO BLUR EN WEB       */}
+      {/* MAIN CONTENT                              */}
       {/* ========================================= */}
       <main 
-        className={`flex flex-col relative w-full overflow-x-hidden pt-16 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pt-28 md:pb-8 bg-surface flex-grow min-h-screen max-w-[1600px] mx-auto transition-all duration-500 ease-in-out ${
-          isMenuOpen ? "md:blur-md md:opacity-50" : ""
-        }`}
+        className="flex flex-col relative w-full overflow-x-hidden pt-16 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pt-28 md:pb-8 bg-surface flex-grow min-h-screen max-w-[1600px] mx-auto"
       >
         {/* Contenido inyectado por las páginas */}
         <div className="px-4 md:px-8">
