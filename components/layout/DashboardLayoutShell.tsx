@@ -9,6 +9,33 @@ import { actualizarActividad, cerrarSesion, registrarSesion } from "@/app/action
 import { useEffect } from "react";
 import { SurgeNav } from "./SurgeNav";
 
+// Estado de la verificación de ubicación: el panel solo se muestra con "ok"
+type GeoStatus = "checking" | "ok" | "denied" | "unavailable" | "timeout" | "unsupported" | "error";
+
+// Mensajes genéricos: sirven para cualquier dispositivo o sistema (computadora, celular o tablet)
+const GEO_MESSAGES: Record<Exclude<GeoStatus, "checking" | "ok">, { title: string; text: string }> = {
+  denied: {
+    title: "Acceso a la ubicación bloqueado",
+    text: "Por seguridad, este sistema necesita tu ubicación para registrar desde dónde te conectas. Permite el acceso a la ubicación para este sitio en la configuración de tu navegador y vuelve a intentarlo.",
+  },
+  unavailable: {
+    title: "No se pudo obtener tu ubicación",
+    text: "Verifica que la ubicación esté activada en tu dispositivo y que tu navegador tenga permiso para usarla, luego vuelve a intentarlo.",
+  },
+  timeout: {
+    title: "La ubicación tardó demasiado",
+    text: "No recibimos tu ubicación a tiempo. Revisa tu conexión y que la ubicación esté activada, luego vuelve a intentarlo.",
+  },
+  unsupported: {
+    title: "Navegador no compatible",
+    text: "Tu navegador no permite obtener la ubicación, que es obligatoria para acceder al sistema. Usa un navegador actualizado.",
+  },
+  error: {
+    title: "No se pudo registrar tu sesión",
+    text: "Ocurrió un problema al registrar tu acceso. Vuelve a intentarlo en unos segundos.",
+  },
+};
+
 interface DashboardLayoutShellProps {
   children: React.ReactNode;
   userEmail?: string;
@@ -26,6 +53,8 @@ export default function DashboardLayoutShell({
 }: DashboardLayoutShellProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
+  const [geoStatus, setGeoStatus] = useState<GeoStatus>("checking");
+  const [geoAttempt, setGeoAttempt] = useState(0);
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -54,35 +83,34 @@ export default function DashboardLayoutShell({
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const location = await new Promise<{lat: number | null, lon: number | null} | null>((resolve) => {
-          if (!navigator.geolocation) {
-             alert("Tu navegador no soporta geolocalización.");
-             resolve({ lat: null, lon: null });
-             return;
-          }
+        const location = await new Promise<{ lat: number; lon: number } | Exclude<GeoStatus, "checking" | "ok" | "error">>((resolve) => {
+          if (!navigator.geolocation) return resolve("unsupported");
           navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-            () => {
-              alert("Permiso de ubicación denegado. Es obligatorio para acceder al sistema.");
-              supabase.auth.signOut().then(() => router.push("/login"));
-              resolve(null);
-            },
-            { timeout: 10000, maximumAge: 0 }
+            (err) => resolve(
+              err.code === err.PERMISSION_DENIED ? "denied"
+                : err.code === err.TIMEOUT ? "timeout"
+                : "unavailable"
+            ),
+            { timeout: 15000, maximumAge: 0, enableHighAccuracy: true }
           );
         });
 
-        if (!location) return; // Bloqueado por falta de GPS
+        // Sin ubicación no hay acceso: el panel queda bloqueado con el motivo
+        if (typeof location === "string") return setGeoStatus(location);
 
         const res = await registrarSesion(location.lat, location.lon, navigator.userAgent).catch(() => null);
         if (!res) return expireSession();
-        if (res.success && res.sessionId) {
-          sessionId = res.sessionId as string;
-          localStorage.setItem('sessionId', sessionId as string);
+        if (!res.success || !res.sessionId) {
+          return setGeoStatus(res.error === "location_required" ? "unavailable" : "error");
         }
+        sessionId = res.sessionId as string;
+        localStorage.setItem('sessionId', sessionId);
       }
 
       if (sessionId) {
         const id = sessionId;
+        setGeoStatus("ok");
         heartbeat(id);
         interval = setInterval(() => heartbeat(id), 60000);
       }
@@ -93,7 +121,7 @@ export default function DashboardLayoutShell({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [supabase.auth, router]);
+  }, [supabase.auth, router, geoAttempt]);
 
   // Siempre termina en el login, aunque el registro del cierre en el servidor falle
   const handleLogout = async () => {
@@ -258,7 +286,38 @@ export default function DashboardLayoutShell({
       >
         {/* Contenido inyectado por las páginas */}
         <div className="px-4 md:px-8">
-          {children}
+          {geoStatus === "ok" ? children : (
+            <div className="min-h-[60vh] flex items-center justify-center py-12">
+              {geoStatus === "checking" ? (
+                <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[40px] animate-pulse">location_searching</span>
+                  <p className="font-body-md text-body-md">Verificando tu ubicación…</p>
+                </div>
+              ) : (
+                <div role="alert" className="max-w-md w-full bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-sm p-6 text-center flex flex-col items-center gap-4">
+                  <span className="material-symbols-outlined text-[44px] text-error">location_off</span>
+                  <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">{GEO_MESSAGES[geoStatus].title}</h2>
+                  <p className="font-body-md text-body-md text-on-surface-variant">{GEO_MESSAGES[geoStatus].text}</p>
+                  <div className="flex flex-wrap justify-center gap-3 pt-2">
+                    {geoStatus !== "unsupported" && (
+                      <button
+                        onClick={() => { setGeoStatus("checking"); setGeoAttempt(n => n + 1); }}
+                        className="px-5 py-2.5 rounded-xl bg-secondary text-on-secondary font-bold active:scale-95 transition-transform"
+                      >
+                        Reintentar
+                      </button>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="px-5 py-2.5 rounded-xl border border-outline-variant text-on-surface font-bold active:scale-95 transition-transform"
+                    >
+                      Cerrar sesión
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </main>
 

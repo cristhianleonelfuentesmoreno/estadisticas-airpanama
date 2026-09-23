@@ -14,9 +14,9 @@ export async function registrarSesion(lat: number | null, lon: number | null, us
   // El userId sale de la sesión, nunca del cliente (evita suplantar a otro usuario)
   const { id: userId } = await requireApprovedUser();
   const supabaseAdmin = createAdminClient();
+  // La ubicación es obligatoria: sin coordenadas válidas no se abre sesión
   if (!isValidCoord(lat, 90) || !isValidCoord(lon, 180)) {
-    lat = null;
-    lon = null;
+    return { success: false, error: 'location_required' as const };
   }
   userAgentStr = String(userAgentStr || '').slice(0, 512);
 
@@ -35,28 +35,26 @@ export async function registrarSesion(lat: number | null, lon: number | null, us
   const sistemaOperativo = `${result.os.name || ''} ${result.os.version || ''}`.trim();
   const navegador = result.browser.name || 'Desconocido';
   
-  let ubicacionTexto = lat && lon ? `${lat.toFixed(4)}, ${lon.toFixed(4)}` : "Ubicación Desconocida";
-  
-  if (lat && lon) {
-    try {
-      // Nominatim requiere User-Agent válido y tiene límite de peticiones.
-      const geoResponse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {
-        headers: { 'User-Agent': 'AirPanamaApp/1.0' }
-      });
-      if (geoResponse.ok) {
-        const geoData = await geoResponse.json();
-        // Construir algo limpio como "Ciudad, Región"
-        const city = geoData.address.city || geoData.address.town || geoData.address.village || geoData.address.county;
-        const state = geoData.address.state || geoData.address.country;
-        if (city && state) {
-            ubicacionTexto = `${city}, ${state}`;
-        } else if (geoData.display_name) {
-            ubicacionTexto = geoData.display_name.split(',').slice(0, 2).join(', ');
-        }
+  let ubicacionTexto = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+
+  try {
+    // Nominatim requiere User-Agent válido y tiene límite de peticiones.
+    const geoResponse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {
+      headers: { 'User-Agent': 'AirPanamaApp/1.0' }
+    });
+    if (geoResponse.ok) {
+      const geoData = await geoResponse.json();
+      // Construir algo limpio como "Ciudad, Región"
+      const city = geoData.address.city || geoData.address.town || geoData.address.village || geoData.address.county;
+      const state = geoData.address.state || geoData.address.country;
+      if (city && state) {
+          ubicacionTexto = `${city}, ${state}`;
+      } else if (geoData.display_name) {
+          ubicacionTexto = geoData.display_name.split(',').slice(0, 2).join(', ');
       }
-    } catch (e) {
-        console.error("Error reverse geocoding:", e);
     }
+  } catch (e) {
+      console.error("Error reverse geocoding:", e);
   }
 
   const { data, error } = await supabaseAdmin
