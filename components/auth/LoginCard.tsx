@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { logFailedLogin } from "@/app/actions/sessions";
 import { DockButton } from "./DockButton";
+import { TermsModal } from "@/components/legal/TermsModal";
+import { TERMS_VERSION } from "@/lib/terms";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -83,6 +85,9 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
+  // Términos y condiciones: obligatorios para registrarse (correo o Google)
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [showLogPassword, setShowLogPassword] = useState(false);
   const [logEmail, setLogEmail] = useState("");
   const [logPassword, setLogPassword] = useState("");
@@ -249,11 +254,16 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     regName.trim().length > 0 &&
     EMAIL_RE.test(regEmail.trim()) &&
     regPassword.length >= 6 &&
-    regPassword === regConfirmPassword;
+    regPassword === regConfirmPassword &&
+    acceptTerms;
 
   const toggleView = () => setActiveView(activeView === "login" ? "register" : "login");
 
   const handleGoogleAuth = async (action: 'login' | 'register') => {
+    if (action === 'register' && !acceptTerms) {
+      toast.error("Para registrarte, primero acepta los términos y condiciones.");
+      return;
+    }
     try {
       setLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
@@ -275,12 +285,14 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     e.preventDefault();
     if (!regEmail || !regPassword || !regName || !regConfirmPassword) return toast.error("Todos los campos son obligatorios.");
     if (regPassword !== regConfirmPassword) return toast.error("Las contraseñas no coinciden.");
+    if (!acceptTerms) return toast.error("Debes aceptar los términos y condiciones.");
     
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email: regEmail,
       password: regPassword,
-      options: { data: { full_name: regName } }
+      // Queda constancia de qué versión de los términos aceptó y cuándo
+      options: { data: { full_name: regName, terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() } }
     });
 
     setLoading(false);
@@ -420,13 +432,21 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
               </button>
             </div>
             
+            <label className="terms-check">
+              <input type="checkbox" checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} />
+              <span>
+                Acepto los{" "}
+                <button type="button" className="terms-link" onClick={() => setShowTerms(true)}>términos y condiciones</button>
+              </span>
+            </label>
+
             <DockButton
               label="REGISTRARSE"
               loadingLabel="PROCESANDO..."
               ready={registerReady}
               loading={loading}
               active={activeView === "register"}
-              lockedHint="Completa tus datos para despegar"
+              lockedHint={acceptTerms ? "Completa tus datos para despegar" : "Completa tus datos y acepta los términos"}
             />
           </form>
         </div>
@@ -473,6 +493,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
           </form>
         </div>
       </div>
+      <TermsModal open={showTerms} onClose={() => setShowTerms(false)} onAccept={() => setAcceptTerms(true)} />
     </div>
   );
 };

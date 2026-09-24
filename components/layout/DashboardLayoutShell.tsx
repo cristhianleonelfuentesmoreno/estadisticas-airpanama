@@ -10,31 +10,37 @@ import { useEffect } from "react";
 import { SurgeNav } from "./SurgeNav";
 import { logUserEvent } from "@/app/actions/audit";
 import { can, type Role } from "@/lib/permissions";
+import { TermsModal } from "@/components/legal/TermsModal";
 
 // Estado de la verificación de ubicación: el panel solo se muestra con "ok"
 type GeoStatus = "checking" | "ok" | "denied" | "unavailable" | "timeout" | "unsupported" | "error";
 
 // Mensajes genéricos: sirven para cualquier dispositivo o sistema (computadora, celular o tablet)
-const GEO_MESSAGES: Record<Exclude<GeoStatus, "checking" | "ok">, { title: string; text: string }> = {
+const GEO_MESSAGES: Record<Exclude<GeoStatus, "checking" | "ok">, { title: string; text: string; steps?: string }> = {
   denied: {
-    title: "Se requiere tu ubicación",
-    text: "Se requiere tu ubicación para ver esta información. Permite el acceso a la ubicación para este sitio en la configuración de tu navegador y vuelve a intentarlo.",
+    title: "Activa tu ubicación para continuar",
+    text: "Por seguridad, la plataforma registra desde dónde se inicia cada sesión. Así protegemos tu cuenta y la información operativa de la estación, y podemos detectar accesos no autorizados. Tu ubicación se usa solo dentro de la plataforma.",
+    steps: "Toca el ícono junto a la dirección del sitio (o abre la configuración de tu navegador), elige «Permitir» en Ubicación y luego pulsa Reintentar.",
   },
   unavailable: {
-    title: "No se pudo obtener tu ubicación",
-    text: "Verifica que la ubicación esté activada en tu dispositivo y que tu navegador tenga permiso para usarla, luego vuelve a intentarlo.",
+    title: "No pudimos obtener tu ubicación",
+    text: "Es un requisito de seguridad para acceder a la plataforma.",
+    steps: "Revisa que la ubicación esté activada en tu dispositivo y que el navegador tenga permiso para usarla, luego pulsa Reintentar.",
   },
   timeout: {
-    title: "La ubicación tardó demasiado",
-    text: "No recibimos tu ubicación a tiempo. Revisa tu conexión y que la ubicación esté activada, luego vuelve a intentarlo.",
+    title: "La ubicación está tardando",
+    text: "No recibimos tu ubicación a tiempo. Es un requisito de seguridad para acceder a la plataforma.",
+    steps: "Revisa tu conexión y que la ubicación esté activada, luego pulsa Reintentar.",
   },
   unsupported: {
     title: "Navegador no compatible",
-    text: "Tu navegador no permite obtener la ubicación, que es obligatoria para acceder al sistema. Usa un navegador actualizado.",
+    text: "Tu navegador no permite compartir la ubicación, que es un requisito de seguridad para acceder a la plataforma.",
+    steps: "Usa una versión actualizada de Chrome, Safari, Edge o Firefox.",
   },
   error: {
     title: "No se pudo registrar tu sesión",
-    text: "Ocurrió un problema al registrar tu acceso. Vuelve a intentarlo en unos segundos.",
+    text: "Ocurrió un problema al registrar tu acceso.",
+    steps: "Vuelve a intentarlo en unos segundos.",
   },
 };
 
@@ -57,6 +63,7 @@ export default function DashboardLayoutShell({
   const [refreshSuccess, setRefreshSuccess] = useState(false);
   const [geoStatus, setGeoStatus] = useState<GeoStatus>("checking");
   const [geoAttempt, setGeoAttempt] = useState(0);
+  const [showTerms, setShowTerms] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -315,9 +322,17 @@ export default function DashboardLayoutShell({
                 </div>
               ) : (
                 <div role="alert" className="max-w-md w-full bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-sm p-6 text-center flex flex-col items-center gap-4">
-                  <span className="material-symbols-outlined text-[44px] text-error">location_off</span>
+                  <span className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[30px]">{geoStatus === 'denied' ? 'shield_lock' : 'location_off'}</span>
+                  </span>
                   <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">{GEO_MESSAGES[geoStatus].title}</h2>
                   <p className="font-body-md text-body-md text-on-surface-variant">{GEO_MESSAGES[geoStatus].text}</p>
+                  {GEO_MESSAGES[geoStatus].steps && (
+                    <div className="w-full flex gap-2.5 text-left p-3 rounded-xl bg-surface-container-low border border-outline-variant/40">
+                      <span className="material-symbols-outlined text-[20px] text-primary shrink-0">tips_and_updates</span>
+                      <p className="text-[13px] text-on-surface-variant leading-relaxed">{GEO_MESSAGES[geoStatus].steps}</p>
+                    </div>
+                  )}
                   <div className="flex flex-wrap justify-center gap-3 pt-2">
                     {geoStatus !== "unsupported" && (
                       <button
@@ -334,6 +349,9 @@ export default function DashboardLayoutShell({
                       Cerrar sesión
                     </button>
                   </div>
+                  <button onClick={() => setShowTerms(true)} className="text-[13px] font-semibold text-primary underline underline-offset-2">
+                    ¿Para qué se usa mi información? Ver términos y condiciones
+                  </button>
                 </div>
               )}
             </div>
@@ -373,6 +391,7 @@ export default function DashboardLayoutShell({
           })}
         </div>
       </nav>
+      <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
     </>
   );
 }

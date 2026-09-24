@@ -5,7 +5,6 @@ import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction, up
 import { toast } from "sonner";
 
 import { SettingsWidget } from "./SettingsWidget";
-import { ApiManagementWidget } from "./ApiManagementWidget";
 import { DispositivosPanel } from "./DispositivosPanel";
 import { AuditoriaPanel } from "./AuditoriaPanel";
 import { FleetKnowledgePanel } from "./FleetKnowledgePanel";
@@ -183,10 +182,7 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
 
       {/* Configuración del sistema: solo administrador */}
       {can.manageSettings(role) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <SettingsWidget />
-          <ApiManagementWidget />
-        </div>
+        <SettingsWidget />
       )}
 
       {/* ========================================= */}
