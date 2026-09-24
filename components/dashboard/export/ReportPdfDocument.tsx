@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell, LabelList } from "recharts";
 import { STATION } from "@/lib/reportes/excel";
 import type { ReportAirline, ReportMetrics } from "@/lib/reportes/metrics";
 
@@ -122,7 +122,7 @@ function buildSections({ metrics: m, airline }: Props): { id: string; node: Reac
     id: "trend",
     node: (
       <Card title="Pasajeros transportados" subtitle={`Por ${m.byMonth ? "mes" : "día"}`} aside={<Legend airline={airline} />}>
-        <AreaChart width={chartW} height={210} data={m.dailyChart} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <AreaChart width={chartW} height={210} data={m.dailyChart} margin={{ top: m.byMonth ? 20 : 8, right: 16, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="pdfP7" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={RED} stopOpacity={0.28} />
@@ -137,12 +137,73 @@ function buildSections({ metrics: m, airline }: Props): { id: string; node: Reac
           <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 9.5, fill: MUTED, fontWeight: 600 }} tickMargin={8} padding={{ left: 10, right: 10 }} interval={m.byMonth ? 0 : 1} />
           <YAxis axisLine={false} tickLine={false} width={40} tickCount={5} tick={{ fontSize: 9.5, fill: "#94a3b8", fontWeight: 600 }}
             tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : `${v}`)} />
-          {airline !== "7p" && <Area type="monotone" dataKey="cm" stroke={NAVY} strokeWidth={2.2} fill="url(#pdfCM)" isAnimationActive={false} dot={false} />}
-          {airline !== "cm" && <Area type="monotone" dataKey="p7" stroke={RED} strokeWidth={2.2} fill="url(#pdfP7)" isAnimationActive={false} dot={false} />}
+          {airline !== "7p" && (
+            <Area type="monotone" dataKey="cm" stroke={NAVY} strokeWidth={2.2} fill="url(#pdfCM)" isAnimationActive={false}
+              dot={m.byMonth ? { r: 3, fill: NAVY, stroke: "#fff", strokeWidth: 1.5 } : false}>
+              {m.byMonth && <LabelList dataKey="cm" position="top" offset={8} formatter={(v: unknown) => fmt(Number(v))} style={{ fontSize: 9.5, fontWeight: 800, fill: NAVY }} />}
+            </Area>
+          )}
+          {airline !== "cm" && (
+            <Area type="monotone" dataKey="p7" stroke={RED} strokeWidth={2.2} fill="url(#pdfP7)" isAnimationActive={false}
+              dot={m.byMonth ? { r: 3, fill: RED, stroke: "#fff", strokeWidth: 1.5 } : false}>
+              {m.byMonth && <LabelList dataKey="p7" position="top" offset={8} formatter={(v: unknown) => fmt(Number(v))} style={{ fontSize: 9.5, fontWeight: 800, fill: RED }} />}
+            </Area>
+          )}
         </AreaChart>
       </Card>
     ),
   });
+
+  // Los números del gráfico en una tabla: en el PDF no se puede pasar el mouse para verlos.
+  // Por día (hasta 31 filas) se reparte en dos columnas para que quepa.
+  {
+    const showAP = airline !== "cm";
+    const showCM = airline !== "7p";
+    const rows = m.dailyChart.map(p => ({ label: m.byMonth ? p.tip : p.tip.replace(/ \d{4}$/, ""), ap: p.p7, cm: p.cm }));
+    const tot = rows.reduce((t, r) => ({ ap: t.ap + r.ap, cm: t.cm + r.cm }), { ap: 0, cm: 0 });
+    const cols = m.byMonth || rows.length <= 12 ? [rows] : [rows.slice(0, Math.ceil(rows.length / 2)), rows.slice(Math.ceil(rows.length / 2))];
+    const cell = { padding: "3px 6px", fontSize: 10, textAlign: "right" as const, fontVariantNumeric: "tabular-nums" as const };
+    const table = (list: typeof rows, withTotal: boolean) => (
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: `1.5px solid ${LINE}` }}>
+            <th style={{ ...cell, textAlign: "left", color: MUTED, fontWeight: 700 }}>{m.byMonth ? "Mes" : "Día"}</th>
+            {showAP && <th style={{ ...cell, color: RED, fontWeight: 800 }}>Air Panama</th>}
+            {showCM && <th style={{ ...cell, color: NAVY, fontWeight: 800 }}>Copa</th>}
+            {showAP && showCM && <th style={{ ...cell, color: NAVY, fontWeight: 800 }}>Total</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((r, i) => (
+            <tr key={r.label} style={{ background: i % 2 ? "#f8fafc" : "#fff" }}>
+              <td style={{ ...cell, textAlign: "left", color: NAVY, fontWeight: 600 }}>{r.label}</td>
+              {showAP && <td style={{ ...cell, color: "#334155" }}>{fmt(r.ap)}</td>}
+              {showCM && <td style={{ ...cell, color: "#334155" }}>{fmt(r.cm)}</td>}
+              {showAP && showCM && <td style={{ ...cell, color: NAVY, fontWeight: 700 }}>{fmt(r.ap + r.cm)}</td>}
+            </tr>
+          ))}
+          {withTotal && (
+            <tr style={{ borderTop: `1.5px solid ${LINE}` }}>
+              <td style={{ ...cell, textAlign: "left", color: NAVY, fontWeight: 800 }}>Total</td>
+              {showAP && <td style={{ ...cell, color: RED, fontWeight: 800 }}>{fmt(tot.ap)}</td>}
+              {showCM && <td style={{ ...cell, color: NAVY, fontWeight: 800 }}>{fmt(tot.cm)}</td>}
+              {showAP && showCM && <td style={{ ...cell, color: NAVY, fontWeight: 800 }}>{fmt(tot.ap + tot.cm)}</td>}
+            </tr>
+          )}
+        </tbody>
+      </table>
+    );
+    sections.push({
+      id: "trend-table",
+      node: (
+        <Card title={`Pasajeros por ${m.byMonth ? "mes" : "día"}`} subtitle="Los mismos números del gráfico">
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols.length}, 1fr)`, gap: 16 }}>
+            {cols.map((list, i) => <div key={i}>{table(list, i === cols.length - 1)}</div>)}
+          </div>
+        </Card>
+      ),
+    });
+  }
 
   // Capacidad vs ocupación (barras propias: más nítidas que un gráfico para dos filas)
   const capRows = [
