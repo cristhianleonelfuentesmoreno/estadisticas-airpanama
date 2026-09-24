@@ -15,6 +15,7 @@ export interface MalekFlight {
   pasajeros_abordo: number;
   capacidad_total: number;
   avion?: string;
+  eliminacion_solicitada?: boolean; // hay una solicitud de eliminación pendiente
   creado_en?: string;
   actualizado_en?: string;
 }
@@ -86,6 +87,9 @@ export function DailyFlightCard({ flight, showType, onEdit, onDelete }: {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-primary text-[15px] leading-tight">{flight.numero_vuelo}</span>
+              {flight.eliminacion_solicitada && (
+                <span className="material-symbols-outlined text-[16px] text-amber-600" title="Eliminación solicitada: pendiente de un supervisor">hourglass_top</span>
+              )}
               <span className="flex items-center gap-0.5 font-bold text-[13px] text-slate-600">
                 {isLlegada ? flight.origen : 'DAV'}
                 <span className="material-symbols-outlined text-[13px] text-slate-400">arrow_forward</span>

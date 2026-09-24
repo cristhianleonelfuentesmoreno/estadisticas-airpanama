@@ -116,7 +116,8 @@ export async function saveFleetRow(table: string, key: string | null, input: Fle
 
   await logAudit({
     tipo_evento: "edicion",
-    usuario_id: admin.id,
+    actor: admin,
+    entidad: "flota",
     nombre_referencia: String(row[def.key === "id" ? Object.keys(def.fields)[0] : def.key] ?? key ?? ""),
     descripcion: `${key === null ? "Agregó" : "Editó"} ${def.label} en la base de flota`,
     detalles_extra: { tabla: table, cambios: row },
@@ -135,7 +136,8 @@ export async function deleteFleetRow(table: string, key: string) {
   }
   await logAudit({
     tipo_evento: "eliminacion",
-    usuario_id: admin.id,
+    actor: admin,
+    entidad: "flota",
     nombre_referencia: key,
     descripcion: `Eliminó ${def.label} de la base de flota`,
     detalles_extra: { tabla: table },

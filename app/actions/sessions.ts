@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { UAParser } from "ua-parser-js";
 import { logAudit } from "@/lib/audit";
-import { getApprovedUserOrNull, requireAdmin, requireApprovedUser } from "@/lib/auth";
+import { getApprovedUserOrNull, requireSupervisor, requireApprovedUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 
@@ -12,7 +12,8 @@ const isValidCoord = (v: unknown, max: number): v is number =>
 
 export async function registrarSesion(lat: number | null, lon: number | null, userAgentStr: string) {
   // El userId sale de la sesión, nunca del cliente (evita suplantar a otro usuario)
-  const { id: userId } = await requireApprovedUser();
+  const sessionUser = await requireApprovedUser();
+  const userId = sessionUser.id;
   const supabaseAdmin = createAdminClient();
   // La ubicación es obligatoria: sin coordenadas válidas no se abre sesión
   if (!isValidCoord(lat, 90) || !isValidCoord(lon, 180)) {
@@ -84,7 +85,7 @@ export async function registrarSesion(lat: number | null, lon: number | null, us
   const userName = perfil ? (perfil.nombre || perfil.email) : 'Usuario';
   await logAudit({
     tipo_evento: 'inicio_sesion',
-    usuario_id: userId,
+    actor: sessionUser,
     nombre_referencia: userName,
     descripcion: 'Acceso concedido vía autenticación.',
   });
@@ -136,7 +137,7 @@ export async function cerrarSesion(sessionId: string) {
     const userName = perfil ? (perfil.nombre || perfil.email) : 'Usuario';
     await logAudit({
       tipo_evento: 'cierre_sesion',
-      usuario_id: sessionData.user_id,
+      actor: user,
       nombre_referencia: userName,
       descripcion: 'Cierre formal y seguro de sesión.',
     });
@@ -178,7 +179,7 @@ export type SesionConUsuario = Sesion & {
 };
 
 export async function getSesionesActivas(): Promise<SesionConUsuario[]> {
-  await requireAdmin();
+  await requireSupervisor();
   const supabaseAdmin = createAdminClient();
   const tenMinutesAgo = new Date(Date.now() - 10 * 60000).toISOString();
 
@@ -206,7 +207,7 @@ export async function getSesionesActivas(): Promise<SesionConUsuario[]> {
 }
 
 export async function getHistorialSesionesUser(userId: string): Promise<Sesion[]> {
-  await requireAdmin();
+  await requireSupervisor();
   const supabaseAdmin = createAdminClient();
   const { data } = await supabaseAdmin
     .from('sesiones')

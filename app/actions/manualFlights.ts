@@ -1,11 +1,16 @@
 "use server";
 
-import { requireApprovedUser, requireAdmin } from '@/lib/auth';
+import { requireApprovedUser, requireSupervisor } from '@/lib/auth';
+import { diffFields, logAudit } from '@/lib/audit';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { loadFleetKnowledge } from '@/lib/fleet/knowledge';
 import { applyFleetRules, canonicalFlightNumber, capacityOf, classifyCrewLine, legKey, normalizeRegistration } from '@/lib/fleet/rules';
 
 const getAdminSupabase = createAdminClient;
+
+// "7P-971 · 2026-09-22 · DAV → PAC" para la bitácora del itinerario
+const itineraryLabel = (f: { flightNumber?: string | null; airline?: string | null; flightDate?: string | null; origin?: string | null; destination?: string | null }) =>
+  [canonicalFlightNumber(f.flightNumber, f.airline), f.flightDate, `${f.origin ?? '?'} → ${f.destination ?? '?'}`].filter(Boolean).join(' · ');
 
 export type ManualFlightInput = {
   id?: string;
@@ -80,7 +85,7 @@ export async function getManualFlightsForDate(dateStr?: string): Promise<ManualF
 }
 
 export async function addManualFlight(flight: ManualFlightInput) {
-  await requireApprovedUser();
+  const user = await requireApprovedUser();
   const supabase = getAdminSupabase();
   const kb = await loadFleetKnowledge();
   const { error } = await supabase
@@ -90,11 +95,16 @@ export async function addManualFlight(flight: ManualFlightInput) {
   if (error) {
     throw new Error(error.message);
   }
+  await logAudit({
+    tipo_evento: 'creacion', actor: user, entidad: 'vuelo',
+    nombre_referencia: itineraryLabel(flight),
+    descripcion: 'Agregó un vuelo al itinerario',
+  });
   return true;
 }
 
 export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
-  await requireApprovedUser();
+  const user = await requireApprovedUser();
   if (!Array.isArray(flights) || flights.length === 0) return true;
 
   const supabase = getAdminSupabase();
@@ -131,24 +141,42 @@ export async function addMultipleManualFlights(flights: ManualFlightInput[]) {
   if (insertError) {
     throw new Error(insertError.message);
   }
-  
+
+  await logAudit({
+    tipo_evento: 'importacion', actor: user, entidad: 'vuelo',
+    nombre_referencia: `Itinerario ${uniqueDates.sort().join(', ')}`,
+    descripcion: `Cargó el itinerario: ${newFlights.length} vuelo(s) nuevo(s) de ${flights.length} leído(s)`,
+    detalles_extra: { vuelos: newFlights.map(f => itineraryLabel(f)).slice(0, 60) },
+  });
   return true;
 }
 
 export async function updateFlightStatusOverride(id: string, override: { status_override?: string | null; actual_departure_time?: string | null; actual_arrival_time?: string | null }) {
-  await requireApprovedUser();
+  const user = await requireApprovedUser();
   const supabase = getAdminSupabase();
   const { status_override, actual_departure_time, actual_arrival_time } = override;
+  const next = { status_override, actual_departure_time, actual_arrival_time };
+  const { data: before } = await supabase.from('manual_flights_log').select('*').eq('id', id).maybeSingle();
   const { error } = await supabase
     .from('manual_flights_log')
-    .update({ status_override, actual_departure_time, actual_arrival_time })
+    .update(next)
     .eq('id', id);
   if (error) throw new Error(error.message);
+  const cambios = diffFields(before, next);
+  if (before && Object.keys(cambios).length > 0) {
+    await logAudit({
+      tipo_evento: 'edicion', actor: user, entidad: 'vuelo', entidad_id: id,
+      nombre_referencia: itineraryLabel(before),
+      descripcion: `Actualizó el estado del vuelo en el itinerario: ${Object.entries(cambios).map(([k, c]) => `${k}: ${c.antes ?? '—'} → ${c.despues ?? '—'}`).join(' · ')}`,
+      detalles_extra: { cambios },
+    });
+  }
   return true;
 }
 
+// Archivar = aprobar el vuelo y pasarlo al histórico: lo puede hacer cualquier usuario
 export async function archiveFlight(id: string) {
-  await requireAdmin();
+  const user = await requireApprovedUser();
   const supabase = getAdminSupabase();
 
   // Obtener detalles del vuelo manual para actualizar el histórico correspondiente
@@ -227,32 +255,57 @@ export async function archiveFlight(id: string) {
     await upsertHistorico('salidas_malek_historico', 'destino', payload);
   }
 
+  await logAudit({
+    tipo_evento: 'aprobacion', actor: user, entidad: 'vuelo', entidad_id: id,
+    nombre_referencia: itineraryLabel(manualFlight),
+    descripcion: `Aprobó y archivó el vuelo del itinerario (${manualFlight.destination === 'DAV' ? finalStatusArrival : finalStatusDeparture}, ${manualFlight.paxCount ?? 0} pasajeros)`,
+  });
   return true;
 }
 
 export async function updateFlightDetails(id: string, updates: Partial<ManualFlightInput>) {
-  await requireApprovedUser();
+  const user = await requireApprovedUser();
   const supabase = getAdminSupabase();
 
   // Solo columnas permitidas (descarta id y cualquier campo desconocido)
   const payload = applyFleetRules(pickWritable(updates), await loadFleetKnowledge());
+  const { data: before } = await supabase.from('manual_flights_log').select('*').eq('id', id).maybeSingle();
   
   const { error } = await supabase
     .from('manual_flights_log')
     .update(payload)
     .eq('id', id);
   if (error) throw new Error(error.message);
+  const cambios = diffFields(before, payload as Record<string, unknown>);
+  if (before && Object.keys(cambios).length > 0) {
+    await logAudit({
+      tipo_evento: 'edicion', actor: user, entidad: 'vuelo', entidad_id: id,
+      nombre_referencia: itineraryLabel({ ...before, ...payload }),
+      descripcion: `Editó el vuelo del itinerario: ${Object.entries(cambios).map(([k, c]) => `${k}: ${c.antes ?? '—'} → ${c.despues ?? '—'}`).join(' · ')}`,
+      detalles_extra: { cambios },
+    });
+  }
   return true;
 }
 
+// Borrar del itinerario (no del histórico) es de supervisores
 export async function deleteManualFlight(id: string) {
-  await requireAdmin();
+  const user = await requireSupervisor();
   const supabase = getAdminSupabase();
+  const { data: before } = await supabase.from('manual_flights_log').select('*').eq('id', id).maybeSingle();
   const { error } = await supabase
     .from('manual_flights_log')
     .delete()
     .eq('id', id);
   if (error) throw new Error(error.message);
+  if (before) {
+    await logAudit({
+      tipo_evento: 'eliminacion', actor: user, entidad: 'vuelo', entidad_id: id,
+      nombre_referencia: itineraryLabel(before),
+      descripcion: 'Eliminó el vuelo del itinerario',
+      detalles_extra: { vuelo: before },
+    });
+  }
   return true;
 }
 

@@ -15,7 +15,8 @@ export async function fetchPendingAudit(date: string): Promise<FlightData[]> {
   );
 }
 
-export function FlightAuditBoard({ onClose }: { onClose: () => void }) {
+// Aprobar: cualquier usuario. Descartar del itinerario: supervisores y administrador.
+export function FlightAuditBoard({ onClose, canDelete = false }: { onClose: () => void; canDelete?: boolean }) {
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingFlight, setEditingFlight] = useState<FlightData | null>(null);
@@ -171,7 +172,7 @@ export function FlightAuditBoard({ onClose }: { onClose: () => void }) {
           <div className="flex items-center gap-4 mr-12">
             {filteredFlights.length > 0 && (
               <>
-                <button 
+                {canDelete && <button 
                   onClick={handleDeleteAll}
                   disabled={isDeletingAll || isApprovingAll || loading}
                   className="px-4 py-1.5 rounded-lg text-sm font-bold bg-error/10 text-error hover:bg-error/20 transition-colors flex items-center gap-2 disabled:opacity-50"
@@ -183,7 +184,7 @@ export function FlightAuditBoard({ onClose }: { onClose: () => void }) {
                     <span className="material-symbols-outlined text-[18px]">delete_sweep</span>
                   )}
                   Descartar Todos
-                </button>
+                </button>}
                 <button 
                   onClick={handleApproveAll}
                   disabled={isApprovingAll || isDeletingAll || loading}
@@ -302,14 +303,14 @@ export function FlightAuditBoard({ onClose }: { onClose: () => void }) {
                             <span className="material-symbols-outlined text-[16px]">edit</span>
                             Editar
                           </button>
-                          <button 
+                          {canDelete && <button 
                             onClick={() => handleDelete(flight.manualLogId)}
                             className="px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error rounded-md text-xs font-bold transition-colors flex items-center gap-1"
                             title="Descartar"
                           >
                             <span className="material-symbols-outlined text-[16px]">delete</span>
                             Descartar
-                          </button>
+                          </button>}
                           <button 
                             onClick={() => handleArchive(flight.id, flight.manualLogId)}
                             className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-500 transition-colors rounded-md text-xs font-bold shadow-sm flex items-center gap-1"

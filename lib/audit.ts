@@ -3,19 +3,42 @@
 import { headers } from "next/headers";
 import { UAParser } from "ua-parser-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SessionUser } from "@/lib/auth";
 
 
-export type TipoEventoAuditoria = 'acceso_fallido' | 'inicio_sesion' | 'cierre_sesion' | 'edicion' | 'eliminacion' | 'alerta_sistema';
+export type TipoEventoAuditoria =
+  | 'acceso_fallido' | 'inicio_sesion' | 'cierre_sesion'
+  | 'creacion' | 'edicion' | 'aprobacion' | 'eliminacion' | 'restauracion'
+  | 'solicitud_eliminacion' | 'resolucion_solicitud'
+  | 'importacion' | 'exportacion' | 'navegacion'
+  | 'alerta_sistema';
+
+export type AuditEntidad = 'vuelo' | 'usuario' | 'flota' | 'configuracion' | 'sesion' | 'reporte' | 'pagina';
 
 interface AuditParams {
   tipo_evento: TipoEventoAuditoria;
+  // Quién lo hizo. Si se pasa `actor` se guardan su id, nombre y rol.
+  actor?: Pick<SessionUser, 'id' | 'nombre' | 'role'> | null;
   usuario_id?: string | null;
-  nombre_referencia: string;
+  nombre_referencia: string;   // sobre qué: "7P-971 · 22 sep 2026", el correo de un usuario…
   descripcion: string;
+  entidad?: AuditEntidad;
+  entidad_id?: string | null;
   detalles_extra?: object;
 }
 
-export async function logAudit({ tipo_evento, usuario_id, nombre_referencia, descripcion, detalles_extra = {} }: AuditParams) {
+// Cambios campo por campo para la bitácora: { pasajeros: { antes: 62, despues: 72 } }
+export function diffFields(before: Record<string, unknown> | null | undefined, after: Record<string, unknown>) {
+  const cambios: Record<string, { antes: unknown; despues: unknown }> = {};
+  for (const [key, value] of Object.entries(after)) {
+    const prev = before?.[key] ?? null;
+    if (value === undefined) continue;
+    if (JSON.stringify(prev) !== JSON.stringify(value ?? null)) cambios[key] = { antes: prev, despues: value ?? null };
+  }
+  return cambios;
+}
+
+export async function logAudit({ tipo_evento, actor, usuario_id, nombre_referencia, descripcion, entidad, entidad_id, detalles_extra = {} }: AuditParams) {
   try {
     const supabaseAdmin = createAdminClient();
     const headersList = await headers();
@@ -51,9 +74,13 @@ export async function logAudit({ tipo_evento, usuario_id, nombre_referencia, des
     // Insertar en Supabase
     await supabaseAdmin.from('registros_auditoria').insert([{
       tipo_evento,
-      usuario_id: usuario_id || null,
-      nombre_referencia,
-      descripcion,
+      usuario_id: actor?.id ?? usuario_id ?? null,
+      actor_nombre: actor?.nombre ?? null,
+      actor_rol: actor?.role ?? null,
+      entidad: entidad ?? null,
+      entidad_id: entidad_id ?? null,
+      nombre_referencia: String(nombre_referencia ?? '').slice(0, 300),
+      descripcion: String(descripcion ?? '').slice(0, 1000),
       detalles_extra,
       ip,
       ubicacion,

@@ -2,6 +2,7 @@
 
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit";
 
 export type ApiConfig = {
   id: string; // 'flightaware' | 'flightradar24'
@@ -50,7 +51,7 @@ export async function getApiConfigs(): Promise<Record<string, ApiConfig>> {
 }
 
 export async function saveApiConfig(id: string, apiKey: string, isActive: boolean) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const row: Record<string, unknown> = {
     id,
@@ -68,5 +69,14 @@ export async function saveApiConfig(id: string, apiKey: string, isActive: boolea
     console.error("Error saving API config:", error);
     throw new Error(error.message);
   }
+  // Nunca se registra la clave, solo que cambió
+  await logAudit({
+    tipo_evento: 'edicion',
+    actor: admin,
+    entidad: 'configuracion',
+    entidad_id: id,
+    nombre_referencia: `API ${id}`,
+    descripcion: `${'api_key' in row ? 'Cambió la clave y ' : ''}${isActive ? 'activó' : 'desactivó'} la conexión ${id}`,
+  });
   return true;
 }

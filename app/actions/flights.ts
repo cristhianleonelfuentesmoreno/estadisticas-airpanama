@@ -1,6 +1,8 @@
 "use server";
 
-import { requireApprovedUser, requireAdmin } from "@/lib/auth";
+import { requireApprovedUser, requireSupervisor, type SessionUser } from "@/lib/auth";
+import { diffFields, logAudit } from "@/lib/audit";
+import { flightLabel, getFlight, pendingDeletionIds, softDeleteFlight, TABLE, type TipoVuelo } from "@/lib/historico";
 import { loadFleetKnowledge } from "@/lib/fleet/knowledge";
 import { applyFleetRules, canonicalFlightNumber, legKey, normalizeRegistration, resolveAircraft } from "@/lib/fleet/rules";
 import type { ImportRow } from "@/lib/import/registroMensual";
@@ -233,6 +235,7 @@ export async function getLlegadasMalek(dateStr?: string) {
       .from('llegadas_malek_historico')
       .select('*')
       .eq('fecha', today)
+      .is('eliminado_en', null)
       .order('hora_real_llegada', { ascending: false }),
     supabase
       .from('manual_flights_log')
@@ -246,6 +249,8 @@ export async function getLlegadasMalek(dateStr?: string) {
   }
 
 
+  // Vuelos con una solicitud de eliminación pendiente: se marcan en el Registro
+  const solicitados = await pendingDeletionIds('llegada', (data || []).map(f => f.id));
   const enhancedData = (data || []).map(flight => {
     const manual = manualFlights?.find(m => 
       flight.numero_vuelo === m.flightNumber || 
@@ -256,7 +261,7 @@ export async function getLlegadasMalek(dateStr?: string) {
     let arrLocal = manual?.arrivalTimeLocal;
 
     // Vuelos importados del Excel: sin hora de itinerario no hay nada que estimar
-    if ((!depLocal || !arrLocal) && !flight.hora_itinerario) return flight;
+    if ((!depLocal || !arrLocal) && !flight.hora_itinerario) return { ...flight, eliminacion_solicitada: solicitados.has(flight.id) };
 
     if (!depLocal || !arrLocal) {
       // Fallback if not found in itinerary
@@ -275,6 +280,7 @@ export async function getLlegadasMalek(dateStr?: string) {
 
     return {
       ...flight,
+      eliminacion_solicitada: solicitados.has(flight.id),
       hora_itinerario_salida: `${today}T${depLocal}:00-05:00`,
       hora_itinerario_llegada: `${today}T${arrLocal}:00-05:00`
     };
@@ -306,36 +312,70 @@ const HISTORICO_FIELDS = [
   'pasajeros_abordo', 'capacidad_total', 'estado_final',
 ] as const;
 
-// Filtra los campos editables del histórico. Solo un administrador puede
-// cambiar estado_final (es lo que aprueba/verifica un vuelo pendiente).
-function pickHistorico(updates: HistoricoUpdates, extra: 'origen' | 'destino', isAdmin: boolean) {
+// Filtra los campos editables del histórico. Cualquier usuario aprobado puede cambiar
+// estado_final (aprobar un vuelo pendiente); queda registrado en la bitácora.
+function pickHistorico(updates: HistoricoUpdates, extra: 'origen' | 'destino') {
   const out: Record<string, unknown> = {};
   for (const key of [...HISTORICO_FIELDS, extra]) {
     if (updates && updates[key] !== undefined) out[key] = updates[key];
   }
-  if (!isAdmin) delete out.estado_final;
   return out;
+}
+
+const FIELD_LABEL: Record<string, string> = {
+  fecha: 'Fecha', aerolinea: 'Aerolínea', numero_vuelo: 'Vuelo', origen: 'Origen', destino: 'Destino',
+  pasajeros_abordo: 'Pasajeros', capacidad_total: 'Capacidad', estado_final: 'Estado',
+  hora_itinerario: 'Hora itinerario', hora_itinerario_salida: 'Salida itinerario', hora_real_salida: 'Salida real',
+  hora_itinerario_llegada: 'Llegada itinerario', hora_real_llegada: 'Llegada real',
+};
+const showValue = (key: string, v: unknown) => {
+  if (v === null || v === undefined || v === '') return '—';
+  if (key.startsWith('hora') && typeof v === 'string') {
+    const d = new Date(v);
+    if (!isNaN(d.getTime())) return d.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Panama' });
+  }
+  return String(v);
+};
+
+// Edita un vuelo del histórico y deja en la bitácora qué cambió (antes → después)
+async function updateHistorico(tipo: TipoVuelo, id: string, updates: HistoricoUpdates, user: SessionUser) {
+  const before = await getFlight(tipo, id);
+  if (!before) return { success: false, error: 'El vuelo no existe' };
+  if (before.eliminado_en) return { success: false, error: 'El vuelo está eliminado' };
+
+  const payload = pickHistorico(updates, tipo === 'llegada' ? 'origen' : 'destino');
+  const cambios = diffFields(before, payload);
+  // Columna duplicada heredada: mantener ambas sincronizadas
+  if ('hora_real_llegada' in payload && tipo === 'llegada') payload.hora_llegada_real = payload.hora_real_llegada;
+  if ('hora_real_salida' in payload && tipo === 'salida') payload.hora_salida_real = payload.hora_real_salida;
+  if (Object.keys(cambios).length === 0) return { success: true };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from(TABLE[tipo]).update({ ...payload, actualizado_en: new Date().toISOString() }).eq('id', id);
+  if (error) {
+    console.log(`Error updating ${tipo} Malek:`, error?.message || error);
+    return { success: false, error: error.message };
+  }
+
+  const aprobado = before.estado_final === 'PENDIENTE' && typeof payload.estado_final === 'string' && payload.estado_final !== 'PENDIENTE';
+  const resumen = Object.entries(cambios)
+    .map(([k, c]) => `${FIELD_LABEL[k] ?? k}: ${showValue(k, c.antes)} → ${showValue(k, c.despues)}`)
+    .join(' · ');
+  await logAudit({
+    tipo_evento: aprobado ? 'aprobacion' : 'edicion',
+    actor: user,
+    entidad: 'vuelo',
+    entidad_id: id,
+    nombre_referencia: flightLabel({ ...before, ...payload }, tipo),
+    descripcion: aprobado ? `Aprobó el vuelo como ${payload.estado_final}. ${resumen}` : `Editó el vuelo. ${resumen}`,
+    detalles_extra: { tipo, cambios },
+  });
+  return { success: true };
 }
 
 export async function updateLlegadaMalek(id: string, updates: HistoricoUpdates) {
   const user = await requireApprovedUser();
-  const supabase = await createClient();
-
-  const payload = pickHistorico(updates, 'origen', user.role === 'administrador');
-  // Columna duplicada heredada: mantener ambas sincronizadas
-  if ('hora_real_llegada' in payload) payload.hora_llegada_real = payload.hora_real_llegada;
-
-  const { error } = await supabase
-    .from('llegadas_malek_historico')
-    .update(payload)
-    .eq('id', id);
-
-  if (error) {
-    console.log("Error updating llegada Malek:", error?.message || error);
-    return { success: false, error: error.message };
-  }
-
-  return { success: true };
+  return updateHistorico('llegada', id, updates, user);
 }
 
 export async function saveCompletedMalekDepartures() {
@@ -406,6 +446,7 @@ export async function getSalidasMalek(dateStr?: string) {
       .from('salidas_malek_historico')
       .select('*')
       .eq('fecha', today)
+      .is('eliminado_en', null)
       .order('hora_real_salida', { ascending: false }),
     supabase
       .from('manual_flights_log')
@@ -419,6 +460,7 @@ export async function getSalidasMalek(dateStr?: string) {
   }
 
 
+  const solicitados = await pendingDeletionIds('salida', (data || []).map(f => f.id));
   const enhancedData = (data || []).map(flight => {
     const manual = manualFlights?.find(m => 
       flight.numero_vuelo === m.flightNumber || 
@@ -429,7 +471,7 @@ export async function getSalidasMalek(dateStr?: string) {
     let arrLocal = manual?.arrivalTimeLocal;
 
     // Vuelos importados del Excel: sin hora de itinerario no hay nada que estimar
-    if ((!depLocal || !arrLocal) && !flight.hora_itinerario) return flight;
+    if ((!depLocal || !arrLocal) && !flight.hora_itinerario) return { ...flight, eliminacion_solicitada: solicitados.has(flight.id) };
 
     if (!depLocal || !arrLocal) {
       // Fallback if not found in itinerary
@@ -448,6 +490,7 @@ export async function getSalidasMalek(dateStr?: string) {
 
     return {
       ...flight,
+      eliminacion_solicitada: solicitados.has(flight.id),
       hora_itinerario_salida: `${today}T${depLocal}:00-05:00`,
       hora_itinerario_llegada: `${today}T${arrLocal}:00-05:00`
     };
@@ -458,36 +501,24 @@ export async function getSalidasMalek(dateStr?: string) {
 
 export async function updateSalidaMalek(id: string, updates: HistoricoUpdates) {
   const user = await requireApprovedUser();
-  const supabase = await createClient();
-
-  const payload = pickHistorico(updates, 'destino', user.role === 'administrador');
-  if ('hora_real_salida' in payload) payload.hora_salida_real = payload.hora_real_salida;
-
-  const { error } = await supabase
-    .from('salidas_malek_historico')
-    .update(payload)
-    .eq('id', id);
-
-  if (error) {
-    console.log("Error updating salida Malek:", error?.message || error);
-    return { success: false, error: error.message };
-  }
-  return { success: true, message: "Registro actualizado exitosamente." };
-}
-export async function deleteLlegadaMalek(id: string) {
-  await requireAdmin();
-  const supabase = getAdminSupabase();
-  const { error } = await supabase.from('llegadas_malek_historico').delete().eq('id', id);
-  if (error) return { success: false, error: error.message };
-  return { success: true };
+  const res = await updateHistorico('salida', id, updates, user);
+  return res.success ? { ...res, message: "Registro actualizado exitosamente." } : res;
 }
 
-export async function deleteSalidaMalek(id: string) {
-  await requireAdmin();
-  const supabase = getAdminSupabase();
-  const { error } = await supabase.from('salidas_malek_historico').delete().eq('id', id);
-  if (error) return { success: false, error: error.message };
-  return { success: true };
+// Eliminar directamente es de supervisores (los usuarios envían una solicitud).
+// No se borra: se oculta y se puede restaurar desde el panel.
+const cleanMotivo = (m: unknown) => (typeof m === 'string' ? m.trim().slice(0, 500) : '');
+
+export async function deleteLlegadaMalek(id: string, motivo: string) {
+  const user = await requireSupervisor();
+  if (!cleanMotivo(motivo)) return { success: false, error: 'Indica el motivo de la eliminación' };
+  return softDeleteFlight('llegada', id, user, cleanMotivo(motivo));
+}
+
+export async function deleteSalidaMalek(id: string, motivo: string) {
+  const user = await requireSupervisor();
+  if (!cleanMotivo(motivo)) return { success: false, error: 'Indica el motivo de la eliminación' };
+  return softDeleteFlight('salida', id, user, cleanMotivo(motivo));
 }
 
 // Registro de llegada/salida tal como lo arma el formulario o la importación de Excel
@@ -510,7 +541,7 @@ export interface FlightRecordInput {
 }
 
 export async function insertFlightRecords(data: FlightRecordInput[], type: 'llegadas' | 'salidas') {
-  await requireApprovedUser();
+  const user = await requireApprovedUser();
   if (!Array.isArray(data) || (type !== 'llegadas' && type !== 'salidas')) {
     return { success: false, error: 'Datos inválidos' };
   }
@@ -605,6 +636,16 @@ export async function insertFlightRecords(data: FlightRecordInput[], type: 'lleg
       return { success: false, error: error.message };
     }
   }
+
+  const vuelos = data.map(d => `${d.numero_vuelo} (${d.fecha})`);
+  await logAudit({
+    tipo_evento: 'creacion',
+    actor: user,
+    entidad: 'vuelo',
+    nombre_referencia: vuelos.slice(0, 3).join(', ') + (vuelos.length > 3 ? ` y ${vuelos.length - 3} más` : ''),
+    descripcion: `Agregó ${data.length} ${type === 'llegadas' ? 'llegada(s)' : 'salida(s)'} manualmente: ${newData.length} nuevo(s), ${updatedCount} actualizado(s).`,
+    detalles_extra: { tipo: type, vuelos: vuelos.slice(0, 50) },
+  });
   
   return { success: true, inserted: newData.length, updated: updatedCount };
 }
@@ -646,6 +687,7 @@ export async function getReporteMensual(year: number, month: number, range: 'mon
         .gte('fecha', startDate)
         .lte('fecha', endDate)
         .neq('estado_final', 'PENDIENTE')
+        .is('eliminado_en', null)
         .order('fecha')
         .order('id')
         .range(from, from + PAGE - 1);
@@ -655,12 +697,18 @@ export async function getReporteMensual(year: number, month: number, range: 'mon
     }
   };
 
-  const [llegadas, salidas] = await Promise.all([
+  const [llegadas, salidas, llegadasSolicitadas, salidasSolicitadas] = await Promise.all([
     fetchAll('llegadas_malek_historico'),
     fetchAll('salidas_malek_historico'),
+    pendingDeletionIds('llegada'),
+    pendingDeletionIds('salida'),
   ]);
 
-  return [...llegadas, ...salidas];
+  // Un vuelo con eliminación solicitada deja de contar mientras se resuelve
+  return [
+    ...llegadas.filter(f => !llegadasSolicitadas.has(f.id ?? '')),
+    ...salidas.filter(f => !salidasSolicitadas.has(f.id ?? '')),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -687,8 +735,10 @@ const intIn = (v: unknown, min: number, max: number) =>
 
 // Guarda un lote ya revisado en la vista previa. Un vuelo existente (misma fecha,
 // número y ruta) se actualiza con los datos del Excel sin tocar sus horas ni su estado.
-export async function importHistoricoRows(rows: HistoricoImportRow[]) {
-  await requireApprovedUser();
+export type ImportBatchInfo = { archivo?: string; lote?: number; lotes?: number };
+
+export async function importHistoricoRows(rows: HistoricoImportRow[], info: ImportBatchInfo = {}) {
+  const user = await requireApprovedUser();
   if (!Array.isArray(rows) || rows.length === 0) return { success: false, error: 'No hay vuelos para guardar' };
   if (rows.length > MAX_IMPORT_ROWS) return { success: false, error: `Máximo ${MAX_IMPORT_ROWS} vuelos por lote` };
 
@@ -775,6 +825,18 @@ export async function importHistoricoRows(rows: HistoricoImportRow[]) {
       updated += results.filter(res => !res.error).length;
     }
   }
+
+  const archivo = typeof info.archivo === 'string' ? info.archivo.slice(0, 120) : 'Excel';
+  const lote = Number.isInteger(info.lote) && Number.isInteger(info.lotes) ? ` (lote ${info.lote} de ${info.lotes})` : '';
+  const fechas = clean.map(r => r.fecha).sort();
+  await logAudit({
+    tipo_evento: 'importacion',
+    actor: user,
+    entidad: 'vuelo',
+    nombre_referencia: `${archivo}${lote}`,
+    descripcion: `Importó ${clean.length} vuelos del ${fechas[0]} al ${fechas[fechas.length - 1]}: ${inserted} nuevos, ${updated} actualizados.`,
+    detalles_extra: { archivo, lote: info.lote ?? null, lotes: info.lotes ?? null, nuevos: inserted, actualizados: updated, desde: fechas[0], hasta: fechas[fechas.length - 1] },
+  });
 
   return { success: true, inserted, updated };
 }

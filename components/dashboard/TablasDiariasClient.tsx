@@ -3,6 +3,8 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords, getImportKnowledge, importHistoricoRows, type FlightRecordInput, type HistoricoUpdates } from "@/app/actions/flights";
+import { requestFlightDeletion } from "@/app/actions/deletionRequests";
+import { can, type Role } from "@/lib/permissions";
 import { parseRegistroMensual, type ImportResult, type SheetInput, type Cell } from "@/lib/import/registroMensual";
 import * as XLSX from 'xlsx';
 import { FlightAuditBoard, fetchPendingAudit } from "./FlightAuditBoard";
@@ -41,11 +43,11 @@ const COMMON_FLIGHTS = [
 export default function TablasDiariasClient({
   initialData,
   currentDateStr,
-  isAdmin = false
+  role = 'usuario'
 }: {
   initialData: { llegadas: MalekFlight[], salidas: MalekFlight[] };
   currentDateStr: string;
-  isAdmin?: boolean;
+  role?: Role;
 }) {
   const [viewType, setViewType] = useState<'llegadas' | 'salidas' | 'todos'>('todos');
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,6 +136,10 @@ export default function TablasDiariasClient({
   const [importResult, setImportResult] = useState<{show: boolean, type: 'success' | 'error', message: string}>({show: false, type: 'success', message: ''});
   const [flightToDelete, setFlightToDelete] = useState<MalekFlight | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  // Supervisores eliminan directo; los usuarios envían una solicitud
+  const canDelete = can.deleteFlights(role);
   
   // Add Flight Form State
   const [addFormData, setAddFormData] = useState({
@@ -321,31 +327,34 @@ export default function TablasDiariasClient({
   };
   const handleDeleteClick = (flight: MalekFlight) => {
     setFlightToDelete(flight);
+    setDeleteReason('');
     setIsDeleteModalOpen(true);
   };
 
   const executeDelete = async () => {
-    if (!flightToDelete) return;
-
-    setIsDeleteModalOpen(false);
+    if (!flightToDelete || deleteReason.trim().length < 3) return;
+    setDeleteBusy(true);
 
     try {
       const isLlegada = !!flightToDelete.origen;
-      let res;
-      if (isLlegada) {
-        res = await deleteLlegadaMalek(flightToDelete.id);
-      } else {
-        res = await deleteSalidaMalek(flightToDelete.id);
-      }
+      const motivo = deleteReason.trim();
+      const res = canDelete
+        ? await (isLlegada ? deleteLlegadaMalek(flightToDelete.id, motivo) : deleteSalidaMalek(flightToDelete.id, motivo))
+        : await requestFlightDeletion(isLlegada ? 'llegada' : 'salida', flightToDelete.id, motivo);
 
       if (res.success) {
-        window.location.reload();
+        setIsDeleteModalOpen(false);
+        if (canDelete) window.location.reload();
+        else {
+          setImportResult({ show: true, type: 'success', message: `Solicitud enviada. Un supervisor revisará la eliminación del vuelo ${flightToDelete.numero_vuelo}; mientras tanto no cuenta en los reportes.` });
+        }
       } else {
-        alert("Error al eliminar: " + res.error);
+        alert((canDelete ? "Error al eliminar: " : "No se pudo enviar la solicitud: ") + res.error);
       }
     } catch (err) {
       alert("Error inesperado: " + (err as Error).message);
     } finally {
+      setDeleteBusy(false);
       setFlightToDelete(null);
     }
   };
@@ -588,7 +597,7 @@ export default function TablasDiariasClient({
                 </>
               )}
             </div>
-{isAdmin && (
+{(
             <button
               onClick={() => setIsAuditModalOpen(true)}
               className={`flex-1 md:flex-none justify-center px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border transition-colors cursor-pointer text-white font-bold tracking-wide ${pendingAuditCount > 0 ? 'bg-amber-500 hover:bg-amber-400 border-amber-400/50 animate-[pulse_2s_infinite] shadow-amber-900/30' : 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20'}`}
@@ -732,7 +741,7 @@ export default function TablasDiariasClient({
                 flight={flight}
                 showType={viewType === 'todos'}
                 onEdit={() => openEditDrawer(flight)}
-                onDelete={isAdmin ? () => handleDeleteClick(flight) : undefined}
+                onDelete={flight.eliminacion_solicitada && !canDelete ? undefined : () => handleDeleteClick(flight)}
               />
             ))
           ) : (
@@ -810,6 +819,11 @@ export default function TablasDiariasClient({
                             </span>
                             <div>
                               <span className="font-bold text-primary block leading-tight text-[14px]">{flight.numero_vuelo}</span>
+                              {flight.eliminacion_solicitada && (
+                                <span className="inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold" title="Hay una solicitud de eliminación pendiente de un supervisor">
+                                  <span className="material-symbols-outlined text-[12px]">hourglass_top</span> Eliminación solicitada
+                                </span>
+                              )}
                               <span className="text-[12px] text-slate-500 block truncate w-24">
                                 {flight.aerolinea} {viewType === 'todos' && <span className="font-bold text-[11px] uppercase ml-1 opacity-60">({isLlegada ? 'Llegada' : 'Salida'})</span>}
                               </span>
@@ -915,11 +929,11 @@ export default function TablasDiariasClient({
                             >
                               <span className="material-symbols-outlined text-[16px]">edit</span>
                             </button>
-                            {isAdmin && (
+                            {!(flight.eliminacion_solicitada && !canDelete) && (
                               <button 
                                 onClick={() => handleDeleteClick(flight)}
                                 className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white active:scale-95 transition-all shadow-sm"
-                                title="Eliminar Vuelo Incorrecto"
+                                title={canDelete ? "Eliminar vuelo" : "Solicitar eliminación a un supervisor"}
                               >
                                 <span className="material-symbols-outlined text-[16px]">delete</span>
                               </button>
@@ -1121,8 +1135,6 @@ export default function TablasDiariasClient({
                     className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
                     value={editFormData.estado_final}
                     onChange={(e) => setEditFormData({...editFormData, estado_final: e.target.value})}
-                    disabled={!isAdmin}
-                    title={!isAdmin ? 'Solo un administrador puede cambiar el estado final' : undefined}
                   >
                     <option value="LLEGÓ">Arribo</option>
                     <option value="CUMPLIDO">Cumplido</option>
@@ -1364,29 +1376,47 @@ export default function TablasDiariasClient({
           </div>
         </div>
       )}
-      {/* MODAL: Confirmar Eliminación */}
+      {/* MODAL: Eliminar (supervisor) o solicitar eliminación (usuario) */}
       {isDeleteModalOpen && flightToDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-surface max-w-sm w-full rounded-3xl p-6 shadow-2xl animate-fade-in-up border border-outline-variant/30">
-            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="material-symbols-outlined text-2xl">warning</span>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${canDelete ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
+              <span className="material-symbols-outlined text-2xl">{canDelete ? 'delete' : 'outgoing_mail'}</span>
             </div>
-            <h3 className="text-xl font-medium text-center mb-2">¿Eliminar Vuelo?</h3>
-            <p className="text-on-surface-variant text-center mb-6">
-              ¿Estás seguro de que deseas eliminar el vuelo <strong>{flightToDelete.numero_vuelo}</strong>? Esta acción no se puede deshacer.
+            <h3 className="text-xl font-medium text-center mb-2">{canDelete ? '¿Eliminar vuelo?' : 'Solicitar eliminación'}</h3>
+            <p className="text-on-surface-variant text-center text-sm mb-4">
+              {canDelete ? (
+                <>El vuelo <strong>{flightToDelete.numero_vuelo}</strong> saldrá del Registro y de los Reportes. Queda guardado y se puede restaurar desde el panel.</>
+              ) : (
+                <>Un supervisor revisará la eliminación del vuelo <strong>{flightToDelete.numero_vuelo}</strong>. Mientras tanto no cuenta en los reportes.</>
+              )}
             </p>
+            <label className="flex flex-col gap-1.5 mb-5">
+              <span className="text-[12px] font-bold uppercase tracking-wider text-slate-500">Motivo</span>
+              <textarea
+                autoFocus
+                rows={3}
+                maxLength={500}
+                value={deleteReason}
+                onChange={e => setDeleteReason(e.target.value)}
+                placeholder="Ej.: vuelo duplicado, registrado en la fecha equivocada…"
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              />
+            </label>
             <div className="flex gap-3">
               <button 
                 onClick={() => { setIsDeleteModalOpen(false); setFlightToDelete(null); }}
+                disabled={deleteBusy}
                 className="flex-1 px-4 py-2 rounded-full font-medium hover:bg-surface-variant transition-colors"
               >
                 Cancelar
               </button>
               <button 
                 onClick={executeDelete}
-                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-full font-medium hover:bg-red-700 shadow-sm shadow-red-900/20"
+                disabled={deleteBusy || deleteReason.trim().length < 3}
+                className={`flex-1 text-white px-4 py-2 rounded-full font-medium shadow-sm disabled:opacity-50 ${canDelete ? 'bg-red-600 hover:bg-red-700 shadow-red-900/20' : 'bg-amber-600 hover:bg-amber-700 shadow-amber-900/20'}`}
               >
-                Eliminar
+                {deleteBusy ? 'Enviando…' : canDelete ? 'Eliminar' : 'Enviar solicitud'}
               </button>
             </div>
           </div>
@@ -1395,6 +1425,7 @@ export default function TablasDiariasClient({
       {/* Flight Audit Modal */}
       {isAuditModalOpen && (
         <FlightAuditBoard 
+          canDelete={canDelete}
           onClose={() => { 
             setIsAuditModalOpen(false); 
             loadPendingAudit(); 
@@ -1568,7 +1599,11 @@ export default function TablasDiariasClient({
             let totalUpdated = 0;
             try {
               for (let i = 0; i < total; i += CHUNK) {
-                const res = await importHistoricoRows(rowsToSave.slice(i, i + CHUNK));
+                const res = await importHistoricoRows(rowsToSave.slice(i, i + CHUNK), {
+                  archivo: importFileRef.current?.name,
+                  lote: i / CHUNK + 1,
+                  lotes: Math.ceil(total / CHUNK),
+                });
                 totalInserted += res.inserted || 0;
                 totalUpdated += res.updated || 0;
                 if (!res.success) throw new Error(res.error);

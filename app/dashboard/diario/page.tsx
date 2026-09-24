@@ -36,7 +36,7 @@ export default async function TablasDiariasPage({
       <TablasDiariasClient 
         initialData={{ llegadas: llegadas || [], salidas: salidas || [] }} 
         currentDateStr={currentDateStr}
-        isAdmin={user.role === 'administrador'}
+        role={user.role}
       />
     </div>
   );

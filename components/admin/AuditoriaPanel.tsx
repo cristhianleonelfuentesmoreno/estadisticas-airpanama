@@ -1,207 +1,256 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getAuditLogs } from "@/app/actions/audit";
+import { useEffect, useState } from "react";
+import { getAuditLogs, getAuditPeople, type AuditCategoria, type AuditLog } from "@/app/actions/audit";
 import type { TipoEventoAuditoria } from "@/lib/audit";
+import { ROLE_LABEL, toRole } from "@/lib/permissions";
 
-interface AuditLog {
-  id: string;
-  tipo_evento: TipoEventoAuditoria;
-  usuario_id: string | null;
-  nombre_referencia: string;
-  descripcion: string;
-  detalles_extra: Record<string, unknown> | null;
-  ip: string;
-  ubicacion: string;
-  dispositivo: string;
-  creado_en: string;
-}
+// Bitácora de auditoría: todo lo que hace cada persona, con filtros. Solo lectura:
+// en la base de datos nadie puede editar ni borrar un registro.
 
-type FilterType = 'todos' | 'accesos' | 'ediciones' | 'fallas';
+const CATEGORIAS: { id: AuditCategoria; label: string }[] = [
+  { id: "todos", label: "Todo" },
+  { id: "vuelos", label: "Vuelos" },
+  { id: "solicitudes", label: "Solicitudes" },
+  { id: "datos", label: "Importar / Exportar" },
+  { id: "accesos", label: "Accesos" },
+  { id: "usuarios", label: "Usuarios y config." },
+  { id: "navegacion", label: "Navegación" },
+  { id: "fallas", label: "Fallas" },
+];
+
+const STYLE: Record<TipoEventoAuditoria, { icon: string; label: string; tone: string }> = {
+  inicio_sesion: { icon: "login", label: "Entró", tone: "bg-emerald-100 text-emerald-700" },
+  cierre_sesion: { icon: "logout", label: "Salió", tone: "bg-slate-100 text-slate-600" },
+  acceso_fallido: { icon: "warning", label: "Acceso fallido", tone: "bg-amber-100 text-amber-700" },
+  creacion: { icon: "add_circle", label: "Agregó", tone: "bg-sky-100 text-sky-700" },
+  edicion: { icon: "edit", label: "Editó", tone: "bg-blue-100 text-blue-700" },
+  aprobacion: { icon: "task_alt", label: "Aprobó", tone: "bg-emerald-100 text-emerald-700" },
+  eliminacion: { icon: "delete", label: "Eliminó", tone: "bg-red-100 text-red-700" },
+  restauracion: { icon: "restore", label: "Restauró", tone: "bg-teal-100 text-teal-700" },
+  solicitud_eliminacion: { icon: "outgoing_mail", label: "Solicitó eliminar", tone: "bg-amber-100 text-amber-800" },
+  resolucion_solicitud: { icon: "rule", label: "Resolvió solicitud", tone: "bg-violet-100 text-violet-700" },
+  importacion: { icon: "upload_file", label: "Importó", tone: "bg-indigo-100 text-indigo-700" },
+  exportacion: { icon: "download", label: "Exportó", tone: "bg-indigo-100 text-indigo-700" },
+  navegacion: { icon: "near_me", label: "Navegó", tone: "bg-slate-100 text-slate-500" },
+  alerta_sistema: { icon: "error", label: "Falla del sistema", tone: "bg-red-600 text-white" },
+};
+
+const fmtWhen = (iso: string) =>
+  new Date(iso).toLocaleString("es-PA", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "America/Panama" });
+
+const show = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
+
+type Person = { id: string; nombre: string; role: string };
 
 export function AuditoriaPanel() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(30);
+  const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterType>('todos');
-  const [page, setPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const [categoria, setCategoria] = useState<AuditCategoria>("todos");
+  const [usuarioId, setUsuarioId] = useState("");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+  const [texto, setTexto] = useState("");
+  const [busqueda, setBusqueda] = useState(""); // texto aplicado (con pausa al escribir)
+  const [incluirNavegacion, setIncluirNavegacion] = useState(false);
+  const [pagina, setPagina] = useState(1);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => { getAuditPeople().then(setPeople).catch(() => {}); }, []);
+
+  // Pausa al escribir: no consultar con cada tecla
+  useEffect(() => {
+    const t = setTimeout(() => { setBusqueda(texto); setPagina(1); }, 400);
+    return () => clearTimeout(t);
+  }, [texto]);
 
   useEffect(() => {
-    const fetchLogs = async () => {
-      const data = await getAuditLogs();
-      setLogs(data as AuditLog[]);
-      setLoading(false);
-    };
-    fetchLogs();
-    
-    // Auto refresh cada 30 segundos
-    const interval = setInterval(fetchLogs, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    let cancelled = false;
+    getAuditLogs({ categoria, usuarioId: usuarioId || undefined, desde: desde || undefined, hasta: hasta || undefined, texto: busqueda || undefined, pagina, incluirNavegacion })
+      .then(res => {
+        if (cancelled) return;
+        setLogs(res.logs);
+        setTotal(res.total);
+        setPageSize(res.pageSize);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [categoria, usuarioId, desde, hasta, busqueda, pagina, incluirNavegacion, tick]);
 
-  const filteredLogs = logs.filter(log => {
-    if (filter === 'todos') return true;
-    if (filter === 'accesos') return log.tipo_evento === 'inicio_sesion' || log.tipo_evento === 'cierre_sesion' || log.tipo_evento === 'acceso_fallido';
-    if (filter === 'ediciones') return log.tipo_evento === 'edicion' || log.tipo_evento === 'eliminacion';
-    if (filter === 'fallas') return log.tipo_evento === 'alerta_sistema';
-    return true;
-  });
+  // Se actualiza sola cada 30 s mientras se mira la primera página
+  useEffect(() => {
+    if (pagina !== 1) return;
+    const i = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(i);
+  }, [pagina]);
 
-  const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
-  const paginatedLogs = filteredLogs.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const change = (fn: () => void) => { fn(); setPagina(1); setLoading(true); };
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasFilters = categoria !== "todos" || usuarioId || desde || hasta || texto || incluirNavegacion;
+  const selectedPerson = people.find(p => p.id === usuarioId);
 
-  const getEventStyle = (tipo: TipoEventoAuditoria) => {
-    switch(tipo) {
-      case 'acceso_fallido':
-        return { icon: 'warning', label: 'Intento Fallido de Acceso', color: 'bg-amber-100 text-amber-700', borderColor: 'border-amber-200' };
-      case 'inicio_sesion':
-        return { icon: 'lock_open', label: 'Inicio de Sesión Autorizado', color: 'bg-emerald-100 text-emerald-700', borderColor: 'border-emerald-200' };
-      case 'cierre_sesion':
-        return { icon: 'lock', label: 'Cierre de Sesión', color: 'bg-surface-variant text-on-surface-variant', borderColor: 'border-outline-variant' };
-      case 'edicion':
-        return { icon: 'edit_document', label: 'Edición', color: 'bg-blue-100 text-blue-700', borderColor: 'border-blue-200' };
-      case 'eliminacion':
-        return { icon: 'delete', label: 'Registro Eliminado', color: 'bg-red-100 text-red-700', borderColor: 'border-red-200' };
-      case 'alerta_sistema':
-        return { icon: 'error', label: 'Alerta de Caída / Reconexión', color: 'bg-error text-on-error', borderColor: 'border-error' };
-      default:
-        return { icon: 'info', label: 'Evento', color: 'bg-surface-variant text-on-surface', borderColor: 'border-outline-variant' };
-    }
-  };
-
-  const formatDate = (isoString: string) => {
-    const d = new Date(isoString);
-    const today = new Date();
-    const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-    const isYesterday = new Date(today.setDate(today.getDate() - 1)).getDate() === d.getDate();
-    
-    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (isToday) return time;
-    if (isYesterday) return `Ayer ${time}`;
-    return `${d.toLocaleDateString()} ${time}`;
-  };
+  const inputCls = "h-10 px-3 rounded-xl bg-surface-container text-on-surface text-sm font-semibold border border-transparent focus:outline-none focus:ring-2 ring-primary/20";
 
   return (
-    <div className="flex flex-col w-full bg-surface-container-lowest rounded-3xl p-6 md:p-8 shadow-sm border border-outline-variant/30 relative overflow-hidden mt-8">
-      {/* Decorative vertical line left */}
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20"></div>
+    <section className="flex flex-col w-full bg-surface-container-lowest rounded-3xl p-5 md:p-7 shadow-sm border border-outline-variant/30 relative overflow-hidden">
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20" />
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
         <div>
           <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface flex items-center gap-2">
-            <span className="material-symbols-outlined text-error">assignment_late</span>
-            Registro de Auditoría & Fallas
+            <span className="material-symbols-outlined text-primary">policy</span>
+            Bitácora de auditoría
           </h2>
           <p className="font-body-sm text-on-surface-variant mt-1">
-            Traza forense inmutable de operaciones y eventos de acceso
+            Quién hizo qué, cuándo y desde dónde. Nadie puede editar ni borrar estos registros.
           </p>
         </div>
-        <div className="bg-surface-container-highest text-on-surface-variant px-3 py-1 rounded-full font-label-md font-bold text-sm">
-          {logs.length} eventos
-        </div>
+        <span className="self-start md:self-center bg-surface-container-highest text-on-surface-variant px-3 py-1 rounded-full text-sm font-bold">
+          {total.toLocaleString("es-PA")} eventos
+        </span>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-4 custom-scrollbar mb-4">
-        {[
-          { id: 'todos', label: `Todos (${logs.length})` },
-          { id: 'accesos', label: `Accesos (${logs.filter(l => ['inicio_sesion', 'cierre_sesion', 'acceso_fallido'].includes(l.tipo_evento)).length})` },
-          { id: 'ediciones', label: `Ediciones/Bajas (${logs.filter(l => ['edicion', 'eliminacion'].includes(l.tipo_evento)).length})` },
-          { id: 'fallas', label: `Fallas (${logs.filter(l => l.tipo_evento === 'alerta_sistema').length})` }
-        ].map(f => (
+      {/* Filtros */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3">
+        {CATEGORIAS.map(c => (
           <button
-            key={f.id}
-            onClick={() => { setFilter(f.id as FilterType); setPage(1); }}
-            className={`whitespace-nowrap px-4 py-2 rounded-full font-label-md font-bold transition-colors ${
-              filter === f.id 
-                ? 'bg-on-surface text-surface-container-lowest' 
-                : 'bg-surface-container hover:bg-surface-container-high text-on-surface'
-            }`}
+            key={c.id}
+            onClick={() => change(() => setCategoria(c.id))}
+            className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-colors ${categoria === c.id ? "bg-on-surface text-surface-container-lowest" : "bg-surface-container hover:bg-surface-container-high text-on-surface"}`}
           >
-            {f.label}
+            {c.label}
           </button>
         ))}
       </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+        <select aria-label="Persona" value={usuarioId} onChange={e => change(() => setUsuarioId(e.target.value))} className={inputCls}>
+          <option value="">Todas las personas</option>
+          {people.map(p => <option key={p.id} value={p.id}>{p.nombre} · {ROLE_LABEL[toRole(p.role)]}</option>)}
+        </select>
+        <label className="flex items-center gap-2">
+          <span className="text-[12px] font-bold text-on-surface-variant w-10">Desde</span>
+          <input type="date" value={desde} max={hasta || undefined} onChange={e => change(() => setDesde(e.target.value))} className={`${inputCls} flex-1 min-w-0`} />
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="text-[12px] font-bold text-on-surface-variant w-10">Hasta</span>
+          <input type="date" value={hasta} min={desde || undefined} onChange={e => change(() => setHasta(e.target.value))} className={`${inputCls} flex-1 min-w-0`} />
+        </label>
+        <input type="search" value={texto} onChange={e => { setTexto(e.target.value); setLoading(true); }} placeholder="Buscar vuelo, persona o texto…" className={inputCls} aria-label="Buscar en la bitácora" />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
+        <label className={`flex items-center gap-2 text-sm font-semibold text-on-surface-variant ${categoria !== "todos" ? "opacity-40 pointer-events-none" : ""}`}>
+          <input type="checkbox" className="w-4 h-4 accent-primary" checked={incluirNavegacion} onChange={e => change(() => setIncluirNavegacion(e.target.checked))} />
+          Incluir cada página visitada (ver el turno completo)
+        </label>
+        {hasFilters && (
+          <button
+            onClick={() => change(() => { setCategoria("todos"); setUsuarioId(""); setDesde(""); setHasta(""); setTexto(""); setBusqueda(""); setIncluirNavegacion(false); })}
+            className="text-sm font-bold text-primary hover:underline"
+          >
+            Quitar filtros
+          </button>
+        )}
+      </div>
+      {selectedPerson && (
+        <p className="text-sm text-on-surface-variant mb-3">
+          Actividad de <strong className="text-on-surface">{selectedPerson.nombre}</strong>{desde || hasta ? ` entre ${desde || "el inicio"} y ${hasta || "hoy"}` : ""}.
+        </p>
+      )}
 
-      {loading ? (
-        <div className="py-12 text-center text-on-surface-variant animate-pulse">
-          Cargando registros forenses...
-        </div>
-      ) : filteredLogs.length === 0 ? (
-        <div className="py-12 text-center text-on-surface-variant bg-surface-container rounded-2xl">
-          No hay eventos registrados en esta categoría.
-        </div>
+      {/* Lista */}
+      {loading && logs.length === 0 ? (
+        <p className="py-12 text-center text-on-surface-variant animate-pulse">Cargando bitácora…</p>
+      ) : logs.length === 0 ? (
+        <p className="py-12 text-center text-on-surface-variant bg-surface-container rounded-2xl">No hay eventos con estos filtros.</p>
       ) : (
-        <div className="flex flex-col gap-4">
-          {paginatedLogs.map((log) => {
-            const style = getEventStyle(log.tipo_evento);
+        <ol className={`flex flex-col divide-y divide-outline-variant/30 border border-outline-variant/30 rounded-2xl overflow-hidden transition-opacity ${loading ? "opacity-60" : ""}`}>
+          {logs.map(log => {
+            const st = STYLE[log.tipo_evento] ?? { icon: "info", label: log.tipo_evento, tone: "bg-slate-100 text-slate-600" };
+            const cambios = (log.detalles_extra as { cambios?: Record<string, { antes: unknown; despues: unknown }> } | null)?.cambios;
+            const hasDetails = !!cambios && Object.keys(cambios).length > 0;
+            const isOpen = expanded === log.id;
             return (
-              <div key={log.id} className={`bg-surface-container-lowest rounded-2xl p-4 shadow-sm border ${style.borderColor}`}>
-                <div className="flex justify-between items-start mb-2">
-                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${style.color}`}>
-                    <span className="material-symbols-outlined text-[14px]">{style.icon}</span>
-                    {style.label}
-                  </div>
-                  <span className="font-label-sm font-bold text-on-surface-variant text-xs">
-                    {formatDate(log.creado_en)}
+              <li key={log.id} className="bg-surface-container-lowest">
+                <button
+                  onClick={() => setExpanded(isOpen ? null : log.id)}
+                  className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-surface-container-low/60 transition-colors"
+                  aria-expanded={isOpen}
+                >
+                  <span className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${st.tone}`}>
+                    <span className="material-symbols-outlined text-[18px]">{st.icon}</span>
                   </span>
-                </div>
-                
-                <h4 className="font-label-lg font-bold mt-2 text-on-surface">
-                  {log.tipo_evento === 'acceso_fallido' ? (
-                    <>Usuario no reconocido: <span className="text-error">{log.nombre_referencia}</span></>
-                  ) : (
-                    log.nombre_referencia
-                  )}
-                </h4>
-                
-                <p className="font-body-sm text-sm text-on-surface-variant mt-1 leading-relaxed">
-                  {log.descripcion}
-                </p>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-3 border-t border-outline-variant/30">
-                  <div className="flex items-center gap-4 text-xs font-medium text-on-surface-variant">
-                    <div className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px] text-error">location_on</span>
-                      {log.ubicacion}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="font-bold text-on-surface">{log.actor_nombre ?? (log.tipo_evento === "acceso_fallido" ? "Desconocido" : "—")}</span>
+                      {log.actor_rol && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-surface-container text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
+                          {ROLE_LABEL[toRole(log.actor_rol)]}
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${st.tone}`}>{st.label}</span>
+                      <span className="text-sm font-semibold text-on-surface truncate">{log.nombre_referencia}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">devices</span>
-                      {log.dispositivo}
+                    <p className="text-sm text-on-surface-variant mt-0.5 break-words">{log.descripcion}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <time className="block text-[12px] font-semibold text-on-surface-variant whitespace-nowrap">{fmtWhen(log.creado_en)}</time>
+                    <span className="material-symbols-outlined text-[18px] text-on-surface-variant/60">{isOpen ? "expand_less" : "expand_more"}</span>
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="px-4 pb-4 pl-16 flex flex-col gap-3 text-sm">
+                    {hasDetails && (
+                      <div className="rounded-xl border border-outline-variant/40 overflow-hidden">
+                        <table className="w-full text-left">
+                          <thead className="bg-surface-container text-[11px] uppercase tracking-wide text-on-surface-variant">
+                            <tr><th className="px-3 py-1.5">Campo</th><th className="px-3 py-1.5">Antes</th><th className="px-3 py-1.5">Después</th></tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(cambios!).map(([campo, c]) => (
+                              <tr key={campo} className="border-t border-outline-variant/30">
+                                <td className="px-3 py-1.5 font-semibold text-on-surface">{campo}</td>
+                                <td className="px-3 py-1.5 text-red-700 line-through decoration-red-300">{show(c.antes)}</td>
+                                <td className="px-3 py-1.5 text-emerald-700 font-semibold">{show(c.despues)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-on-surface-variant">
+                      <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">location_on</span>{log.ubicacion ?? "—"}</span>
+                      <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">devices</span>{log.dispositivo ?? "—"}</span>
+                      <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">lan</span>IP {log.ip ?? "—"}</span>
+                      <span className="font-mono opacity-70">#{log.id.slice(0, 8)}</span>
                     </div>
                   </div>
-                  <div className="text-xs font-bold font-mono text-on-surface opacity-60">
-                    {log.tipo_evento === 'acceso_fallido' || log.tipo_evento === 'inicio_sesion' ? `IP ${log.ip}` : `Auditoría #${log.id.substring(0,8)}`}
-                  </div>
-                </div>
-              </div>
+                )}
+              </li>
             );
           })}
-        </div>
+        </ol>
       )}
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-6 pt-4 border-t border-outline-variant/30">
-          <span className="font-label-sm text-xs text-on-surface-variant">
-            Pág. <strong>{page} de {totalPages}</strong> ({filteredLogs.length} eventos)
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-[12px] text-on-surface-variant">
+            Página <strong>{pagina} de {totalPages}</strong>
           </span>
           <div className="flex gap-2">
-            <button 
-              disabled={page === 1}
-              onClick={() => setPage(p => p - 1)}
-              className="w-8 h-8 flex items-center justify-center bg-surface-container hover:bg-surface-container-high rounded disabled:opacity-30 transition-colors"
-            >
+            <button disabled={pagina === 1} onClick={() => { setPagina(p => p - 1); setLoading(true); }} aria-label="Página anterior" className="w-9 h-9 flex items-center justify-center bg-surface-container hover:bg-surface-container-high rounded-lg disabled:opacity-30">
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
-            <button 
-              disabled={page === totalPages}
-              onClick={() => setPage(p => p + 1)}
-              className="w-8 h-8 flex items-center justify-center bg-surface-container hover:bg-surface-container-high rounded disabled:opacity-30 transition-colors"
-            >
+            <button disabled={pagina >= totalPages} onClick={() => { setPagina(p => p + 1); setLoading(true); }} aria-label="Página siguiente" className="w-9 h-9 flex items-center justify-center bg-surface-container hover:bg-surface-container-high rounded-lg disabled:opacity-30">
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }

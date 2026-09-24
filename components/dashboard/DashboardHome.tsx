@@ -10,7 +10,7 @@ type Props = {
   userName: string;
   userCargo: string;
   avatarUrl: string | null;
-  isAdmin: boolean;
+  canDelete: boolean; // supervisores y administrador pueden borrar del itinerario
   today: string;
   flightsPromise: Promise<FlightData[]>;
   decisionsPromise: Promise<{ decisions: FlightDecision[]; fetchedAt: number }>;
@@ -22,7 +22,7 @@ function davStats(flights: FlightData[]) {
   return { vuelos: dav.length, pasajeros: dav.reduce((acc, f) => acc + (f.paxCount || 0), 0) };
 }
 
-export function DashboardHome({ userName, userCargo, avatarUrl, isAdmin, today, flightsPromise, decisionsPromise }: Props) {
+export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today, flightsPromise, decisionsPromise }: Props) {
   const [currentTime, setCurrentTime] = useState("");
 
   useEffect(() => {
@@ -90,8 +90,8 @@ export function DashboardHome({ userName, userCargo, avatarUrl, isAdmin, today, 
 
 {/*  Scheduled Flight Feed  */}
 <div className="pt-space-xs pb-space-lg">
-  <Suspense fallback={<FlightListBoard isAdmin={isAdmin} pending />}>
-    <FlightListFromServer flightsPromise={flightsPromise} today={today} isAdmin={isAdmin} />
+  <Suspense fallback={<FlightListBoard canDelete={canDelete} pending />}>
+    <FlightListFromServer flightsPromise={flightsPromise} today={today} canDelete={canDelete} />
   </Suspense>
 </div>
 </div>
@@ -106,9 +106,9 @@ function DecisionsFromServer({ decisionsPromise }: { decisionsPromise: Props["de
   return <FlightDecisionBoard initial={initial} />;
 }
 
-function FlightListFromServer({ flightsPromise, today, isAdmin }: { flightsPromise: Props["flightsPromise"]; today: string; isAdmin: boolean }) {
+function FlightListFromServer({ flightsPromise, today, canDelete }: { flightsPromise: Props["flightsPromise"]; today: string; canDelete: boolean }) {
   const flights = use(flightsPromise);
-  return <FlightListBoard isAdmin={isAdmin} initial={{ date: today, flights }} />;
+  return <FlightListBoard canDelete={canDelete} initial={{ date: today, flights }} />;
 }
 
 // Contadores: llegan con la página y se refrescan cada minuto

@@ -24,7 +24,7 @@ export default async function DashboardLayout({
       userEmail={profile.email}
       userName={profile.nombre || profile.fullName}
       avatarUrl={profile.avatarUrl}
-      isAdmin={profile.role === 'administrador'}
+      role={profile.role}
     >
       {children}
     </DashboardLayoutShell>

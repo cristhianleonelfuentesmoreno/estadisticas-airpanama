@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { fetchAllUsers } from "@/app/actions/admin";
 import { AdminPanel, type User } from "@/components/admin/AdminPanel";
 import { ReloadButton } from "@/components/admin/ReloadButton";
+import { can, toRole } from "@/lib/permissions";
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -12,14 +13,15 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-  // Verificar si es administrador
+  // Supervisores y administrador (cada uno ve lo que su rol permite)
   const { data: perfil, error: dbError } = await supabase
     .from('perfiles')
-    .select('role')
+    .select('role, status')
     .eq('id', authData.user.id)
     .single();
 
-  if (dbError || perfil?.role !== 'administrador') {
+  const role = toRole(perfil?.role);
+  if (dbError || perfil?.status !== 'aprobado' || !can.accessPanel(role)) {
     redirect("/dashboard");
   }
 
@@ -30,9 +32,13 @@ export default async function AdminPage() {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-7xl mx-auto pb-10">
       <div className="mb-6 md:mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
-          <h1 className="font-headline-lg text-headline-lg font-bold tracking-tight text-on-surface">Panel de Administrador</h1>
+          <h1 className="font-headline-lg text-headline-lg font-bold tracking-tight text-on-surface">
+            {role === 'administrador' ? 'Panel de Administrador' : 'Panel de Supervisión'}
+          </h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant mt-2 max-w-3xl">
-            Gestiona los accesos, asigna roles operativos y administra los cargos de todo el personal de la plataforma.
+            {role === 'administrador'
+              ? 'Gestiona accesos, roles y configuración; revisa solicitudes y la bitácora de todo el personal.'
+              : 'Acepta usuarios nuevos, resuelve solicitudes de eliminación y revisa la bitácora de cada turno.'}
           </p>
         </div>
         <div className="flex-shrink-0">
@@ -40,7 +46,7 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      <AdminPanel initialUsers={(users as User[] | undefined) ?? []} />
+      <AdminPanel initialUsers={(users as User[] | undefined) ?? []} role={role} currentUserId={authData.user.id} />
     </div>
   );
 }

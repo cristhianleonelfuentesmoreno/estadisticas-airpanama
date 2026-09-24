@@ -5,12 +5,12 @@ import { updateFlightDetails, deleteManualFlight } from "@/app/actions/manualFli
 
 export function FlightEditModal({
   flight,
-  isAdmin = false,
+  canDelete = false,
   onClose,
   onSuccess
 }: {
   flight: FlightData;
-  isAdmin?: boolean;
+  canDelete?: boolean; // borrar del itinerario: supervisores y administrador
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -167,7 +167,7 @@ export function FlightEditModal({
           </label>
 
           <div className="flex items-center gap-space-sm pt-space-md mt-2 border-t border-surface-container">
-{isAdmin && (
+{canDelete && (
             <button 
               type="button" 
               disabled={loading} 

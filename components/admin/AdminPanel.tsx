@@ -9,24 +9,30 @@ import { ApiManagementWidget } from "./ApiManagementWidget";
 import { DispositivosPanel } from "./DispositivosPanel";
 import { AuditoriaPanel } from "./AuditoriaPanel";
 import { FleetKnowledgePanel } from "./FleetKnowledgePanel";
+import { DeletionRequestsPanel } from "./DeletionRequestsPanel";
+import { can, canManageAccount, ROLE_LABEL, type Role } from "@/lib/permissions";
 
 export interface User {
   id: string;
   email: string;
-  role: "administrador" | "usuario";
+  role: Role;
   status: "aprobado" | "pendiente" | "rechazado";
   nombre: string | null;
   cargo: string | null;
   created_at: string;
 }
 
-export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
+export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers: User[]; role: Role; currentUserId: string }) {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [showAllUsers, setShowAllUsers] = useState(false);
+  const [quickBusy, setQuickBusy] = useState<string | null>(null);
+  const isAdmin = role === 'administrador';
+  // Solo se editan cuentas que el rol permite (y nunca la propia)
+  const canEdit = (u: User) => u.id !== currentUserId && canManageAccount(role, u.role);
 
   // Estados temporales para el modal
   const [tempStatus, setTempStatus] = useState<User['status']>('pendiente');
@@ -53,7 +59,9 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       if (tempCargo !== (editingUser.cargo || '')) promises.push(updateUserCargo(editingUser.id, tempCargo));
       if (tempNombre !== (editingUser.nombre || '')) promises.push(updateUserName(editingUser.id, tempNombre));
 
-      await Promise.all(promises);
+      const results = await Promise.all(promises);
+      const failed = results.find(r => r && 'error' in r && r.error);
+      if (failed && 'error' in failed) throw new Error(failed.error);
 
       // Actualizar estado local
       setUsers(users.map(u => u.id === editingUser.id ? { 
@@ -80,8 +88,8 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       ), { duration: 4000 });
 
       setEditingUser(null);
-    } catch {
-      toast.error("Ocurrió un error al guardar los cambios.");
+    } catch (err) {
+      toast.error(`No se guardaron los cambios: ${(err as Error).message}`);
     } finally {
       setIsSaving(false);
     }
@@ -122,19 +130,64 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
     }
   };
 
+  // Solicitudes de acceso: aceptar o rechazar con un toque
+  const quickStatus = async (user: User, status: 'aprobado' | 'rechazado') => {
+    setQuickBusy(user.id);
+    const res = await updateUserStatus(user.id, status);
+    setQuickBusy(null);
+    if ('error' in res && res.error) return toast.error(res.error);
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status } : u));
+    toast.success(status === 'aprobado' ? `${user.nombre || user.email} ya puede entrar` : `Acceso de ${user.nombre || user.email} rechazado`);
+  };
+  const pendingAccess = users.filter(u => u.status === 'pendiente' && canEdit(u));
+
   const activos = users.filter(u => u.status === 'aprobado').length;
   const pendientes = users.filter(u => u.status === 'pendiente').length;
-  const administradores = users.filter(u => u.role === 'administrador').length;
+  const supervisores = users.filter(u => u.role === 'supervisor' || u.role === 'administrador').length;
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
       {/* ========================================= */}
       {/* WIDGET DE CONFIGURACIÓN Y APIs            */}
       {/* ========================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <SettingsWidget />
-        <ApiManagementWidget />
-      </div>
+      {/* Solicitudes de acceso de personas nuevas */}
+      {pendingAccess.length > 0 && (
+        <section className="flex flex-col gap-3 bg-amber-50/60 border border-amber-200 rounded-3xl p-5 md:p-6">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-amber-600">person_add</span>
+            <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Solicitudes de acceso</h2>
+            <span className="ml-auto px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-sm font-bold">{pendingAccess.length}</span>
+          </div>
+          {pendingAccess.map(u => (
+            <div key={u.id} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white rounded-2xl p-3.5 border border-amber-100">
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-on-surface truncate">{u.nombre || 'Sin nombre'}</p>
+                <p className="text-sm text-on-surface-variant truncate">{u.email} · se registró el {new Date(u.created_at).toLocaleDateString('es-PA')}</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button onClick={() => quickStatus(u, 'rechazado')} disabled={quickBusy === u.id} className="px-4 h-10 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                  Rechazar
+                </button>
+                <button onClick={() => quickStatus(u, 'aprobado')} disabled={quickBusy === u.id} className="px-4 h-10 rounded-xl font-bold text-sm bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm disabled:opacity-50 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[18px]">check</span>
+                  Aceptar
+                </button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* Solicitudes de eliminación de vuelos */}
+      {can.reviewDeletionRequests(role) && <DeletionRequestsPanel />}
+
+      {/* Configuración del sistema: solo administrador */}
+      {can.manageSettings(role) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <SettingsWidget />
+          <ApiManagementWidget />
+        </div>
+      )}
 
       {/* ========================================= */}
       {/* TARJETAS DE RESUMEN Y MONITOREO           */}
@@ -158,8 +211,8 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
           </div>
           <div className="grid grid-cols-2 gap-2 my-space-md bg-surface-container-low p-2.5 rounded-lg">
             <div className="flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Admins</span>
-              <span className="font-headline-sm text-headline-sm font-bold text-primary">{administradores}</span>
+              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Supervisores</span>
+              <span className="font-headline-sm text-headline-sm font-bold text-primary">{supervisores}</span>
             </div>
             <div className="flex flex-col">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Pendientes</span>
@@ -241,11 +294,11 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
 
         <div className="flex flex-col gap-space-xs">
           {(showAllUsers ? users : users.slice(0, 5)).map(user => (
-            <article key={user.id} className="flex flex-col gap-2 p-3.5 rounded-xl bg-surface-container-lowest shadow-sm relative group cursor-pointer hover:bg-surface-container-lowest/80 transition-colors border border-transparent hover:border-outline-variant/30" onClick={() => openEditModal(user)}>
+            <article key={user.id} className={`flex flex-col gap-2 p-3.5 rounded-xl bg-surface-container-lowest shadow-sm relative group transition-colors border border-transparent ${canEdit(user) ? 'cursor-pointer hover:bg-surface-container-lowest/80 hover:border-outline-variant/30' : ''}`} onClick={() => canEdit(user) && openEditModal(user)}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-label-md text-label-md font-bold ${
-                    user.role === 'administrador' ? 'bg-primary-container text-on-primary' : 'bg-tertiary-container text-on-tertiary'
+                    user.role === 'administrador' ? 'bg-primary-container text-on-primary' : user.role === 'supervisor' ? 'bg-amber-500 text-white' : 'bg-tertiary-container text-on-tertiary'
                   }`}>
                     {user.nombre ? user.nombre.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
                   </div>
@@ -254,7 +307,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
                       {user.nombre || "Sin Nombre"}
                     </span>
                     <span className="font-body-sm text-body-sm text-on-surface-variant truncate flex items-center gap-1">
-                      {user.email} <span className="opacity-50">•</span> <span className="capitalize">{user.role}</span>
+                      {user.email} <span className="opacity-50">•</span> <span>{ROLE_LABEL[user.role]}</span>
                     </span>
                   </div>
                 </div>
@@ -288,12 +341,12 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
               </div>
               
               {/* Edit Icon Overlay on Hover */}
-              <button 
+              {canEdit(user) && <button 
                 className="absolute top-1/2 -translate-y-1/2 right-4 w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface opacity-0 md:group-hover:opacity-100 transition-opacity"
                 onClick={(e) => { e.stopPropagation(); openEditModal(user); }}
               >
                 <span className="material-symbols-outlined text-[18px]">edit</span>
-              </button>
+              </button>}
             </article>
           ))}
         </div>
@@ -316,7 +369,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
       {/* ========================================= */}
       {/* FLOTA Y TRIPULACIÓN (base de conocimiento) */}
       {/* ========================================= */}
-      <FleetKnowledgePanel />
+      {can.manageFleet(role) && <FleetKnowledgePanel />}
 
       {/* ========================================= */}
       {/* PANEL DE DISPOSITIVOS ACTIVOS             */}
@@ -371,18 +424,19 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
                 />
               </div>
 
-              {/* Rol */}
-              <div className="flex flex-col gap-2">
+              {/* Rol (solo el administrador lo cambia) */}
+              {isAdmin && <div className="flex flex-col gap-2">
                 <label className="font-label-md font-bold text-on-surface">Rol del Sistema</label>
                 <select 
                   value={tempRole}
                   onChange={(e) => setTempRole(e.target.value as User['role'])}
                   className="h-12 px-4 rounded-xl bg-surface-container text-on-surface font-label-md focus:outline-none focus:ring-2 ring-primary/20"
                 >
-                  <option value="usuario">Usuario Estándar</option>
-                  <option value="administrador">Administrador</option>
+                  <option value="usuario">Usuario · trabajo diario</option>
+                  <option value="supervisor">Supervisor · acepta usuarios, resuelve solicitudes, ve la bitácora</option>
+                  <option value="administrador">Administrador · todo, incluida la configuración</option>
                 </select>
-              </div>
+              </div>}
 
               {/* Cargo */}
               <div className="flex flex-col gap-2">
@@ -417,7 +471,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
             </div>
 
             <div className="p-4 bg-surface-container-low flex justify-between items-center gap-3">
-              <button 
+              {isAdmin ? <button 
                 onClick={handleDelete}
                 disabled={isDeleting || isSaving}
                 className="px-4 py-2.5 rounded-full font-label-md font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
@@ -428,7 +482,7 @@ export function AdminPanel({ initialUsers }: { initialUsers: User[] }) {
                   <span className="material-symbols-outlined text-[18px]">delete</span>
                 )}
                 Eliminar
-              </button>
+              </button> : <span />}
               
               <div className="flex gap-3">
                 <button 

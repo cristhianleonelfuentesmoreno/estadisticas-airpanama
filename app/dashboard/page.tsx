@@ -1,3 +1,4 @@
+import { can } from "@/lib/permissions";
 import { getSessionProfile } from "@/lib/auth";
 import { getUpcomingFlights } from "@/app/actions/flights";
 import { getFlightDecisions } from "@/app/actions/weather";
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
       userName={profile.nombre || profile.fullName || profile.email?.split("@")[0] || "Usuario"}
       userCargo={profile.cargo || "Sin cargo asignado"}
       avatarUrl={profile.avatarUrl ?? null}
-      isAdmin={profile.role === "administrador"}
+      canDelete={can.deleteFlights(profile.role)}
       today={today}
       flightsPromise={flightsPromise}
       decisionsPromise={decisionsPromise}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { actualizarActividad, cerrarSesion, registrarSesion } from "@/app/actions/sessions";
 import { useEffect } from "react";
 import { SurgeNav } from "./SurgeNav";
+import { logUserEvent } from "@/app/actions/audit";
+import { can, type Role } from "@/lib/permissions";
 
 // Estado de la verificación de ubicación: el panel solo se muestra con "ok"
 type GeoStatus = "checking" | "ok" | "denied" | "unavailable" | "timeout" | "unsupported" | "error";
@@ -41,7 +43,7 @@ interface DashboardLayoutShellProps {
   userEmail?: string;
   userName?: string;
   avatarUrl?: string;
-  isAdmin?: boolean;
+  role?: Role;
 }
 
 export default function DashboardLayoutShell({
@@ -49,7 +51,7 @@ export default function DashboardLayoutShell({
   userEmail,
   userName,
   avatarUrl,
-  isAdmin = false,
+  role = 'usuario',
 }: DashboardLayoutShellProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
@@ -58,6 +60,16 @@ export default function DashboardLayoutShell({
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const showPanel = can.accessPanel(role);
+  const panelLabel = role === 'administrador' ? 'Admin' : 'Supervisión';
+
+  // Bitácora: cada página que se abre (una vez por cambio de ruta)
+  const lastLoggedPath = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pathname || lastLoggedPath.current === pathname) return;
+    lastLoggedPath.current = pathname;
+    logUserEvent({ tipo: 'navegacion', ruta: pathname }).catch(() => {});
+  }, [pathname]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -177,13 +189,13 @@ export default function DashboardLayoutShell({
 
           {/* User Profile & Logout Mobile */}
           <div className="flex items-center gap-2">
-            {isAdmin && (
+            {showPanel && (
               <Link
                 href="/dashboard/admin"
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-full bg-surface-container-highest/20 active:bg-surface-container-highest/40 transition-colors border border-outline-variant/30 text-on-primary"
               >
                 <span className="material-symbols-outlined text-emerald-500/80 text-[18px]">admin_panel_settings</span>
-                <span className="font-label-sm text-[11px] uppercase font-bold tracking-wider">Admin</span>
+                <span className="font-label-sm text-[11px] uppercase font-bold tracking-wider">{panelLabel}</span>
               </Link>
             )}
             
@@ -232,14 +244,14 @@ export default function DashboardLayoutShell({
 
           {/* User profile Desktop */}
           <div className="justify-self-end flex items-center gap-space-sm">
-            {isAdmin && (
+            {showPanel && (
               <Link
                 href="/dashboard/admin"
-                title="Panel de administrador"
+                title={role === 'administrador' ? 'Panel de administrador' : 'Panel de supervisión'}
                 className="flex items-center gap-2 px-3 lg:px-4 py-2 rounded-full bg-surface-container-highest/20 hover:bg-surface-container-highest/40 transition-colors border border-outline-variant/30 text-on-primary group"
               >
                 <span className="material-symbols-outlined text-emerald-500/80 group-hover:text-emerald-400 transition-colors text-sm">admin_panel_settings</span>
-                <span className="hidden lg:inline font-label-sm text-label-sm uppercase font-bold tracking-wider group-hover:text-emerald-400 transition-colors">Admin</span>
+                <span className="hidden lg:inline font-label-sm text-label-sm uppercase font-bold tracking-wider group-hover:text-emerald-400 transition-colors">{panelLabel}</span>
               </Link>
             )}
             

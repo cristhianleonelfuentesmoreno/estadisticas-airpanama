@@ -9,14 +9,14 @@ import { UploadGlyph } from "@/components/ui/UploadProgress";
 import { toast } from "sonner";
 
 type ListProps = {
-  isAdmin?: boolean;
+  canDelete?: boolean;
   // Vuelos que ya trajo el servidor junto con la página (evita una acción extra en fila)
   initial?: { date: string; flights: FlightData[] };
   // Solo el estado de carga, sin pedir datos (fallback de Suspense)
   pending?: boolean;
 };
 
-export function FlightListBoard({ isAdmin = false, initial, pending = false }: ListProps) {
+export function FlightListBoard({ canDelete = false, initial, pending = false }: ListProps) {
   const [flights, setFlights] = useState<FlightData[]>(initial?.flights ?? []);
   const [loading, setLoading] = useState(!initial);
   // La primera carga ya vino del servidor para esta fecha
@@ -200,7 +200,7 @@ export function FlightListBoard({ isAdmin = false, initial, pending = false }: L
 
         <div className="flex flex-col gap-space-sm">
           {visibleFlights.map(flight => (
-            <FlightCard key={flight.id} flight={flight} isAdmin={isAdmin} onRefresh={() => setRefreshCounter(c => c + 1)} />
+            <FlightCard key={flight.id} flight={flight} canDelete={canDelete} onRefresh={() => setRefreshCounter(c => c + 1)} />
           ))}
           {sortedFlights.length > 12 && (
           <div className="text-center pt-2 pb-4">
@@ -243,7 +243,7 @@ export function FlightListBoard({ isAdmin = false, initial, pending = false }: L
             {/* Modal Content - Scrollable list of all sorted flights */}
             <div className="p-space-md overflow-y-auto flex flex-col gap-space-sm bg-surface">
               {sortedFlights.map(flight => (
-                <FlightCard key={flight.id} flight={flight} isAdmin={isAdmin} onRefresh={() => setBoardDate(d => d + " ")} />
+                <FlightCard key={flight.id} flight={flight} canDelete={canDelete} onRefresh={() => setBoardDate(d => d + " ")} />
               ))}
             </div>
           </div>
@@ -302,7 +302,7 @@ function FilterRow({ label, options, value, onChange }: {
   );
 }
 
-function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmin?: boolean, onRefresh?: () => void }) {
+function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canDelete?: boolean, onRefresh?: () => void }) {
   const localStatus = flight.status;
   const [loadingAction, setLoadingAction] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -522,7 +522,7 @@ function FlightCard({ flight, isAdmin, onRefresh }: { flight: FlightData, isAdmi
       {isEditModalOpen && (
         <FlightEditModal 
           flight={flight}
-          isAdmin={isAdmin}
+          canDelete={canDelete}
           onClose={() => setIsEditModalOpen(false)}
           onSuccess={() => {
             if (onRefresh) onRefresh();
