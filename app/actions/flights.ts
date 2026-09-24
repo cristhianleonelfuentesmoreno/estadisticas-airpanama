@@ -207,7 +207,9 @@ async function saveArrivals(flights: FlightData[]) {
       hora_llegada_real: `${today}T${f.actualArrivalTime || f.arrivalTimeLocal}:00-05:00`,
       estado_final: 'PENDIENTE',
       pasajeros_abordo: f.paxCount,
-      capacidad_total: f.paxMax
+      capacidad_total: f.paxMax,
+      avion: f.aircraft || null,
+      matricula: f.aircraftReg ? normalizeRegistration(f.aircraftReg) : null,
     }));
 
   if (flightsToInsert.length === 0) return { success: true, count: 0 };
@@ -418,7 +420,9 @@ async function saveDepartures(flights: FlightData[]) {
       hora_salida_real: `${today}T${f.actualDepartureTime || f.departureTimeLocal}:00-05:00`,
       estado_final: 'PENDIENTE',
       pasajeros_abordo: f.paxCount,
-      capacidad_total: f.paxMax
+      capacidad_total: f.paxMax,
+      avion: f.aircraft || null,
+      matricula: f.aircraftReg ? normalizeRegistration(f.aircraftReg) : null,
     }));
 
   if (flightsToInsert.length === 0) return { success: true, count: 0 };

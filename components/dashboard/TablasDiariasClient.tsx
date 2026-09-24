@@ -526,7 +526,7 @@ export default function TablasDiariasClient({
               {isAddMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsAddMenuOpen(false)} aria-hidden="true" />
-                  <div role="menu" className="absolute right-0 md:left-0 md:right-auto top-full mt-2 z-50 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-slate-700 animate-in fade-in zoom-in-95 duration-150">
+                  <div role="menu" className="absolute left-0 top-full mt-2 z-50 w-56 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-slate-700 animate-in fade-in zoom-in-95 duration-150">
                     <button
                       role="menuitem"
                       onClick={() => { setIsAddMenuOpen(false); setIsImportModalOpen(true); }}

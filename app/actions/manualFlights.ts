@@ -206,6 +206,11 @@ export async function archiveFlight(id: string) {
   // El itinerario guarda "971"; el histórico usa "7P-971". Si el vuelo ya está en el
   // histórico (p. ej. PENDIENTE del guardado automático), se aprueba esa misma fila.
   const numeroVuelo = canonicalFlightNumber(manualFlight.flightNumber, manualFlight.airline);
+  // Avión y matrícula pasan al histórico (se ven en Registro y en el Excel de Reportes)
+  const aeronave = {
+    avion: manualFlight.aircraft || null,
+    matricula: manualFlight.aircraftReg ? normalizeRegistration(manualFlight.aircraftReg) : null,
+  };
   const upsertHistorico = async (table: 'llegadas_malek_historico' | 'salidas_malek_historico', routeCol: 'origen' | 'destino', payload: Record<string, unknown>) => {
     const { data: sameDay } = await supabase.from(table).select(`id, numero_vuelo, ${routeCol}, estado_final`).eq('fecha', manualFlight.flightDate);
     const matches = ((sameDay ?? []) as unknown as Record<string, string>[])
@@ -234,7 +239,8 @@ export async function archiveFlight(id: string) {
       hora_llegada_real: `${manualFlight.flightDate}T${manualFlight.actual_arrival_time?.padStart(5, '0') || manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
       estado_final: finalStatusArrival,
       pasajeros_abordo: manualFlight.paxCount,
-      capacidad_total: manualFlight.paxMax
+      capacidad_total: manualFlight.paxMax,
+      ...aeronave,
     };
 
     await upsertHistorico('llegadas_malek_historico', 'origen', payload);
@@ -249,7 +255,8 @@ export async function archiveFlight(id: string) {
       hora_salida_real: `${manualFlight.flightDate}T${manualFlight.actual_departure_time?.padStart(5, '0') || manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
       estado_final: finalStatusDeparture,
       pasajeros_abordo: manualFlight.paxCount,
-      capacidad_total: manualFlight.paxMax
+      capacidad_total: manualFlight.paxMax,
+      ...aeronave,
     };
 
     await upsertHistorico('salidas_malek_historico', 'destino', payload);
