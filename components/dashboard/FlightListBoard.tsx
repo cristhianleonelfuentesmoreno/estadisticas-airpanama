@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
+import type { FlightData } from "@/app/actions/flights";
+import { fetchUpcomingFlights } from "@/lib/client/api";
 import { ManualFlightUploadModal } from "./ManualFlightUploadModal";
 import { updateFlightStatusOverride } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
@@ -51,7 +52,7 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
     async function loadData() {
       setLoading(true);
       try {
-        const data = await getUpcomingFlights(boardDate);
+        const data = await fetchUpcomingFlights(boardDate);
         setFlights(data);
       } catch (err) {
         console.error("Error loading flights:", err);
@@ -259,7 +260,7 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
             onSuccess={() => {
               const fetchNew = async () => {
                 setLoading(true);
-                const data = await getUpcomingFlights(boardDate);
+                const data = await fetchUpcomingFlights(boardDate);
                 setFlights(data);
                 setLoading(false);
               };

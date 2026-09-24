@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getReporteMensual } from "@/app/actions/flights";
-import { logUserEvent } from "@/app/actions/audit";
+import { sendAuditEvent } from "@/lib/client/api";
 import {
   AIRLINE_LABEL, MONTHS, computeReportMetrics, periodLabel,
   type ReportAirline, type ReportMetrics, type ReportRange, type ReporteVuelo,
@@ -149,7 +149,7 @@ export function ExportReportButton({ rawFlights, year: pageYear, month: pageMont
           setPdfJob({ metrics, airline, period, generatedAt, fileName: `${baseName}.pdf` });
         });
       }
-      logUserEvent({ tipo: "exportacion", formato: format, periodo: period, aerolinea: AIRLINE_LABEL[airline], vuelos: metrics.filteredTotal }).catch(() => {});
+      sendAuditEvent({ tipo: "exportacion", formato: format, periodo: period, aerolinea: AIRLINE_LABEL[airline], vuelos: metrics.filteredTotal });
       setOpen(false);
     } catch (err) {
       console.error("Error exportando reporte:", err);

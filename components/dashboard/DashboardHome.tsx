@@ -3,7 +3,8 @@
 import { Suspense, use, useEffect, useState } from "react";
 import { FlightDecisionBoard } from "@/components/dashboard/FlightDecisionBoard";
 import { FlightListBoard } from "@/components/dashboard/FlightListBoard";
-import { getUpcomingFlights, type FlightData } from "@/app/actions/flights";
+import type { FlightData } from "@/app/actions/flights";
+import { fetchUpcomingFlights } from "@/lib/client/api";
 import type { FlightDecision } from "@/app/actions/weather";
 
 type Props = {
@@ -118,7 +119,7 @@ function LiveKpis({ flightsPromise, today }: { flightsPromise: Props["flightsPro
 
   useEffect(() => {
     const interval = setInterval(() => {
-      getUpcomingFlights(today)
+      fetchUpcomingFlights(today)
         .then(flights => setStats(davStats(flights)))
         .catch(e => console.error("Error fetching metrics:", e));
     }, 60000);

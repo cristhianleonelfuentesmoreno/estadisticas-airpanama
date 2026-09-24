@@ -18,17 +18,13 @@ export default async function TablasDiariasPage({
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   const currentDateStr = dateParam || today;
 
-  // Guardar automáticamente los vuelos completados de hoy (itinerario consultado una sola vez).
-  // Si se ve hoy, hay que esperar a que termine para leer lo recién guardado;
-  // si se ve otro día, todo va en paralelo.
-  const sync = syncCompletedMalekFlights();
-  if (currentDateStr === today) await sync;
-
-  // Llegadas y salidas en paralelo
+  // Guardar los vuelos completados del día (itinerario → histórico) y leer el Registro,
+  // todo en paralelo: antes se esperaba la sincronización antes de leer y cada cambio de
+  // fecha tardaba más. Un vuelo que arriba justo en ese instante aparece al recargar.
   const [llegadas, salidas] = await Promise.all([
     getLlegadasMalek(dateParam),
     getSalidasMalek(dateParam),
-    sync,
+    currentDateStr === today ? syncCompletedMalekFlights().catch(() => {}) : null,
   ]);
 
   return (

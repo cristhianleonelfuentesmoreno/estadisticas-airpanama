@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
+import type { FlightData } from "@/app/actions/flights";
+import { fetchUpcomingFlights } from "@/lib/client/api";
 import { archiveFlight, updateFlightDetails, deleteManualFlight } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
 
 // Vuelos de DAV que ya llegaron o se cancelaron y aún no se archivan
 export async function fetchPendingAudit(date: string): Promise<FlightData[]> {
-  const data = await getUpcomingFlights(date);
+  const data = await fetchUpcomingFlights(date);
   return data.filter(f =>
     (f.origin === 'DAV' || f.destination === 'DAV') &&
     (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived

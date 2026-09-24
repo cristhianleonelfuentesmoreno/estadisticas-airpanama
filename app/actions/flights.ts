@@ -230,7 +230,8 @@ export async function getLlegadasMalek(dateStr?: string) {
   const today = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   
   // Histórico e itinerario del mismo día, en paralelo
-  const [{ data, error }, { data: manualFlights }] = await Promise.all([
+  // Histórico, itinerario y solicitudes de eliminación pendientes: todo en paralelo
+  const [{ data, error }, { data: manualFlights }, solicitados] = await Promise.all([
     supabase
       .from('llegadas_malek_historico')
       .select('*')
@@ -241,6 +242,7 @@ export async function getLlegadasMalek(dateStr?: string) {
       .from('manual_flights_log')
       .select('flightNumber, departureTimeLocal, arrivalTimeLocal')
       .eq('flightDate', today),
+    pendingDeletionIds('llegada'),
   ]);
 
   if (error) {
@@ -249,8 +251,6 @@ export async function getLlegadasMalek(dateStr?: string) {
   }
 
 
-  // Vuelos con una solicitud de eliminación pendiente: se marcan en el Registro
-  const solicitados = await pendingDeletionIds('llegada', (data || []).map(f => f.id));
   const enhancedData = (data || []).map(flight => {
     const manual = manualFlights?.find(m => 
       flight.numero_vuelo === m.flightNumber || 
@@ -441,7 +441,8 @@ export async function getSalidasMalek(dateStr?: string) {
   const today = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
   
   // Histórico e itinerario del mismo día, en paralelo
-  const [{ data, error }, { data: manualFlights }] = await Promise.all([
+  // Histórico, itinerario y solicitudes de eliminación pendientes: todo en paralelo
+  const [{ data, error }, { data: manualFlights }, solicitados] = await Promise.all([
     supabase
       .from('salidas_malek_historico')
       .select('*')
@@ -452,6 +453,7 @@ export async function getSalidasMalek(dateStr?: string) {
       .from('manual_flights_log')
       .select('flightNumber, departureTimeLocal, arrivalTimeLocal')
       .eq('flightDate', today),
+    pendingDeletionIds('salida'),
   ]);
 
   if (error) {
@@ -460,7 +462,6 @@ export async function getSalidasMalek(dateStr?: string) {
   }
 
 
-  const solicitados = await pendingDeletionIds('salida', (data || []).map(f => f.id));
   const enhancedData = (data || []).map(flight => {
     const manual = manualFlights?.find(m => 
       flight.numero_vuelo === m.flightNumber || 

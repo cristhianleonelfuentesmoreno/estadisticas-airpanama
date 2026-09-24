@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { actualizarActividad, cerrarSesion, registrarSesion } from "@/app/actions/sessions";
+import { cerrarSesion, registrarSesion } from "@/app/actions/sessions";
+import { sendAuditEvent, sendHeartbeat } from "@/lib/client/api";
 import { useEffect } from "react";
 import { SurgeNav } from "./SurgeNav";
-import { logUserEvent } from "@/app/actions/audit";
 import { can, type Role } from "@/lib/permissions";
 import { TermsModal } from "@/components/legal/TermsModal";
 
@@ -75,7 +75,7 @@ export default function DashboardLayoutShell({
   useEffect(() => {
     if (!pathname || lastLoggedPath.current === pathname) return;
     lastLoggedPath.current = pathname;
-    logUserEvent({ tipo: 'navegacion', ruta: pathname }).catch(() => {});
+    sendAuditEvent({ tipo: 'navegacion', ruta: pathname });
   }, [pathname]);
 
   useEffect(() => {
@@ -90,7 +90,7 @@ export default function DashboardLayoutShell({
     };
 
     const heartbeat = (id: string) => {
-      actualizarActividad(id)
+      sendHeartbeat(id)
         .then(res => { if (res.expired) expireSession(); })
         .catch(err => console.error("Latido de sesión:", err));
     };

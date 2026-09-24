@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { getFlightDecisions, FlightDecision, StatusColor } from "@/app/actions/weather";
-import { getUpcomingFlights, FlightData } from "@/app/actions/flights";
+import type { FlightData } from "@/app/actions/flights";
+import { fetchUpcomingFlights } from "@/lib/client/api";
 
 // Código IATA usado en los vuelos para cada estación TAF (ICAO)
 const ICAO_TO_IATA: Record<string, string> = {
@@ -179,7 +180,7 @@ function DecisionModalContent({ decision, onClose, headerBg, headerText, badgeIc
   useEffect(() => {
     const iata = ICAO_TO_IATA[decision.icao];
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
-    getUpcomingFlights(today)
+    fetchUpcomingFlights(today)
       .then(all => setFlights(all.filter(f =>
         (f.origin === iata || f.destination === iata) &&
         !f.isArchived && f.status !== 'ARRIBÓ' && f.status !== 'CANCELADO'
