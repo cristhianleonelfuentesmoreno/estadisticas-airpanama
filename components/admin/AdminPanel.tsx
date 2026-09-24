@@ -9,6 +9,7 @@ import { DispositivosPanel } from "./DispositivosPanel";
 import { AuditoriaPanel } from "./AuditoriaPanel";
 import { FleetKnowledgePanel } from "./FleetKnowledgePanel";
 import { DeletionRequestsPanel } from "./DeletionRequestsPanel";
+import { VelocidadPanel } from "./VelocidadPanel";
 import { can, canManageAccount, ROLE_LABEL, type Role } from "@/lib/permissions";
 import { confirmDialog } from "@/components/ui/dialogs";
 
@@ -389,6 +390,9 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
       {/* REGISTRO DE AUDITORIA Y FALLAS            */}
       {/* ========================================= */}
       <AuditoriaPanel />
+
+      {/* Velocidad real de la app (mediciones del equipo) */}
+      {can.viewAudit(role) && <VelocidadPanel />}
 
       {/* ========================================= */}
       {/* MODAL DE EDICIÓN                          */}

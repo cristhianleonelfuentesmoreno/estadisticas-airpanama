@@ -11,6 +11,8 @@ import { useEffect } from "react";
 import { SurgeNav } from "./SurgeNav";
 import { can, type Role } from "@/lib/permissions";
 import { TermsModal } from "@/components/legal/TermsModal";
+import { NavigationTimer } from "./NavigationTimer";
+import { Suspense } from "react";
 
 // Estado de la verificación de ubicación: el panel solo se muestra con "ok"
 type GeoStatus = "checking" | "ok" | "denied" | "unavailable" | "timeout" | "unsupported" | "error";
@@ -392,6 +394,8 @@ export default function DashboardLayoutShell({
         </div>
       </nav>
       <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
+      {/* Velocidad real de cada cambio de pantalla (panel → Velocidad de la app) */}
+      <Suspense fallback={null}><NavigationTimer /></Suspense>
     </>
   );
 }
