@@ -13,6 +13,7 @@ import { ReportPdfDocument } from "./ReportPdfDocument";
 
 type Format = "excel" | "pdf";
 type PdfJob = { metrics: ReportMetrics; airline: ReportAirline; period: string; generatedAt: string; fileName: string };
+type Exporter = { nombre: string; email: string };
 
 const FORMATS: { id: Format; label: string; detail: string; icon: string; tone: string }[] = [
   { id: "excel", label: "Excel", detail: "Tabla con todos los vuelos y un resumen", icon: "table_view", tone: "#107c41" },
@@ -63,12 +64,13 @@ function Segmented<T extends string>({ options, value, onChange, label }: {
   );
 }
 
-export function ExportReportButton({ rawFlights, year: pageYear, month: pageMonth, range: pageRange, airline: pageAirline }: {
+export function ExportReportButton({ rawFlights, year: pageYear, month: pageMonth, range: pageRange, airline: pageAirline, exportedBy }: {
   rawFlights: ReporteVuelo[];   // datos ya cargados en la página (se reusan si el periodo coincide)
   year: number;
   month: number;
   range: ReportRange;
   airline: ReportAirline;
+  exportedBy: Exporter; // queda escrito en el archivo
 }) {
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<Format>("pdf");
@@ -112,7 +114,7 @@ export function ExportReportButton({ rawFlights, year: pageYear, month: pageMont
     try {
       const [{ toPng }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
-      pdf.setProperties({ title: `Reporte AirPanama · ${job.period}`, author: "AirPanama · Ops BI" });
+      pdf.setProperties({ title: `Reporte Air Panama · ${job.period}`, author: exportedBy.nombre, subject: `Exportado por ${exportedBy.nombre} (${exportedBy.email})`, creator: "Air Panama" });
       // Fuente de la app ya incrustada: evita que html-to-image lea hojas de otros dominios
       const fontEmbedCSS = await buildFontEmbedCSS();
       for (let i = 0; i < pages.length; i++) {
@@ -125,7 +127,7 @@ export function ExportReportButton({ rawFlights, year: pageYear, month: pageMont
     } catch (err) {
       pdfDone.current?.(err as Error);
     }
-  }, [pdfJob]);
+  }, [pdfJob, exportedBy]);
 
   const handleExport = async () => {
     setBusy(true);
@@ -145,7 +147,7 @@ export function ExportReportButton({ rawFlights, year: pageYear, month: pageMont
 
       if (format === "excel") {
         const { buildReportWorkbook, downloadWorkbook } = await import("@/lib/reportes/excel");
-        downloadWorkbook(buildReportWorkbook(rows, metrics, { year, month, range, airline, generatedAt }), `${baseName}.xlsx`);
+        downloadWorkbook(buildReportWorkbook(rows, metrics, { year, month, range, airline, generatedAt, exportedBy }), `${baseName}.xlsx`);
       } else {
         await new Promise<void>((resolve, reject) => {
           pdfDone.current = err => (err ? reject(err) : resolve());
@@ -295,6 +297,7 @@ export function ExportReportButton({ rawFlights, year: pageYear, month: pageMont
             airlineLabel={AIRLINE_LABEL[pdfJob.airline]}
             period={pdfJob.period}
             generatedAt={pdfJob.generatedAt}
+            exportedBy={exportedBy.nombre}
             onReady={handlePdfReady}
           />
         </div>,

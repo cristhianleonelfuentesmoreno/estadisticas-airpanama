@@ -27,6 +27,7 @@ type Props = {
   airlineLabel: string;
   period: string;
   generatedAt: string;
+  exportedBy: string; // nombre de quien exporta: va en el pie de cada página
   onReady: (pages: HTMLElement[]) => void;
 };
 
@@ -55,10 +56,10 @@ function Header({ generatedAt }: { generatedAt: string }) {
   );
 }
 
-function Footer({ page, pages }: { page: number; pages: number }) {
+function Footer({ page, pages, exportedBy }: { page: number; pages: number; exportedBy: string }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${LINE}`, paddingTop: 8, fontSize: 9.5, color: MUTED }}>
-      <span>AirPanama · Ops BI · Datos del Registro Histórico</span>
+      <span>Air Panama · {exportedBy} · Datos del Registro Histórico</span>
       <span>Página {page} de {pages}</span>
     </div>
   );
@@ -346,7 +347,7 @@ function Page({ children, header, footer, pageRef }: { children: ReactNode; head
 }
 
 export function ReportPdfDocument(props: Props) {
-  const { period, airlineLabel, generatedAt, onReady } = props;
+  const { period, airlineLabel, generatedAt, exportedBy, onReady } = props;
   const sections = buildSections(props);
   const [plan, setPlan] = useState<string[][] | null>(null);
 
@@ -410,7 +411,7 @@ export function ReportPdfDocument(props: Props) {
         {/* Página vacía para medir encabezado + pie + márgenes */}
         <div ref={chromeRef} style={{ width: PAGE_W, padding: `${PAD_Y}px ${PAD_X}px`, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: GAP }}>
           {header}
-          <Footer page={1} pages={1} />
+          <Footer page={1} pages={1} exportedBy={exportedBy} />
         </div>
         <div style={{ width: CONTENT_W }}>
           <div ref={el => { measureRefs.current.__title = el; }}>{title}</div>
@@ -429,7 +430,7 @@ export function ReportPdfDocument(props: Props) {
           key={i}
           pageRef={el => { pageRefs.current[i] = el; }}
           header={header}
-          footer={<Footer page={i + 1} pages={plan.length} />}
+          footer={<Footer page={i + 1} pages={plan.length} exportedBy={exportedBy} />}
         >
           {i === 0 && title}
           {ids.map(id => <div key={id}>{byId[id]}</div>)}

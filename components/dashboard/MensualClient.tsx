@@ -13,6 +13,7 @@ interface Props {
   initialYear: number;
   initialMonth: number;
   initialRange: string;
+  exportedBy: { nombre: string; email: string };
 }
 
 
@@ -48,7 +49,7 @@ const CustomTooltip = ({ active, payload }: DailyTooltipProps) => {
   );
 };
 
-export default function MensualClient({ rawFlights, initialYear, initialMonth, initialRange }: Props) {
+export default function MensualClient({ rawFlights, initialYear, initialMonth, initialRange, exportedBy }: Props) {
   const router = useRouter();
   
   const [activeAirline, setActiveAirline] = useState<'all' | '7p' | 'cm'>('all');
@@ -129,7 +130,7 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
               </span>
               SYNC LIVE
             </span>
-            <ExportReportButton rawFlights={rawFlights} year={initialYear} month={initialMonth} range={reportRange} airline={activeAirline} />
+            <ExportReportButton rawFlights={rawFlights} year={initialYear} month={initialMonth} range={reportRange} airline={activeAirline} exportedBy={exportedBy} />
           </div>
         </div>
 

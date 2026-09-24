@@ -8,16 +8,18 @@ import {
 
 export const STATION = 'Estación Aeropuerto Internacional Enrique Malek';
 
-type Opts = { year: number; month: number; range: ReportRange; airline: ReportAirline; generatedAt: string };
+type Opts = { year: number; month: number; range: ReportRange; airline: ReportAirline; generatedAt: string; exportedBy: { nombre: string; email: string } };
 
 const pct = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 1000) / 10 : 0);
 
 export function buildReportWorkbook(rows: ReporteVuelo[], metrics: ReportMetrics, o: Opts) {
   const period = periodLabel(o.year, o.month, o.range);
   const header = [
-    ['AirPanama · Reporte de operaciones'],
+    ['Air Panama · Reporte de operaciones'],
     [STATION],
     [`Periodo: ${period}  ·  Aerolínea: ${AIRLINE_LABEL[o.airline]}  ·  Generado: ${o.generatedAt}`],
+    // Control de quién saca los datos de la plataforma
+    [`Exportado por: ${o.exportedBy.nombre}${o.exportedBy.email ? ` (${o.exportedBy.email})` : ''}  ·  Datos del Registro Histórico`],
     [],
   ];
 
@@ -64,7 +66,7 @@ export function buildReportWorkbook(rows: ReporteVuelo[], metrics: ReportMetrics
   vuelos['!autofilter'] = {
     ref: XLSX.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: headerRow + body.length, c: columns.length - 1 } }),
   };
-  vuelos['!merges'] = [0, 1, 2].map(r => ({ s: { r, c: 0 }, e: { r, c: 7 } }));
+  vuelos['!merges'] = [0, 1, 2, 3].map(r => ({ s: { r, c: 0 }, e: { r, c: 7 } }));
 
   // --- Hoja 2: resumen ------------------------------------------------------
   const m = metrics;
@@ -96,12 +98,12 @@ export function buildReportWorkbook(rows: ReporteVuelo[], metrics: ReportMetrics
 
   const resumen = XLSX.utils.aoa_to_sheet(resumenRows);
   resumen['!cols'] = [36, 20, 16, 12, 12].map(wch => ({ wch }));
-  resumen['!merges'] = [0, 1, 2].map(r => ({ s: { r, c: 0 }, e: { r, c: 4 } }));
+  resumen['!merges'] = [0, 1, 2, 3].map(r => ({ s: { r, c: 0 }, e: { r, c: 4 } }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, vuelos, 'Vuelos');
   XLSX.utils.book_append_sheet(wb, resumen, 'Resumen');
-  wb.Props = { Title: `Reporte AirPanama ${period}`, Author: 'AirPanama · Ops BI' };
+  wb.Props = { Title: `Reporte Air Panama ${period}`, Author: o.exportedBy.nombre, Company: 'Air Panama', Comments: `Exportado por ${o.exportedBy.nombre} (${o.exportedBy.email}) el ${o.generatedAt}` };
   return wb;
 }
 

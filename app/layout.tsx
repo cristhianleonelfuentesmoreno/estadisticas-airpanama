@@ -12,7 +12,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Air Panama - Ops Dashboard",
+  title: "Air Panama",
   description: "Plataforma operativa y estadística de Air Panama",
 };
 
