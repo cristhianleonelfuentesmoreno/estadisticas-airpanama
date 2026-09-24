@@ -336,7 +336,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
             <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">flight_takeoff</span>
             </div>
-            <h2 className="font-headline-md text-headline-md font-bold text-on-surface">Agregar Vuelos</h2>
+            <h2 className="font-headline-md text-headline-md font-bold text-on-surface">Cargar Itinerario</h2>
           </div>
           <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant transition-colors">
             <span className="material-symbols-outlined text-[20px]">close</span>
