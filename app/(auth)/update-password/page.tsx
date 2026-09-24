@@ -67,10 +67,12 @@ export default function UpdatePasswordPage() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Contraseña actualizada exitosamente.");
-      // Recarga completa para que el layout del servidor lea la sesión
+      // El enlace de recuperación deja una sesión abierta: se cierra (en todos los
+      // dispositivos, por seguridad) y se entra de nuevo con la contraseña nueva
+      await getClient().auth.signOut().catch(() => {});
+      localStorage.removeItem('sessionId');
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.assign("/dashboard");
+      window.location.assign("/login?status=password_updated");
     }
   };
 
