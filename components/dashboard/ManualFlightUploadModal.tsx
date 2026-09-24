@@ -2,7 +2,8 @@
 
 import { Fragment, useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { addMultipleManualFlights, getFlightFormSuggestions, ManualFlightInput, FleetSuggestion } from "@/app/actions/manualFlights";
+import { addMultipleManualFlights, ManualFlightInput } from "@/app/actions/manualFlights";
+import { ManualFlightForm } from "./ManualFlightForm";
 import { parseItineraryImage } from "@/app/actions/imageParser";
 import * as Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -62,62 +63,6 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const todayStr = new Date(todayPanama).toISOString().split('T')[0];
   const [targetDate, setTargetDate] = useState(todayStr);
   const [selectedAirline, setSelectedAirline] = useState<'airpanama' | 'copa'>('airpanama');
-
-  // Manual Form State
-  const [fNum, setFNum] = useState("");
-  const [fOri, setFOri] = useState("");
-  const [fDes, setFDes] = useState("");
-  const [fDep, setFDep] = useState("");
-  const [fArr, setFArr] = useState("");
-  const [fAirline, setFAirline] = useState("Air Panama");
-  const [fDate, setFDate] = useState(todayStr);
-  const [fReg, setFReg] = useState("");
-  const [fAircraft, setFAircraft] = useState("");
-  const [fPilot, setFPilot] = useState("");
-  const [fCabin, setFCabin] = useState("");
-  const [cabinOptions, setCabinOptions] = useState<string[]>([]);
-  const [fPax, setFPax] = useState("");
-  const [fPaxMax, setFPaxMax] = useState("");
-  const [fleet, setFleet] = useState<FleetSuggestion[]>([]);
-  const [pilotOptions, setPilotOptions] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!isOpen || activeTab !== 'manual' || fleet.length > 0) return;
-    getFlightFormSuggestions()
-      .then(({ fleet, pilots, cabin }) => { setFleet(fleet); setPilotOptions(pilots); setCabinOptions(cabin); })
-      .catch(() => {});
-  }, [isOpen, activeTab, fleet.length]);
-
-  // Al elegir una matrícula conocida se completan tipo y capacidad
-  const handleRegChange = (value: string) => {
-    setFReg(value);
-    const known = fleet.find(f => f.aircraftReg === value.trim().toUpperCase());
-    if (known) {
-      setFAircraft(known.aircraft);
-      if (known.paxMax) setFPaxMax(String(known.paxMax));
-    }
-  };
-
-  const resetManualForm = () => {
-    setFNum(""); setFOri(""); setFDes(""); setFDep(""); setFArr(""); setFDate(todayStr);
-    setFReg(""); setFAircraft(""); setFPilot(""); setFCabin(""); setFPax(""); setFPaxMax("");
-  };
-
-  const AIRPORTS = [
-    { code: 'DAV', name: 'DAV - Enrique Malek' },
-    { code: 'PAC', name: 'PAC - Albrook' },
-    { code: 'PTY', name: 'PTY - Tocumen' },
-    { code: 'BLB', name: 'BLB - Panamá Pacífico' },
-    { code: 'BOC', name: 'BOC - Isla Colón (Bocas)' },
-    { code: 'CHX', name: 'CHX - Changuinola' },
-    { code: 'SYQ', name: 'SYQ - Tobías Bolaños' },
-    { code: 'SJO', name: 'SJO - Juan Santamaría' }
-  ];
-
-  const COMMON_FLIGHTS = [
-    "770", "771", "772", "773", "774", "775", "776", "777", "778", "779",
-    "011", "012", "015", "016", "019"
-  ];
 
   if (!isOpen) return null;
 
@@ -285,51 +230,6 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
       const message = "Error al subir: " + (error as Error).message;
       afterUploadRef.current = () => toast.error(message);
       setUploadJob(j => j && { ...j, status: "error", errorText: "No se pudieron subir los vuelos" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSaveManual = async () => {
-    if (!fNum || !fOri || !fDes || !fDep || !fArr) {
-      toast.error("Completa número de vuelo, origen, destino y horas");
-      return;
-    }
-    if (fOri === fDes) {
-      toast.error("El origen y el destino no pueden ser iguales");
-      return;
-    }
-    const pax = parseInt(fPax) || 0;
-    const paxMax = parseInt(fPaxMax) || 0;
-    if (paxMax > 0 && pax > paxMax) {
-      toast.error("Los pasajeros no pueden superar la capacidad");
-      return;
-    }
-    setLoading(true);
-    try {
-      const newFlight: ManualFlightInput = {
-        flightNumber: fNum.trim(),
-        aircraft: fAircraft.trim().toUpperCase() || 'Desconocido',
-        aircraftReg: fReg.trim().toUpperCase(),
-        origin: fOri.toUpperCase(),
-        originName: '',
-        destination: fDes.toUpperCase(),
-        destinationName: '',
-        departureTimeLocal: fDep,
-        arrivalTimeLocal: fArr,
-        airline: fAirline,
-        pilot: fPilot.trim(),
-        cabin_crew: fCabin.trim() || undefined,
-        paxCount: pax,
-        paxMax,
-        flightDate: fDate
-      };
-      await addMultipleManualFlights([newFlight]);
-      toast.success("Vuelo agregado correctamente");
-      resetManualForm();
-      onSuccess();
-    } catch (e) {
-      toast.error((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -656,91 +556,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                 </div>
               )}
 
-              {activeTab === 'manual' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1 col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Fecha del Vuelo</label>
-                    <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Aerolínea</label>
-                    <select value={fAirline} onChange={e => setFAirline(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1">
-                      <option value="Air Panama">Air Panama</option>
-                      <option value="Copa Airlines">Copa Airlines</option>
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Nº de Vuelo (Ej: 670)</label>
-                    <input list="manual-flight-numbers" type="text" value={fNum} onChange={e => setFNum(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
-                    <datalist id="manual-flight-numbers">
-                      {COMMON_FLIGHTS.map(f => <option key={f} value={f} />)}
-                    </datalist>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Origen</label>
-                    <select value={fOri} onChange={e => setFOri(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1">
-                      <option value="">Seleccione Origen...</option>
-                      {AIRPORTS.map(apt => (
-                        <option key={apt.code} value={apt.code}>{apt.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Destino</label>
-                    <select value={fDes} onChange={e => setFDes(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1">
-                      <option value="">Seleccione Destino...</option>
-                      {AIRPORTS.map(apt => (
-                        <option key={apt.code} value={apt.code}>{apt.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Hora Salida (HH:mm)</label>
-                    <input type="time" value={fDep} onChange={e => setFDep(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Hora Llegada (HH:mm)</label>
-                    <input type="time" value={fArr} onChange={e => setFArr(e.target.value)} className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
-                  </div>
-
-                  <div className="col-span-2 pt-2 mt-1 border-t border-outline-variant/20 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Aeronave y tripulación</div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Matrícula</label>
-                    <input list="manual-fleet-regs" type="text" value={fReg} onChange={e => handleRegChange(e.target.value)} placeholder="Ej: HP-1997" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1 uppercase" />
-                    <datalist id="manual-fleet-regs">
-                      {fleet.filter(f => f.airline === fAirline).map(f => (
-                        <option key={f.aircraftReg} value={f.aircraftReg}>{`${f.aircraft} · ${f.paxMax} pax`}</option>
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Tipo de Aeronave</label>
-                    <input type="text" value={fAircraft} onChange={e => setFAircraft(e.target.value)} placeholder="Ej: DH8D, B738" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1 uppercase" />
-                  </div>
-                  <div className="flex flex-col gap-1 col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Pilotos</label>
-                    <input list="manual-pilots" type="text" value={fPilot} onChange={e => setFPilot(e.target.value)} placeholder="Capitán / Primer oficial" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
-                    <datalist id="manual-pilots">
-                      {pilotOptions.map(p => <option key={p} value={p} />)}
-                    </datalist>
-                  </div>
-                  <div className="flex flex-col gap-1 col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Tripulación de cabina</label>
-                    <input list="manual-cabin" type="text" value={fCabin} onChange={e => setFCabin(e.target.value)} placeholder="Opcional · la C-208 no lleva" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
-                    <datalist id="manual-cabin">
-                      {cabinOptions.map(p => <option key={p} value={p} />)}
-                    </datalist>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Pasajeros a bordo</label>
-                    <input type="number" inputMode="numeric" min={0} value={fPax} onChange={e => setFPax(e.target.value)} placeholder="0" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-bold text-on-surface-variant uppercase">Capacidad</label>
-                    <input type="number" inputMode="numeric" min={0} value={fPaxMax} onChange={e => setFPaxMax(e.target.value)} placeholder="0" className="h-10 px-3 bg-surface-container rounded-lg border border-white/5 focus:ring-1" />
-                  </div>
-                </div>
-              )}
+              {activeTab === 'manual' && <ManualFlightForm onSaved={onSuccess} />}
             </div>
 
             {/* Default Footer for Manual Entry */}
@@ -753,16 +569,6 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                 Cancelar
               </button>
               
-              {activeTab === 'manual' && (
-                <button 
-                  onClick={handleSaveManual}
-                  disabled={loading}
-                  className="px-6 py-2.5 rounded-full font-label-md font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
-                >
-                  {loading ? <span className="material-symbols-outlined animate-spin text-[18px]">sync</span> : <span className="material-symbols-outlined text-[18px]">add</span>}
-                  Agregar Vuelo Manual
-                </button>
-              )}
             </div>
           </>
         )}

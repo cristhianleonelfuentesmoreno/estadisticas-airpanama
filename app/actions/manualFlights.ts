@@ -4,7 +4,7 @@ import { requireApprovedUser, requireSupervisor } from '@/lib/auth';
 import { diffFields, logAudit } from '@/lib/audit';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { loadFleetKnowledge } from '@/lib/fleet/knowledge';
-import { applyFleetRules, canonicalFlightNumber, capacityOf, classifyCrewLine, legKey, normalizeRegistration } from '@/lib/fleet/rules';
+import { applyFleetRules, canonicalFlightNumber, capacityOf, legKey, normalizeRegistration } from '@/lib/fleet/rules';
 
 const getAdminSupabase = createAdminClient;
 
@@ -309,44 +309,54 @@ export async function deleteManualFlight(id: string) {
   return true;
 }
 
-export type FleetSuggestion = { airline: string; aircraft: string; aircraftReg: string; paxMax: number };
+// ---------------------------------------------------------------------------
+// Conocimiento para el ingreso manual guiado: la base (flota, tripulación, rutas y
+// vuelos regulares) + lo aprendido del histórico del último año (vuelos y matrículas
+// frecuentes; así Copa también tiene sugerencias aunque no esté en la base de flota).
+// ---------------------------------------------------------------------------
+export type FrequentFlight = { airline: string; flightNumber: string; origin: string; destination: string; count: number };
+export type KnownAircraft = { airline: string; registration: string; code: string; paxMax: number; count: number };
 
-// Sugerencias para el ingreso manual. La flota y la tripulación salen de la base de
-// conocimiento; del historial solo se agregan matrículas que aún no están registradas
-// (p. ej. Copa) y las parejas de pilotos, ya corregidas.
-export async function getFlightFormSuggestions(): Promise<{ fleet: FleetSuggestion[]; pilots: string[]; cabin: string[] }> {
+export async function getManualFormKnowledge() {
   await requireApprovedUser();
   const supabase = getAdminSupabase();
-  const [{ data }, kb] = await Promise.all([
-    supabase
-      .from('manual_flights_log')
-      .select('airline, aircraft, aircraftReg, paxMax, pilot, created_at')
-      .order('created_at', { ascending: false })
-      .limit(2000),
+  const since = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+  const [kb, llegadas, salidas] = await Promise.all([
     loadFleetKnowledge(),
+    supabase.from('llegadas_malek_historico').select('aerolinea, numero_vuelo, origen, matricula, avion').gte('fecha', since).is('eliminado_en', null).limit(5000),
+    supabase.from('salidas_malek_historico').select('aerolinea, numero_vuelo, destino, matricula, avion').gte('fecha', since).is('eliminado_en', null).limit(5000),
   ]);
 
-  const fleet = new Map<string, FleetSuggestion>();
-  for (const a of kb.aircraft) {
-    fleet.set(a.registration, { airline: a.airline, aircraft: a.code, aircraftReg: a.registration, paxMax: capacityOf(a.code, kb) ?? 0 });
-  }
-
-  const pilots = new Set<string>();
-  for (const row of data ?? []) {
-    const reg = normalizeRegistration(row.aircraftReg);
-    if (reg && !fleet.has(reg)) {
-      const fixed = applyFleetRules({ aircraft: row.aircraft, aircraftReg: reg, paxMax: row.paxMax }, kb);
-      fleet.set(reg, { airline: row.airline || '', aircraft: fixed.aircraft || '', aircraftReg: reg, paxMax: fixed.paxMax || 0 });
+  const flights = new Map<string, FrequentFlight>();
+  const aircraft = new Map<string, KnownAircraft>();
+  const add = (airline: string, numero: string, origin: string, destination: string, reg: string | null, avion: string | null) => {
+    // El itinerario guarda el número sin prefijo ("670", "17"); los sufijos (-A) son extras
+    const [, num, suffix] = canonicalFlightNumber(numero, airline).split('-');
+    if (num && !suffix) {
+      const key = `${airline}|${num}|${origin}|${destination}`;
+      const f = flights.get(key) ?? { airline, flightNumber: num, origin, destination, count: 0 };
+      f.count++;
+      flights.set(key, f);
     }
-    // Solo parejas reconocidas como pilotos (antes se mezclaban tripulantes de cabina)
-    const line = classifyCrewLine(row.pilot || '', kb);
-    if (line.kind === 'pilotos' && line.unknown.length === 0) pilots.add(line.text);
+    if (reg) {
+      const registration = normalizeRegistration(reg);
+      const known = kb.aircraft.find(a => a.registration === registration);
+      const code = known?.code ?? avion ?? '';
+      const a = aircraft.get(registration) ?? { airline, registration, code, paxMax: capacityOf(code, kb) ?? 0, count: 0 };
+      a.count++;
+      aircraft.set(registration, a);
+    }
+  };
+  for (const r of llegadas.data ?? []) add(r.aerolinea, r.numero_vuelo, r.origen, 'DAV', r.matricula, r.avion);
+  for (const r of salidas.data ?? []) add(r.aerolinea, r.numero_vuelo, 'DAV', r.destino, r.matricula, r.avion);
+  // La flota registrada siempre aparece, aunque no haya volado este año
+  for (const a of kb.aircraft) {
+    if (!aircraft.has(a.registration)) aircraft.set(a.registration, { airline: a.airline, registration: a.registration, code: a.code, paxMax: capacityOf(a.code, kb) ?? 0, count: 0 });
   }
-  for (const c of kb.crew) if (c.role !== 'cabina') pilots.add(c.name);
 
   return {
-    fleet: [...fleet.values()].sort((a, b) => a.aircraftReg.localeCompare(b.aircraftReg)),
-    pilots: [...pilots].sort(),
-    cabin: kb.crew.filter(c => c.role === 'cabina').map(c => c.name).sort(),
+    kb,
+    frequentFlights: [...flights.values()].filter(f => f.count >= 3).sort((a, b) => b.count - a.count),
+    aircraft: [...aircraft.values()].sort((a, b) => b.count - a.count),
   };
 }
