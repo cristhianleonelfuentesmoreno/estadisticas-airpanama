@@ -33,6 +33,7 @@ export const can = {
   deleteAccounts: admin,
   manageSettings: admin,
   manageFleet: admin,
+  viewMonitoring: admin,
 }
 
 // Un supervisor solo gestiona cuentas de usuarios; las de supervisores y administradores

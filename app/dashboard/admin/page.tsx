@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { fetchAllUsers } from "@/app/actions/admin";
 import { AdminPanel, type User } from "@/components/admin/AdminPanel";
 import { ReloadButton } from "@/components/admin/ReloadButton";
+import { MonitoreoButton } from "@/components/admin/MonitoreoModal";
 import { can, toRole } from "@/lib/permissions";
 
 export default async function AdminPage() {
@@ -41,7 +42,8 @@ export default async function AdminPage() {
               : 'Acepta usuarios nuevos, resuelve solicitudes de eliminación y revisa la bitácora de cada turno.'}
           </p>
         </div>
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 flex flex-wrap items-center gap-3">
+          {can.viewMonitoring(role) && <MonitoreoButton />}
           <ReloadButton />
         </div>
       </div>
