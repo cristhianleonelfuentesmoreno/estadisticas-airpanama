@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getReporteMensual } from "@/app/actions/flights";
 import { sendAuditEvent } from "@/lib/client/api";
+import { buildFontEmbedCSS } from "@/lib/client/fontEmbed";
 import {
   AIRLINE_LABEL, MONTHS, computeReportMetrics, periodLabel,
   type ReportAirline, type ReportMetrics, type ReportRange, type ReporteVuelo,
@@ -112,8 +113,10 @@ export function ExportReportButton({ rawFlights, year: pageYear, month: pageMont
       const [{ toPng }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
       pdf.setProperties({ title: `Reporte AirPanama · ${job.period}`, author: "AirPanama · Ops BI" });
+      // Fuente de la app ya incrustada: evita que html-to-image lea hojas de otros dominios
+      const fontEmbedCSS = await buildFontEmbedCSS();
       for (let i = 0; i < pages.length; i++) {
-        const img = await toPng(pages[i], { pixelRatio: 2, backgroundColor: "#ffffff", cacheBust: true });
+        const img = await toPng(pages[i], { pixelRatio: 2, backgroundColor: "#ffffff", cacheBust: true, fontEmbedCSS });
         if (i > 0) pdf.addPage();
         pdf.addImage(img, "PNG", 0, 0, 210, 297, undefined, "FAST");
       }
