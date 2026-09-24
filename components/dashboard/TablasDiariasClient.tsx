@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords, type FlightRecordInput, type HistoricoUpdates } from "@/app/actions/flights";
+import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords, getImportKnowledge, importHistoricoRows, type FlightRecordInput, type HistoricoUpdates } from "@/app/actions/flights";
+import { parseRegistroMensual, type ImportResult, type SheetInput, type Cell } from "@/lib/import/registroMensual";
 import * as XLSX from 'xlsx';
 import { FlightAuditBoard, fetchPendingAudit } from "./FlightAuditBoard";
 import { ExcelImportPreviewModal } from "./ExcelImportPreviewModal";
@@ -11,7 +12,6 @@ import { DailyFlightCard, MalekFlight, formatTime, getAirlineBadge } from "./Dai
 
 
 // Valor de una celda leída con sheet_to_json({ raw: true })
-type ExcelCell = string | number | boolean;
 
 const AIRCRAFT_MODELS = [
   { id: 'F50', label: 'F50 (Air Panama)', cap: 50 },
@@ -99,6 +99,7 @@ export default function TablasDiariasClient({
     });
   }, [llegadasAprobadas, salidasAprobadas, viewType]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   // Progreso de la subida al guardar una importación
@@ -108,9 +109,10 @@ export default function TablasDiariasClient({
   const afterUploadRef = useRef<(() => void) | null>(null);
   const [importWorkbook, setImportWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
+  const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
   
   // Preview State
-  const [previewData, setPreviewData] = useState<{ llegadas: FlightRecordInput[]; salidas: FlightRecordInput[] } | null>(null);
+  const [previewData, setPreviewData] = useState<ImportResult | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const loadPendingAudit = async () => {
@@ -201,7 +203,7 @@ export default function TablasDiariasClient({
 
   const filteredData = useMemo(() => {
     return activeDataList.filter(flight => {
-      const location = flight.hora_real_llegada ? flight.origen : flight.destino;
+      const location = flight.origen || flight.destino;
       const matchSearch = 
         flight.numero_vuelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (location && location.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -218,8 +220,8 @@ export default function TablasDiariasClient({
     const sorted = [...filteredData];
     if (sortColumn === 'ruta') {
       sorted.sort((a, b) => {
-        const routeA = a.hora_real_llegada ? `${a.origen}-DAV` : `DAV-${a.destino}`;
-        const routeB = b.hora_real_llegada ? `${b.origen}-DAV` : `DAV-${b.destino}`;
+        const routeA = a.origen ? `${a.origen}-DAV` : `DAV-${a.destino}`;
+        const routeB = b.origen ? `${b.origen}-DAV` : `DAV-${b.destino}`;
         return sortDirection === 'asc' ? routeA.localeCompare(routeB) : routeB.localeCompare(routeA);
       });
     } else if (sortColumn === 'estado') {
@@ -239,7 +241,7 @@ export default function TablasDiariasClient({
 
 
   const toTimeStringForInput = (isoString?: string) => {
-    if (!isoString) return '00:00';
+    if (!isoString) return '';
     try {
       const date = new Date(isoString);
       return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'America/Panama' });
@@ -272,12 +274,14 @@ export default function TablasDiariasClient({
     e.preventDefault();
     if (!editingFlight) return;
     
-    const isLlegada = !!editingFlight.hora_real_llegada;
+    const isLlegada = !!editingFlight.origen;
     
-    const itinSalida = new Date(`${editFormData.fecha}T${editFormData.hora_itinerario_salida || '00:00'}:00-05:00`);
-    const realSalida = new Date(`${editFormData.fecha}T${editFormData.hora_real_salida || editFormData.hora_itinerario_salida || '00:00'}:00-05:00`);
-    const itinLlegada = new Date(`${editFormData.fecha}T${editFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
-    const realLlegada = new Date(`${editFormData.fecha}T${editFormData.hora_real_llegada || editFormData.hora_itinerario_llegada || '00:00'}:00-05:00`);
+    // Hora vacía = sin hora (vuelos importados del Excel): se guarda como null, no como 00:00
+    const toIso = (time?: string) => (time ? new Date(`${editFormData.fecha}T${time}:00-05:00`).toISOString() : null);
+    const itinSalida = toIso(editFormData.hora_itinerario_salida);
+    const realSalida = toIso(editFormData.hora_real_salida || editFormData.hora_itinerario_salida);
+    const itinLlegada = toIso(editFormData.hora_itinerario_llegada);
+    const realLlegada = toIso(editFormData.hora_real_llegada || editFormData.hora_itinerario_llegada);
 
     const updates: HistoricoUpdates = {
       fecha: editFormData.fecha,
@@ -290,14 +294,14 @@ export default function TablasDiariasClient({
     
     if (isLlegada) {
       updates.origen = editFormData.origen;
-      updates.hora_itinerario = itinLlegada.toISOString();
-      updates.hora_itinerario_llegada = itinLlegada.toISOString();
-      updates.hora_real_llegada = realLlegada.toISOString();
+      updates.hora_itinerario = itinLlegada;
+      updates.hora_itinerario_llegada = itinLlegada;
+      updates.hora_real_llegada = realLlegada;
     } else {
       updates.destino = editFormData.destino;
-      updates.hora_itinerario = itinSalida.toISOString();
-      updates.hora_itinerario_salida = itinSalida.toISOString();
-      updates.hora_real_salida = realSalida.toISOString();
+      updates.hora_itinerario = itinSalida;
+      updates.hora_itinerario_salida = itinSalida;
+      updates.hora_real_salida = realSalida;
     }
 
     let res;
@@ -385,224 +389,51 @@ export default function TablasDiariasClient({
     }
   };
 
-  const processExcelSheet = async (wb: XLSX.WorkBook, sheetName: string) => {
+  // Filas de una pestaña, recortadas al bloque con datos y alineadas con la numeración
+  // de Excel (fila 1 = índice 0). Una celda suelta muy abajo (p. ej. un total en la fila
+  // 1.048.576) no cuenta: el bloque termina al encontrar más de 500 filas vacías seguidas.
+  const sheetRows = (ws: XLSX.WorkSheet): Cell[][] => {
+    const usedRows = new Set<number>();
+    let lastCol = 0;
+    for (const addr of Object.keys(ws)) {
+      if (addr[0] === '!') continue;
+      const v = (ws[addr] as XLSX.CellObject).v;
+      if (v === undefined || v === null || (typeof v === 'string' && !v.trim())) continue;
+      const { r, c } = XLSX.utils.decode_cell(addr);
+      usedRows.add(r);
+      if (c > lastCol) lastCol = c;
+    }
+    const sorted = [...usedRows].sort((a, b) => a - b);
+    if (sorted.length === 0) return [];
+    let lastRow = sorted[0];
+    for (const r of sorted) {
+      if (r - lastRow > 500) break;
+      lastRow = r;
+    }
+    return XLSX.utils.sheet_to_json<Cell[]>(ws, {
+      header: 1, raw: true, defval: null, blankrows: true,
+      range: { s: { r: 0, c: 0 }, e: { r: lastRow, c: lastCol } },
+    });
+  };
+
+  // Lee las pestañas elegidas y abre la vista previa (solo Air Panama y Copa; solo fechas)
+  const processExcelSheets = async (wb: XLSX.WorkBook, sheetNames: string[]) => {
     setImporting(true);
     setIsSheetModalOpen(false);
 
     try {
-      const ws = wb.Sheets[sheetName];
+      const sheets: SheetInput[] = sheetNames.map(name => ({ name, rows: sheetRows(wb.Sheets[name]) }));
+      const result = parseRegistroMensual(sheets, await getImportKnowledge());
 
-      // Leer con raw:true para obtener números seriales de Excel tal cual (fechas como decimales)
-      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }) as ExcelCell[][];
-
-      const normalizeKey = (key: ExcelCell | null | undefined): string => {
-        if (key === null || key === undefined || key === '') return '';
-        return String(key).trim().toLowerCase()
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-          .replace(/\.$/, ''); // quita punto final (reg. -> reg)
-      };
-
-      // ================================================================
-      // PASO 1: Detectar la fila de encabezados (puede haber filas vacías)
-      // ================================================================
-      const HEADER_KEYWORDS = ['leg', 'tipo', 'operacion', 'airline', 'aerolinea', 'compania', 'flight', 'vuelo', 'arrival/departure'];
-      let headerRowIndex = -1;
-      let headers: string[] = [];
-
-      for (let i = 0; i < Math.min(30, rawData.length); i++) {
-        const row = rawData[i];
-        if (!row || row.length === 0) continue;
-        const normalizedRow = row.map((cell) => normalizeKey(cell));
-        if (HEADER_KEYWORDS.some(kw => normalizedRow.includes(kw))) {
-          headerRowIndex = i;
-          headers = normalizedRow;
-          break;
-        }
-      }
-
-      if (headerRowIndex === -1) {
-        throw new Error("No se encontraron encabezados válidos (Leg, Airline, Flight, etc.) en esta pestaña.");
-      }
-
-      // ================================================================
-      // PASO 2: Convertir número serial de Excel → fecha/hora real
-      // Los números de Excel cuentan días desde 1899-12-30 UTC
-      // Ejemplo: 46023.333 → "2026-01-01 08:00"
-      // ================================================================
-      const excelSerialToDate = (serial: number): Date => {
-        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-        return new Date(excelEpoch.getTime() + serial * 86400000);
-      };
-
-      const parseDateTimeCell = (cellValue: ExcelCell | undefined): { fechaStr: string; timeStr: string } => {
-        if (cellValue === null || cellValue === undefined || cellValue === '') return { fechaStr: '', timeStr: '' };
-
-        // Número serial de Excel
-        if (typeof cellValue === 'number') {
-          const d = excelSerialToDate(cellValue);
-          const yyyy = d.getUTCFullYear();
-          const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
-          const dd   = String(d.getUTCDate()).padStart(2, '0');
-          const hh   = String(d.getUTCHours()).padStart(2, '0');
-          const mi   = String(d.getUTCMinutes()).padStart(2, '0');
-          return { fechaStr: `${yyyy}-${mm}-${dd}`, timeStr: `${hh}:${mi}` };
-        }
-
-        const str = cellValue.toString().trim();
-
-        // String con fecha y hora: "MM/DD/YYYY HH:MM" o "DD/MM/YYYY HH:MM"
-        if (str.includes(' ')) {
-          const spaceIdx = str.indexOf(' ');
-          const datePart = str.substring(0, spaceIdx);
-          const timePart = str.substring(spaceIdx + 1, spaceIdx + 6); // HH:MM
-          const dParts = datePart.split('/');
-          if (dParts.length === 3) {
-            const year = dParts[2].length === 2 ? `20${dParts[2]}` : dParts[2];
-            let month: string, day: string;
-            if (Number(dParts[0]) > 12) {
-              day = dParts[0].padStart(2, '0'); month = dParts[1].padStart(2, '0');
-            } else {
-              month = dParts[0].padStart(2, '0'); day = dParts[1].padStart(2, '0');
-            }
-            return { fechaStr: `${year}-${month}-${day}`, timeStr: timePart || '00:00' };
-          }
-        }
-
-        // Solo hora "HH:MM"
-        if (/^\d{1,2}:\d{2}/.test(str)) return { fechaStr: '', timeStr: str.substring(0, 5) };
-
-        return { fechaStr: '', timeStr: '' };
-      };
-
-      // ================================================================
-      // PASO 3: Construir filas como objetos { header -> valor }
-      // ================================================================
-      const data: Record<string, ExcelCell>[] = [];
-      for (let i = headerRowIndex + 1; i < rawData.length; i++) {
-        const row = rawData[i];
-        if (!row || row.length === 0) continue;
-        const obj: Record<string, ExcelCell> = {};
-        let hasData = false;
-        for (let j = 0; j < headers.length; j++) {
-          if (headers[j] && row[j] !== undefined && row[j] !== null && row[j] !== '') {
-            obj[headers[j]] = row[j];
-            hasData = true;
-          }
-        }
-        if (hasData) data.push(obj);
-      }
-
-      // ================================================================
-      // PASO 4: Procesar filas → llegadas / salidas
-      // ================================================================
-      const llegadasToInsert: FlightRecordInput[] = [];
-      const salidasToInsert: FlightRecordInput[] = [];
-
-      for (const row of data) {
-        // Leg: Arrival / Departure
-        const legRaw = (row['leg'] || row['tipo'] || row['operacion'] || row['type'] || row['arrival/departure'] || '').toString().trim().toLowerCase();
-        const isLlegada = legRaw.startsWith('arr') || legRaw.includes('llegada');
-        const isSalida  = legRaw.startsWith('dep') || legRaw.includes('salida');
-        if (!isLlegada && !isSalida) continue;
-
-        // Aerolínea
-        let aerolinea = (row['airline'] || row['aerolinea'] || row['compania'] || row['operador'] || '').toString().trim();
-        const al = aerolinea.toLowerCase().replace(/\s+/g, '');
-        if (al.includes('airpanama') || al === '7p') {
-          aerolinea = 'Air Panama';
-        } else if (al.includes('copa') || al === 'cm') {
-          aerolinea = 'Copa Airlines';
-        } else {
-          continue;
-        }
-
-        // Runway Time y Actual Time
-        const runwayRaw = row['runway time'] || row['hora itinerario'] || row['std'] || row['sta'] || row['hora programada'] || '';
-        const actualRaw = row['actual time (ata/atad)'] || row['actual time (ata/atd)'] || row['actual time'] || row['hora real'] || row['ata'] || row['atd'] || runwayRaw;
-
-        const { fechaStr: fechaRunway, timeStr: runwayTimeStr } = parseDateTimeCell(runwayRaw);
-        const { fechaStr: fechaActual, timeStr: actualTimeStr  } = parseDateTimeCell(actualRaw);
-
-        let fechaStr = fechaRunway || fechaActual;
-        if (!fechaStr) {
-          const { fechaStr: fb } = parseDateTimeCell(row['date'] || row['fecha'] || row['fecha vuelo'] || '');
-          fechaStr = fb || currentDateStr;
-        }
-
-        // Número de Vuelo
-        let rawFlight = (row['flight'] || row['vuelo'] || row['no vuelo'] || '').toString().trim().toUpperCase();
-        rawFlight = rawFlight.replace(/\s+/g, '-'); // "CM 013" → "CM-013"
-
-        if (aerolinea === 'Air Panama') {
-          if (rawFlight.startsWith('7P') && !rawFlight.includes('-')) rawFlight = '7P-' + rawFlight.substring(2);
-          else if (!rawFlight.startsWith('7P')) rawFlight = '7P-' + rawFlight;
-        } else if (aerolinea === 'Copa Airlines') {
-          if (rawFlight.startsWith('CMP-')) rawFlight = 'CM-' + rawFlight.substring(4);
-          else if (rawFlight.startsWith('CMP')) rawFlight = 'CM-' + rawFlight.substring(3);
-          else if (rawFlight.startsWith('CM') && !rawFlight.includes('-')) rawFlight = 'CM-' + rawFlight.substring(2);
-          const parts = rawFlight.split('-');
-          if (parts.length === 2 && parts[1].length < 3) { parts[1] = parts[1].padStart(3, '0'); rawFlight = parts.join('-'); }
-        }
-
-        const runwayTime = runwayTimeStr || '00:00';
-        const actualTime = actualTimeStr  || runwayTime;
-
-        const itinDate = new Date(`${fechaStr}T${runwayTime}:00-05:00`);
-        const realDate  = new Date(`${fechaStr}T${actualTime}:00-05:00`);
-
-        const diffMins = (realDate.getTime() - itinDate.getTime()) / 60000;
-        const estadoFinal = diffMins > 15 ? 'DEMORADO' : 'LLEGÓ';
-
-        // Avión y capacidad
-        const acRaw  = (row['ac'] || row['aircraft'] || row['avion'] || '').toString().trim().toUpperCase();
-        const regRaw = (row['reg'] || row['matricula'] || '').toString().trim().toUpperCase();
-        let capacidad = aerolinea === 'Air Panama' ? 50 : 160;
-        if      (['DH8D','DHC8','Q400'].includes(acRaw))  capacidad = 78;
-        else if (['F50','FK50'].includes(acRaw))           capacidad = 50;
-        else if (['B737','B738'].includes(acRaw))          capacidad = 160;
-        else if (['B39M','B38M'].includes(acRaw))          capacidad = 166;
-        else if (['C208','C-208'].includes(acRaw))         capacidad = 9;
-
-        const od = (row['o/d'] || row['origen'] || row['destino'] || row['ruta'] || 'PAC').toString().trim().toUpperCase();
-
-        const record: FlightRecordInput = {
-          fecha: fechaStr,
-          aerolinea,
-          numero_vuelo: rawFlight,
-          hora_itinerario: isNaN(itinDate.getTime()) ? new Date().toISOString() : itinDate.toISOString(),
-          estado_final: estadoFinal,
-          pasajeros_abordo: Number(row['pax'] || row['pasajeros'] || row['total pax'] || row['pax abordo'] || 0) || 0,
-          capacidad_total: capacidad,
-          // avion y matricula se pasan como campos extra para que insertFlightRecords
-          // los use en el mapeo hacia manual_flights_log (aircraft / aircraftReg)
-          avion: acRaw || undefined,
-          matricula: regRaw.substring(0, 10) || undefined,
-        };
-
-        if (isLlegada) {
-          record.origen = od;
-          record.hora_itinerario_llegada = isNaN(itinDate.getTime()) ? undefined : itinDate.toISOString();
-          record.hora_real_llegada = isNaN(realDate.getTime()) ? record.hora_itinerario : realDate.toISOString();
-          llegadasToInsert.push(record);
-        } else {
-          record.destino = od;
-          record.hora_itinerario_salida = isNaN(itinDate.getTime()) ? undefined : itinDate.toISOString();
-          record.hora_real_salida = isNaN(realDate.getTime()) ? record.hora_itinerario : realDate.toISOString();
-          salidasToInsert.push(record);
-        }
-      }
-
-      if (llegadasToInsert.length > 0 || salidasToInsert.length > 0) {
-        setPreviewData({ llegadas: llegadasToInsert, salidas: salidasToInsert });
+      if (result.rows.length > 0) {
+        setPreviewData(result);
         setIsPreviewOpen(true);
       } else {
-        setImportResult({ show: true, type: 'error', message: 'No se encontraron vuelos válidos en el archivo.' });
+        setImportResult({ show: true, type: 'error', message: 'No se encontraron vuelos de Air Panama ni de Copa Airlines en las pestañas elegidas. Verifica que tengan las columnas Leg, Airline, Flight y Runway Time.' });
       }
-      setImporting(false);
     } catch (err) {
       console.error("Error importando Excel:", err);
       setImportResult({ show: true, type: 'error', message: "Error procesando archivo. Verifica el formato. Detalles: " + (err as Error).message });
-      setImporting(false);
     } finally {
       setImporting(false);
       setImportWorkbook(null);
@@ -622,13 +453,13 @@ export default function TablasDiariasClient({
         const wb = XLSX.read(bstr, { type: 'binary' });
         
         if (wb.SheetNames.length > 1) {
-          // Hay más de 1 pestaña, mostramos el modal para que el usuario seleccione
+          // Varias pestañas (una por mes): el usuario elige cuáles; por defecto todas
           setImportWorkbook(wb);
+          setSelectedSheets(wb.SheetNames);
           setIsSheetModalOpen(true);
           setImporting(false); // Pausamos el spinner de carga de importación global mientras selecciona
         } else {
-          // Si solo hay 1 pestaña, la importamos directamente
-          await processExcelSheet(wb, wb.SheetNames[0]);
+          await processExcelSheets(wb, wb.SheetNames);
         }
       } catch (err) {
         console.error("Error leyendo Excel:", err);
@@ -702,7 +533,7 @@ export default function TablasDiariasClient({
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4"></div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-20">
           <div className="flex items-center gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -714,19 +545,53 @@ export default function TablasDiariasClient({
               </h1>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:flex md:items-center gap-2 w-full md:w-auto pb-1 shrink-0">
-            <button onClick={() => setIsAddModalOpen(true)} className="col-span-1 md:flex-none justify-center bg-emerald-500 hover:bg-emerald-400 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-emerald-400/50">
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              <span className="text-[12px] md:text-[13px] whitespace-nowrap">Agregar Vuelo</span>
-            </button>
-            <button onClick={() => setIsImportModalOpen(true)} className="upbtn col-span-1 md:flex-none justify-center bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/20 hover:bg-white/20 transition-colors cursor-pointer text-white font-bold tracking-wide">
-              <UploadGlyph />
-              <span className="text-[12px] md:text-[13px]">Importar</span>
-            </button>
+          <div className="flex items-center gap-2 w-full md:w-auto pb-1 shrink-0">
+            {/* Botón dividido: "Importar" abre el Excel; la flecha ofrece también agregar un vuelo a mano */}
+            <div className="relative flex-1 md:flex-none flex">
+              <button
+                onClick={() => { setIsAddMenuOpen(false); setIsImportModalOpen(true); }}
+                className="upbtn flex-1 justify-center bg-emerald-500 hover:bg-emerald-400 pl-3.5 pr-3 py-2.5 rounded-l-xl flex items-center gap-1.5 shadow-md transition-colors cursor-pointer text-white font-bold tracking-wide border border-r-0 border-emerald-400/50"
+              >
+                <UploadGlyph />
+                <span className="text-[12px] md:text-[13px]">Importar</span>
+              </button>
+              <button
+                onClick={() => setIsAddMenuOpen(open => !open)}
+                aria-label="Más opciones: importar Excel o agregar vuelo"
+                aria-haspopup="menu"
+                aria-expanded={isAddMenuOpen}
+                className="bg-emerald-500 hover:bg-emerald-400 px-2 rounded-r-xl flex items-center shadow-md transition-colors cursor-pointer text-white border border-emerald-400/50 border-l-emerald-700/40"
+              >
+                <span className={`material-symbols-outlined text-[20px] transition-transform ${isAddMenuOpen ? 'rotate-180' : ''}`}>expand_more</span>
+              </button>
+              {isAddMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsAddMenuOpen(false)} aria-hidden="true" />
+                  <div role="menu" className="absolute right-0 md:left-0 md:right-auto top-full mt-2 z-50 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-slate-700 animate-in fade-in zoom-in-95 duration-150">
+                    <button
+                      role="menuitem"
+                      onClick={() => { setIsAddMenuOpen(false); setIsImportModalOpen(true); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold hover:bg-slate-50"
+                    >
+                      <span className="material-symbols-outlined text-[20px] text-emerald-600">upload_file</span>
+                      Importar Excel
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => { setIsAddMenuOpen(false); setIsAddModalOpen(true); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold hover:bg-slate-50"
+                    >
+                      <span className="material-symbols-outlined text-[20px] text-emerald-600">add_circle</span>
+                      Agregar vuelo
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 {isAdmin && (
-            <button 
-              onClick={() => setIsAuditModalOpen(true)} 
-              className={`col-span-2 md:flex-none justify-center px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border transition-colors cursor-pointer text-white font-bold tracking-wide ${pendingAuditCount > 0 ? 'bg-amber-500 hover:bg-amber-400 border-amber-400/50 animate-[pulse_2s_infinite] shadow-amber-900/30' : 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20'}`}
+            <button
+              onClick={() => setIsAuditModalOpen(true)}
+              className={`flex-1 md:flex-none justify-center px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm border transition-colors cursor-pointer text-white font-bold tracking-wide ${pendingAuditCount > 0 ? 'bg-amber-500 hover:bg-amber-400 border-amber-400/50 animate-[pulse_2s_infinite] shadow-amber-900/30' : 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20'}`}
             >
               <span className="material-symbols-outlined text-[18px]">{pendingAuditCount > 0 ? 'notification_important' : 'fact_check'}</span>
               <span className="text-[12px] md:text-[13px]">Pendientes {pendingAuditCount > 0 && `(${pendingAuditCount})`}</span>
@@ -1177,12 +1042,12 @@ export default function TablasDiariasClient({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.hora_real_llegada ? 'Origen' : 'Destino'}</label>
+                  <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">{!!editingFlight.origen ? 'Origen' : 'Destino'}</label>
                   <select 
                     className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none w-full" 
                     required 
-                    value={!!editingFlight.hora_real_llegada ? editFormData.origen : editFormData.destino}
-                    onChange={(e) => !!editingFlight.hora_real_llegada 
+                    value={!!editingFlight.origen ? editFormData.origen : editFormData.destino}
+                    onChange={(e) => !!editingFlight.origen 
                       ? setEditFormData({...editFormData, origen: e.target.value}) 
                       : setEditFormData({...editFormData, destino: e.target.value})}
                   >
@@ -1581,19 +1446,32 @@ export default function TablasDiariasClient({
             
             <div className="p-6">
               <p className="text-sm font-body-sm text-on-surface-variant mb-4">
-                El archivo de Excel contiene múltiples pestañas. ¿Cuál de estas deseas importar a la base de datos?
+                El archivo tiene varias pestañas. Elige los meses que quieres importar; las pestañas sin vuelos se ignoran.
               </p>
               
+              <label className="flex items-center gap-3 px-3 pb-2 mb-2 border-b border-surface-variant/40 text-sm font-semibold text-on-surface cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 accent-blue-600"
+                  checked={selectedSheets.length === importWorkbook.SheetNames.length}
+                  onChange={e => setSelectedSheets(e.target.checked ? importWorkbook.SheetNames : [])}
+                />
+                Todas las pestañas
+              </label>
               <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                 {importWorkbook.SheetNames.map(sheet => (
-                  <button
+                  <label
                     key={sheet}
-                    onClick={() => processExcelSheet(importWorkbook, sheet)}
-                    className="flex items-center justify-between p-3 rounded-2xl border border-surface-variant/50 hover:border-blue-500 hover:bg-blue-50 text-left transition-all group"
+                    className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${selectedSheets.includes(sheet) ? 'border-blue-500 bg-blue-50' : 'border-surface-variant/50 hover:border-blue-300'}`}
                   >
-                    <span className="font-label-lg font-semibold text-on-surface group-hover:text-blue-700">{sheet}</span>
-                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-blue-500 transition-transform group-hover:translate-x-1">chevron_right</span>
-                  </button>
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-blue-600"
+                      checked={selectedSheets.includes(sheet)}
+                      onChange={e => setSelectedSheets(prev => e.target.checked ? [...prev, sheet] : prev.filter(n => n !== sheet))}
+                    />
+                    <span className="font-label-lg font-semibold text-on-surface">{sheet}</span>
+                  </label>
                 ))}
               </div>
             </div>
@@ -1607,6 +1485,13 @@ export default function TablasDiariasClient({
                 className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors"
               >
                 Cancelar
+              </button>
+              <button
+                onClick={() => processExcelSheets(importWorkbook, importWorkbook.SheetNames.filter(n => selectedSheets.includes(n)))}
+                disabled={selectedSheets.length === 0}
+                className="flex-1 px-4 py-2 rounded-xl font-label-md text-label-md font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                Continuar ({selectedSheets.length})
               </button>
             </div>
           </div>
@@ -1662,60 +1547,46 @@ export default function TablasDiariasClient({
       {isPreviewOpen && previewData && (
         <ExcelImportPreviewModal
           data={previewData}
-          onConfirm={async (finalData) => {
+          onConfirm={async (rowsToSave) => {
             setIsPreviewOpen(false);
             setImporting(true);
 
-            // Progreso por etapas: llegadas 0→50 %, salidas 50→100 % (o todo en una si falta una)
-            const hasBoth = finalData.llegadas.length > 0 && finalData.salidas.length > 0;
-            const total = finalData.llegadas.length + finalData.salidas.length;
+            // Lotes de 400: la barra avanza de verdad y ninguna petición es demasiado grande
+            const CHUNK = 400;
+            const total = rowsToSave.length;
             setUploadJob({
               id: ++uploadSeq.current,
               label: `Guardando ${total} ${total === 1 ? 'vuelo' : 'vuelos'}…`,
               fileName: importFileRef.current?.name,
               fileSize: importFileRef.current?.size,
               actual: 0,
-              creepTo: hasBoth ? 0.48 : 0.95,
+              creepTo: Math.min(0.95, CHUNK / total),
               status: 'running',
             });
             
+            let totalInserted = 0;
+            let totalUpdated = 0;
             try {
-              let totalInserted = 0;
-              let totalUpdated = 0;
-              
-              if (finalData.llegadas.length > 0) {
-                const res = await insertFlightRecords(finalData.llegadas, 'llegadas');
-                if (res.success) {
-                  totalInserted += res.inserted || 0;
-                  totalUpdated  += res.updated  || 0;
-                }
-                if (hasBoth) setUploadJob(j => j && { ...j, actual: 0.5, creepTo: 0.95, label: `Guardando salidas…` });
-              }
-              if (finalData.salidas.length > 0) {
-                const res = await insertFlightRecords(finalData.salidas, 'salidas');
-                if (res.success) {
-                  totalInserted += res.inserted || 0;
-                  totalUpdated  += res.updated  || 0;
-                }
+              for (let i = 0; i < total; i += CHUNK) {
+                const res = await importHistoricoRows(rowsToSave.slice(i, i + CHUNK));
+                totalInserted += res.inserted || 0;
+                totalUpdated += res.updated || 0;
+                if (!res.success) throw new Error(res.error);
+                const done = Math.min(total, i + CHUNK);
+                setUploadJob(j => j && { ...j, actual: done / total, creepTo: Math.min(0.95, (done + CHUNK) / total), label: `Guardando ${done} de ${total} vuelos…` });
               }
 
               let msg = `Importación completada: ${totalInserted} vuelos nuevos agregados.`;
-              if (totalUpdated > 0) msg += ` ${totalUpdated} vuelos actualizados.`;
+              if (totalUpdated > 0) msg += ` ${totalUpdated} vuelos ya existentes actualizados.`;
               
-              // El resumen aparece después del check
+              // El resumen aparece después del check; al aceptarlo se recarga la página
               afterUploadRef.current = () => setImportResult({ show: true, type: 'success', message: msg });
               setUploadJob(j => j && { ...j, status: 'success', label: 'Importación completa' });
               setPreviewData(null);
-              // reload data
-              if (dateInputRef.current) {
-                const event = { target: { value: dateInputRef.current.value } } as React.ChangeEvent<HTMLInputElement>;
-                handleDateChange(event);
-              } else {
-                window.location.reload();
-              }
             } catch (err) {
               console.error("Error saving previewed data:", err);
-              const message = "Error al guardar los datos verificados. Detalles: " + (err as Error).message;
+              const saved = totalInserted + totalUpdated;
+              const message = `Error al guardar los vuelos${saved > 0 ? ` (se alcanzaron a guardar ${saved}; puedes volver a importar el archivo, los ya guardados solo se actualizan)` : ''}. Detalles: ${(err as Error).message}`;
               afterUploadRef.current = () => setImportResult({ show: true, type: 'error', message });
               setUploadJob(j => j && { ...j, status: 'error', errorText: 'No se pudieron guardar los vuelos' });
             } finally {

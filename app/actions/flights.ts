@@ -2,7 +2,9 @@
 
 import { requireApprovedUser, requireAdmin } from "@/lib/auth";
 import { loadFleetKnowledge } from "@/lib/fleet/knowledge";
-import { applyFleetRules, legKey } from "@/lib/fleet/rules";
+import { applyFleetRules, legKey, normalizeRegistration, resolveAircraft } from "@/lib/fleet/rules";
+import type { ImportRow } from "@/lib/import/registroMensual";
+import type { ReporteVuelo } from "@/lib/reportes/metrics";
 
 export interface FlightData {
   id: string;
@@ -252,6 +254,9 @@ export async function getLlegadasMalek(dateStr?: string) {
     let depLocal = manual?.departureTimeLocal;
     let arrLocal = manual?.arrivalTimeLocal;
 
+    // Vuelos importados del Excel: sin hora de itinerario no hay nada que estimar
+    if ((!depLocal || !arrLocal) && !flight.hora_itinerario) return flight;
+
     if (!depLocal || !arrLocal) {
       // Fallback if not found in itinerary
       const baseDate = new Date(flight.hora_itinerario);
@@ -283,11 +288,12 @@ export type HistoricoUpdates = {
   numero_vuelo?: string;
   origen?: string;
   destino?: string;
-  hora_itinerario?: string;
-  hora_itinerario_salida?: string;
-  hora_real_salida?: string;
-  hora_itinerario_llegada?: string;
-  hora_real_llegada?: string;
+  // null = sin hora (vuelos importados del Excel)
+  hora_itinerario?: string | null;
+  hora_itinerario_salida?: string | null;
+  hora_real_salida?: string | null;
+  hora_itinerario_llegada?: string | null;
+  hora_real_llegada?: string | null;
   pasajeros_abordo?: number;
   capacidad_total?: number;
   estado_final?: string;
@@ -316,7 +322,7 @@ export async function updateLlegadaMalek(id: string, updates: HistoricoUpdates) 
 
   const payload = pickHistorico(updates, 'origen', user.role === 'administrador');
   // Columna duplicada heredada: mantener ambas sincronizadas
-  if (payload.hora_real_llegada) payload.hora_llegada_real = payload.hora_real_llegada;
+  if ('hora_real_llegada' in payload) payload.hora_llegada_real = payload.hora_real_llegada;
 
   const { error } = await supabase
     .from('llegadas_malek_historico')
@@ -420,6 +426,9 @@ export async function getSalidasMalek(dateStr?: string) {
     let depLocal = manual?.departureTimeLocal;
     let arrLocal = manual?.arrivalTimeLocal;
 
+    // Vuelos importados del Excel: sin hora de itinerario no hay nada que estimar
+    if ((!depLocal || !arrLocal) && !flight.hora_itinerario) return flight;
+
     if (!depLocal || !arrLocal) {
       // Fallback if not found in itinerary
       const baseDate = new Date(flight.hora_itinerario);
@@ -450,7 +459,7 @@ export async function updateSalidaMalek(id: string, updates: HistoricoUpdates) {
   const supabase = await createClient();
 
   const payload = pickHistorico(updates, 'destino', user.role === 'administrador');
-  if (payload.hora_real_salida) payload.hora_salida_real = payload.hora_real_salida;
+  if ('hora_real_salida' in payload) payload.hora_salida_real = payload.hora_real_salida;
 
   const { error } = await supabase
     .from('salidas_malek_historico')
@@ -622,19 +631,147 @@ export async function getReporteMensual(year: number, month: number, range: 'mon
     endDate = `${year}-${currentMStr}-${String(lastDay).padStart(2, '0')}`;
   }
 
-  // Llegadas y salidas del periodo, en paralelo
-  const [{ data: llegadas }, { data: salidas }] = await Promise.all([
-    supabase
-      .from('llegadas_malek_historico')
-      .select('*')
-      .gte('fecha', startDate)
-      .lte('fecha', endDate),
-    supabase
-      .from('salidas_malek_historico')
-      .select('*')
-      .gte('fecha', startDate)
-      .lte('fecha', endDate),
+  // Los reportes muestran lo mismo que el Registro Histórico: solo vuelos revisados
+  // (los PENDIENTE aún no están aprobados). Supabase entrega como máximo 1000 filas
+  // por consulta, así que se pide por páginas: un año completo tiene ~1300 por tabla.
+  const PAGE = 1000;
+  const fetchAll = async (table: 'llegadas_malek_historico' | 'salidas_malek_historico') => {
+    const rows: ReporteVuelo[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .gte('fecha', startDate)
+        .lte('fecha', endDate)
+        .neq('estado_final', 'PENDIENTE')
+        .order('fecha')
+        .order('id')
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+      if (!data || data.length < PAGE) return rows;
+    }
+  };
+
+  const [llegadas, salidas] = await Promise.all([
+    fetchAll('llegadas_malek_historico'),
+    fetchAll('salidas_malek_historico'),
   ]);
 
-  return [...(llegadas || []), ...(salidas || [])];
+  return [...llegadas, ...salidas];
+}
+
+// ---------------------------------------------------------------------------
+// Importación del registro mensual (Excel) al histórico
+// ---------------------------------------------------------------------------
+
+// Flota conocida para que el importador corrija nombres en el navegador
+export async function getImportKnowledge() {
+  await requireApprovedUser();
+  return loadFleetKnowledge();
+}
+
+export type HistoricoImportRow = Pick<ImportRow,
+  'tipo' | 'fecha' | 'aerolinea' | 'numero_vuelo' | 'ruta' | 'matricula' | 'avion' | 'pasajeros' |
+  'capacidad' | 'handler' | 'stand' | 'servicio' | 'notas' | 'mtow_kg'>;
+
+const MAX_IMPORT_ROWS = 1000;
+const cut = (v: unknown, max: number) => {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return s ? s.slice(0, max) : null;
+};
+const intIn = (v: unknown, min: number, max: number) =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : null;
+
+// Guarda un lote ya revisado en la vista previa. Un vuelo existente (misma fecha,
+// número y ruta) se actualiza con los datos del Excel sin tocar sus horas ni su estado.
+export async function importHistoricoRows(rows: HistoricoImportRow[]) {
+  await requireApprovedUser();
+  if (!Array.isArray(rows) || rows.length === 0) return { success: false, error: 'No hay vuelos para guardar' };
+  if (rows.length > MAX_IMPORT_ROWS) return { success: false, error: `Máximo ${MAX_IMPORT_ROWS} vuelos por lote` };
+
+  const kb = await loadFleetKnowledge();
+  const clean = [];
+  for (const r of rows) {
+    const fecha = typeof r?.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.fecha) ? r.fecha : null;
+    const aerolinea = r?.aerolinea === 'Air Panama' || r?.aerolinea === 'Copa Airlines' ? r.aerolinea : null;
+    const tipo = r?.tipo === 'llegada' || r?.tipo === 'salida' ? r.tipo : null;
+    const numero_vuelo = cut(r?.numero_vuelo, 20)?.toUpperCase() ?? null;
+    const ruta = cut(r?.ruta, 5)?.toUpperCase() ?? null;
+    if (!fecha || !aerolinea || !tipo || !numero_vuelo || !ruta || !/^[A-Z]{3,4}$/.test(ruta)) {
+      return { success: false, error: `Vuelo inválido: ${numero_vuelo ?? '?'} ${fecha ?? ''} (revisa fecha, número y ruta)` };
+    }
+    // La flota de la base es la fuente de verdad para matrícula, modelo y capacidad
+    const matricula = cut(r.matricula, 12) ? normalizeRegistration(cut(r.matricula, 12)) : null;
+    const aircraft = resolveAircraft({ aircraft: cut(r.avion, 10), aircraftReg: matricula }, kb);
+    clean.push({
+      tipo, fecha, aerolinea, numero_vuelo, ruta,
+      fields: {
+        pasajeros_abordo: intIn(r.pasajeros, 0, 1000) ?? 0,
+        capacidad_total: aircraft.paxMax ?? intIn(r.capacidad, 0, 1000) ?? 0,
+        matricula,
+        avion: aircraft.code ?? cut(r.avion, 10)?.toUpperCase() ?? null,
+        handler: cut(r.handler, 80),
+        stand: cut(r.stand, 10),
+        servicio: cut(r.servicio, 10),
+        notas: cut(r.notas, 500),
+        mtow_kg: intIn(r.mtow_kg, 0, 1_000_000),
+        fuente: 'excel',
+      },
+    });
+  }
+
+  const supabase = getAdminSupabase();
+  let inserted = 0;
+  let updated = 0;
+
+  for (const tipo of ['llegada', 'salida'] as const) {
+    const batch = clean.filter(r => r.tipo === tipo);
+    if (batch.length === 0) continue;
+    const table = tipo === 'llegada' ? 'llegadas_malek_historico' : 'salidas_malek_historico';
+    const routeCol = tipo === 'llegada' ? 'origen' : 'destino';
+    const fechas = batch.map(r => r.fecha).sort();
+
+    const { data: existing, error: fetchError } = await supabase
+      .from(table)
+      .select(`id, fecha, numero_vuelo, ${routeCol}`)
+      .gte('fecha', fechas[0])
+      .lte('fecha', fechas[fechas.length - 1]);
+    if (fetchError) return { success: false, error: fetchError.message };
+
+    const key = (fecha: string, numero: string, ruta: string) => `${fecha}|${numero}|${ruta}`.toUpperCase();
+    const existingIds = new Map(
+      (existing as unknown as Record<string, string>[] ?? []).map(e => [key(e.fecha, e.numero_vuelo, e[routeCol]), e.id])
+    );
+
+    const toInsert = [];
+    const toUpdate: { id: string; fields: Record<string, unknown> }[] = [];
+    for (const r of batch) {
+      const id = existingIds.get(key(r.fecha, r.numero_vuelo, r.ruta));
+      if (id) toUpdate.push({ id, fields: r.fields });
+      else toInsert.push({
+        fecha: r.fecha,
+        aerolinea: r.aerolinea,
+        numero_vuelo: r.numero_vuelo,
+        [routeCol]: r.ruta,
+        estado_final: tipo === 'llegada' ? 'LLEGÓ' : 'CUMPLIDO',
+        ...r.fields,
+      });
+    }
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from(table).insert(toInsert);
+      if (error) return { success: false, error: error.message, inserted, updated };
+      inserted += toInsert.length;
+    }
+    // Actualizaciones de a 20 en paralelo para no saturar la base
+    for (let i = 0; i < toUpdate.length; i += 20) {
+      const results = await Promise.all(toUpdate.slice(i, i + 20).map(u =>
+        supabase.from(table).update({ ...u.fields, actualizado_en: new Date().toISOString() }).eq('id', u.id)
+      ));
+      updated += results.filter(res => !res.error).length;
+    }
+  }
+
+  return { success: true, inserted, updated };
 }
