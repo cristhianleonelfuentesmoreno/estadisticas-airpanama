@@ -3,30 +3,10 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar, YAxis } from 'recharts';
+import { computeReportMetrics, MONTHS, type ChartPoint, type ReporteVuelo, type ReportRange } from "@/lib/reportes/metrics";
+import { ExportReportButton } from "./export/ExportReportButton";
 
-// Fila de llegadas_malek_historico / salidas_malek_historico
-export interface ReporteVuelo {
-  fecha: string;
-  aerolinea: string | null;
-  numero_vuelo: string | null;
-  origen?: string | null;
-  destino?: string | null;
-  estado_final: string | null;
-  pasajeros_abordo: number | null;
-  capacidad_total: number;
-  hora_itinerario: string | null;
-  hora_real_llegada?: string | null;
-  hora_real_salida?: string | null;
-}
-
-// Hora (0-23) en Panamá de un timestamp ISO; acepta también "HH:MM" por si hay datos viejos
-function horaPanama(value: string): number {
-  const d = new Date(value);
-  if (!isNaN(d.getTime())) {
-    return Number(d.toLocaleString('en-US', { timeZone: 'America/Panama', hour: '2-digit', hourCycle: 'h23' }));
-  }
-  return parseInt(value.split(':')[0], 10);
-}
+export type { ReporteVuelo } from "@/lib/reportes/metrics";
 
 interface Props {
   rawFlights: ReporteVuelo[];
@@ -35,36 +15,37 @@ interface Props {
   initialRange: string;
 }
 
-const MONTHS = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-];
+
 
 type DailyTooltipProps = {
   active?: boolean;
-  payload?: { value?: number }[];
-  label?: string | number;
-  monthLabel: string;
+  payload?: { value?: number; dataKey?: string; payload?: ChartPoint }[];
 };
 
-// Recharts inyecta active/payload/label al clonar el elemento pasado en `content`
-const CustomTooltip = ({ active, payload, label, monthLabel }: DailyTooltipProps) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-primary-container text-on-primary px-3 py-2 rounded-lg shadow-xl text-center pointer-events-none border border-white/10">
-        <p className="font-label-sm text-label-sm font-bold text-secondary-fixed mb-1">{label} {monthLabel}</p>
-        <div className="flex flex-col gap-0.5 text-left">
-           <p className="font-label-sm text-label-sm leading-tight text-white flex items-center gap-1">
-             <span className="w-2 h-2 rounded-full bg-secondary"></span> Air Panama: {payload[1]?.value || 0} pax
-           </p>
-           <p className="font-label-sm text-label-sm leading-tight text-white flex items-center gap-1">
-             <span className="w-2 h-2 rounded-full bg-[#1e40af]"></span> Copa: {payload[0]?.value || 0} pax
-           </p>
-        </div>
+// Recharts inyecta active/payload al clonar el elemento pasado en `content`
+const CustomTooltip = ({ active, payload }: DailyTooltipProps) => {
+  if (!active || !payload?.length) return null;
+  const point = payload[0].payload;
+  const value = (key: 'p7' | 'cm') => payload.find(p => p.dataKey === key)?.value;
+  const ap = value('p7');
+  const cm = value('cm');
+  return (
+    <div className="bg-primary-container text-on-primary px-3 py-2 rounded-lg shadow-xl text-center pointer-events-none border border-white/10">
+      <p className="font-label-sm text-label-sm font-bold text-secondary-fixed mb-1">{point?.tip}</p>
+      <div className="flex flex-col gap-0.5 text-left">
+        {ap !== undefined && (
+          <p className="font-label-sm text-label-sm leading-tight text-white flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-secondary"></span> Air Panama: {ap.toLocaleString('es-PA')} pax
+          </p>
+        )}
+        {cm !== undefined && (
+          <p className="font-label-sm text-label-sm leading-tight text-white flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#1e40af]"></span> Copa: {cm.toLocaleString('es-PA')} pax
+          </p>
+        )}
       </div>
-    );
-  }
-  return null;
+    </div>
+  );
 };
 
 export default function MensualClient({ rawFlights, initialYear, initialMonth, initialRange }: Props) {
@@ -72,122 +53,12 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
   
   const [activeAirline, setActiveAirline] = useState<'all' | '7p' | 'cm'>('all');
 
-  // Calcular métricas dinámicamente según el filtro de aerolínea
-  const metrics = useMemo(() => {
-    let apCount = 0;
-    let cmCount = 0;
-    let filteredTotal = 0;
-    let onTimeCount = 0;
-    let totalPax = 0;
-    let totalCap = 0;
-    
-    let totalPaxAP = 0;
-    let totalPaxCM = 0;
-
-    const dailyDataMap: Record<string, { day: string, cm: number, p7: number }> = {};
-    const routeDataMap: Record<string, { route: string, airline: string, pax: number, cap: number, flights: number }> = {};
-    const hourlyDataMap: Record<number, number> = {};
-    for (let i = 0; i < 24; i++) hourlyDataMap[i] = 0;
-    
-    // Preparar mapa de días (simplificado para el chart)
-    const daysInMonth = new Date(initialYear, initialMonth, 0).getDate();
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dStr = String(i).padStart(2, '0');
-      dailyDataMap[dStr] = { day: dStr, cm: 0, p7: 0 };
-    }
-
-    rawFlights.forEach(f => {
-      const isAP = f.aerolinea === 'Air Panama' || f.numero_vuelo?.startsWith('7P');
-      
-      // Contar siempre los totales para las barras de progreso
-      if (isAP) apCount++;
-      else cmCount++;
-
-      // Poblado del gráfico: acumular pasajeros por día
-      const dayStr = f.fecha.split('-')[2];
-      if (dailyDataMap[dayStr]) {
-        const pax = f.pasajeros_abordo || 0;
-        if (isAP) dailyDataMap[dayStr].p7 += pax;
-        else dailyDataMap[dayStr].cm += pax;
-      }
-
-      // Si hay filtro de aerolínea, saltar los cálculos posteriores si no aplica
-      if (activeAirline === '7p' && !isAP) return;
-      if (activeAirline === 'cm' && isAP) return;
-
-      filteredTotal++;
-
-      const estado = f.estado_final?.toUpperCase() || '';
-      if (estado !== 'DEMORADO' && estado !== 'RETRASADO' && estado !== 'CANCELADO') {
-        onTimeCount++;
-      }
-
-      const pax = f.pasajeros_abordo || 0;
-      if (f.capacidad_total > 0) {
-        totalPax += pax;
-        totalCap += f.capacidad_total;
-        if (isAP) totalPaxAP += pax;
-        else totalPaxCM += pax;
-      }
-
-      // Agrupar por ruta
-      const isLlegada = f.origen && !f.origen.toLowerCase().includes('dav'); // Si el origen NO es David, es llegada
-      const remoteNode = isLlegada ? f.origen : f.destino;
-      if (remoteNode) {
-        const routeKey = `DAV ⇄ ${remoteNode}`;
-        if (!routeDataMap[routeKey]) routeDataMap[routeKey] = { route: routeKey, airline: isAP ? 'Air Panama' : 'Copa', pax: 0, cap: 0, flights: 0 };
-        routeDataMap[routeKey].pax += pax;
-        routeDataMap[routeKey].cap += f.capacidad_total;
-        routeDataMap[routeKey].flights += 1;
-      }
-
-      // Heatmap (Franja horaria real o itinerario)
-      const timeStr = f.hora_real_llegada || f.hora_real_salida || f.hora_itinerario;
-      if (timeStr) {
-        const hour = horaPanama(timeStr);
-        if (!isNaN(hour) && hour >= 0 && hour <= 23) {
-          hourlyDataMap[hour] += pax; // Volumen de tráfico por pasajeros
-        }
-      }
-    });
-
-    const otp = filteredTotal > 0 ? (onTimeCount / filteredTotal) * 100 : 0;
-    const loadFactor = totalCap > 0 ? (totalPax / totalCap) * 100 : 0;
-    const dailyChart = Object.values(dailyDataMap).sort((a, b) => parseInt(a.day) - parseInt(b.day));
-    
-    // Procesar rutas para gráfico
-    const routesChart = Object.values(routeDataMap).map(r => ({
-      route: r.route,
-      airline: r.airline,
-      lf: r.cap > 0 ? (r.pax / r.cap) * 100 : 0,
-      pax: r.pax,
-      flights: r.flights
-    })).sort((a, b) => b.lf - a.lf);
-
-    // Heatmap array
-    const maxHourPax = Math.max(1, ...Object.values(hourlyDataMap));
-    const heatmapChart = Object.entries(hourlyDataMap).map(([hour, pax]) => ({
-      hour: `${hour.padStart(2, '0')}:00`,
-      pax,
-      intensity: pax / maxHourPax
-    }));
-
-    return {
-      total: rawFlights.length,
-      filteredTotal,
-      apCount,
-      cmCount,
-      otp,
-      loadFactor,
-      dailyChart,
-      totalPaxAP,
-      totalPaxCM,
-      totalCap,
-      totalPax,
-      routesChart,
-      heatmapChart
-    };
-  }, [rawFlights, activeAirline, initialYear, initialMonth]);
+  const reportRange: ReportRange = initialRange === 'year' || initialRange === '6m' ? initialRange : 'month';
+  // Mismas métricas que la exportación (lib/reportes/metrics)
+  const metrics = useMemo(
+    () => computeReportMetrics(rawFlights, activeAirline, initialYear, initialMonth, reportRange),
+    [rawFlights, activeAirline, initialYear, initialMonth, reportRange]
+  );
 
   const apPercent = metrics.total > 0 ? Math.round((metrics.apCount / metrics.total) * 100) : 0;
   const cmPercent = metrics.total > 0 ? Math.round((metrics.cmCount / metrics.total) * 100) : 0;
@@ -198,109 +69,175 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
   };
 
 
-  const isCurrentMonth = initialRange === 'month' && initialMonth === new Date().getMonth() + 1 && initialYear === new Date().getFullYear();
+  // Periodo: mes, año completo o últimos 6 meses (que terminan en el mes elegido)
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth() + 1;
+  const range: 'month' | 'year' | '6m' = initialRange === 'year' || initialRange === '6m' ? initialRange : 'month';
+  const RANGES = [
+    { id: 'month', label: 'Mes', icon: 'calendar_view_month' },
+    { id: 'year', label: 'Año', icon: 'calendar_today' },
+    { id: '6m', label: '6 meses', icon: 'date_range' },
+  ] as const;
+  const rangeIdx = RANGES.findIndex(r => r.id === range);
+
+  const isFuture = (y: number, m: number) => y > curYear || (y === curYear && m > curMonth);
+  // Un paso atrás o adelante: por año en "Año", por mes en los demás
+  const stepTo = (dir: -1 | 1) => {
+    if (range === 'year') return { y: initialYear + dir, m: initialMonth };
+    const m = initialMonth + dir;
+    return m < 1 ? { y: initialYear - 1, m: 12 } : m > 12 ? { y: initialYear + 1, m: 1 } : { y: initialYear, m };
+  };
+  const next = stepTo(1);
+  const nextDisabled = range === 'year' ? next.y > curYear : isFuture(next.y, next.m);
+  const isToday = initialYear === curYear && (range === 'year' || initialMonth === curMonth);
+
+  const start6 = new Date(initialYear, initialMonth - 6, 1);
+  const periodTitle =
+    range === 'year' ? `${initialYear}` :
+    range === '6m' ? `${MONTHS[start6.getMonth()].slice(0, 3)} – ${MONTHS[initialMonth - 1].slice(0, 3)} ${initialYear}` :
+    `${MONTHS[initialMonth - 1]} ${initialYear}`;
+  const periodSubtitle =
+    range === 'year' ? (initialYear === curYear ? `Enero – ${MONTHS[curMonth - 1]} (en curso)` : 'Enero – Diciembre') :
+    range === '6m' ? `Últimos 6 meses · desde ${MONTHS[start6.getMonth()].toLowerCase()} ${start6.getFullYear()}` :
+    `1 – ${new Date(initialYear, initialMonth, 0).getDate()} de ${MONTHS[initialMonth - 1].toLowerCase()}`;
+
+  const AIRLINES = [
+    { id: 'all', label: 'Todas', count: metrics.apCount + metrics.cmCount, dot: 'bg-gradient-to-br from-secondary to-primary-container', active: 'text-on-surface' },
+    { id: '7p', label: 'Air Panama', count: metrics.apCount, dot: 'bg-secondary', active: 'text-secondary' },
+    { id: 'cm', label: 'Copa', count: metrics.cmCount, dot: 'bg-primary-container', active: 'text-primary-container' },
+  ] as const;
+  const airlineIdx = AIRLINES.findIndex(a => a.id === activeAirline);
 
   return (
     <div className="flex flex-col w-full space-y-space-md animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-      <section className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-sm border border-black/5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-space-xs text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider">
+      <section className="relative overflow-hidden bg-surface-container-lowest rounded-2xl p-4 md:p-5 shadow-sm border border-black/5 flex flex-col gap-4">
+        {/* Brillo decorativo */}
+        <div className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full bg-secondary/10 blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute -bottom-28 -left-20 w-64 h-64 rounded-full bg-primary-container/10 blur-3xl" aria-hidden="true" />
+
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider">
             <span className="material-symbols-outlined text-base text-secondary-container">insights</span>
-            <span>OPS BI ANALYTICS • COMPARATIVO MENSUAL</span>
+            <span>OPS BI Analytics · Comparativo</span>
           </div>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-on-surface font-label-sm text-label-sm font-semibold border border-black/5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            SYNC LIVE
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 font-label-sm text-[12px] font-bold ring-1 ring-emerald-500/20">
+              <span className="relative flex w-1.5 h-1.5">
+                <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-75" />
+                <span className="relative w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              </span>
+              SYNC LIVE
+            </span>
+            <ExportReportButton rawFlights={rawFlights} year={initialYear} month={initialMonth} range={reportRange} airline={activeAirline} />
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-xs pt-space-xs">
-          <button 
-            onClick={() => handleDateChange(initialYear - 1, initialMonth, initialRange)}
-            className="flex items-center justify-between px-space-sm py-2 bg-surface-container-low rounded-lg text-left hover:bg-surface-container transition-colors border border-black/5"
-          >
-            <div>
-              <p className="font-label-sm text-label-sm text-on-surface-variant">Año</p>
-              <p className="font-label-md text-label-md font-bold text-on-surface">{initialYear}</p>
-            </div>
-            <span className="material-symbols-outlined text-lg text-on-surface-variant">unfold_more</span>
-          </button>
-          
-          <div className="flex items-center justify-between px-space-sm py-2 bg-surface-container-low rounded-lg text-left border border-black/5">
-            <button 
-              onClick={() => handleDateChange(initialMonth === 1 ? initialYear - 1 : initialYear, initialMonth === 1 ? 12 : initialMonth - 1, 'month')} 
-              className="text-on-surface-variant hover:text-black"
-            >
-              <span className="material-symbols-outlined text-lg">chevron_left</span>
-            </button>
-            <div className="text-center">
-              <p className="font-label-sm text-label-sm text-on-surface-variant">Mes</p>
-              <p className="font-label-md text-label-md font-bold text-on-surface">{MONTHS[initialMonth - 1]}</p>
-            </div>
-            <button 
-              onClick={() => handleDateChange(initialMonth === 12 ? initialYear + 1 : initialYear, initialMonth === 12 ? 1 : initialMonth + 1, 'month')} 
-              className="text-on-surface-variant hover:text-black"
-            >
-              <span className="material-symbols-outlined text-lg">chevron_right</span>
-            </button>
+        <div className="relative flex flex-col lg:flex-row lg:items-center gap-3">
+          {/* Selector de periodo con pastilla deslizante */}
+          <div role="tablist" aria-label="Periodo" className="relative grid grid-cols-3 p-1 rounded-xl bg-surface-container-low ring-1 ring-black/5 lg:w-[340px] shrink-0">
+            <span
+              aria-hidden="true"
+              className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg bg-white shadow-md ring-1 ring-black/5 transition-transform duration-300 ease-out"
+              style={{ transform: `translateX(${rangeIdx * 100}%)` }}
+            />
+            {RANGES.map(r => (
+              <button
+                key={r.id}
+                role="tab"
+                aria-selected={range === r.id}
+                onClick={() => r.id !== range && handleDateChange(initialYear, initialMonth, r.id)}
+                className={`relative z-10 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-bold transition-colors ${range === r.id ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}
+              >
+                <span className="material-symbols-outlined text-[18px]">{r.icon}</span>
+                {r.label}
+              </button>
+            ))}
           </div>
 
-          <button className="flex items-center justify-between px-space-sm py-2 bg-surface-container-low rounded-lg text-left hover:bg-surface-container transition-colors border border-black/5">
-            <div>
-              <p className="font-label-sm text-label-sm text-on-surface-variant">Rango</p>
-              <p className="font-label-md text-label-md font-bold text-on-surface">
-                {initialRange === 'year' ? `Todo ${initialYear}` : 
-                 initialRange === '6m' ? 'Últimos 6M' : 
-                 `1 - ${new Date(initialYear, initialMonth, 0).getDate()} ${MONTHS[initialMonth - 1].substring(0, 3)}`}
-              </p>
+          {/* Navegador del periodo */}
+          <div className="flex-1 flex items-center gap-2 rounded-xl bg-gradient-to-r from-surface-container-low to-surface-container-low/40 ring-1 ring-black/5 px-2 py-1.5">
+            <button
+              onClick={() => { const p = stepTo(-1); handleDateChange(p.y, p.m, range); }}
+              aria-label="Periodo anterior"
+              className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-white hover:text-on-surface hover:shadow-sm active:scale-95 transition-all"
+            >
+              <span className="material-symbols-outlined">chevron_left</span>
+            </button>
+            <div key={periodTitle} className="flex-1 min-w-0 text-center animate-in fade-in slide-in-from-bottom-1 duration-300">
+              <p className="font-headline-sm text-lg md:text-xl font-black tracking-tight text-on-surface truncate">{periodTitle}</p>
+              <p className="text-[12px] text-on-surface-variant truncate">{periodSubtitle}</p>
             </div>
-            <span className="material-symbols-outlined text-lg text-on-surface-variant">calendar_today</span>
-          </button>
+            <button
+              onClick={() => handleDateChange(next.y, next.m, range)}
+              disabled={nextDisabled}
+              aria-label="Periodo siguiente"
+              className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-white hover:text-on-surface hover:shadow-sm active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"
+            >
+              <span className="material-symbols-outlined">chevron_right</span>
+            </button>
+            {!isToday && (
+              <button
+                onClick={() => handleDateChange(curYear, curMonth, range)}
+                className="shrink-0 h-8 px-3 rounded-full bg-primary-container text-on-primary text-[12px] font-bold shadow-sm hover:shadow-md active:scale-95 transition-all"
+              >
+                Hoy
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-space-xs overflow-x-auto pb-1 pt-1 scrollbar-none">
-          <button 
-            onClick={() => handleDateChange(new Date().getFullYear(), new Date().getMonth() + 1, 'month')} 
-            className={`px-3 py-1 rounded-full font-label-sm text-label-sm whitespace-nowrap shadow-sm hover:scale-105 transition-transform ${isCurrentMonth ? 'bg-primary-container text-on-primary font-bold' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'}`}
-          >
-            Mes Actual
-          </button>
-          <button 
-            onClick={() => handleDateChange(initialYear, initialMonth, 'year')}
-            className={`px-3 py-1 rounded-full font-label-sm text-label-sm whitespace-nowrap transition-colors ${initialRange === 'year' ? 'bg-primary-container text-on-primary font-bold' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'}`}
-          >
-            Año Completo
-          </button>
-          <button 
-            onClick={() => handleDateChange(new Date().getFullYear(), new Date().getMonth() + 1, '6m')}
-            className={`px-3 py-1 rounded-full font-label-sm text-label-sm whitespace-nowrap transition-colors ${initialRange === '6m' ? 'bg-primary-container text-on-primary font-bold' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'}`}
-          >
-            Últimos 6M
-          </button>
-        </div>
+        {/* Salto directo a un mes del año elegido */}
+        {range !== 'year' && (
+          <div className="relative flex gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-0.5">
+            {MONTHS.map((name, i) => {
+              const m = i + 1;
+              const selected = m === initialMonth;
+              const future = isFuture(initialYear, m);
+              return (
+                <button
+                  key={name}
+                  onClick={() => handleDateChange(initialYear, m, range)}
+                  disabled={future}
+                  aria-current={selected ? 'date' : undefined}
+                  className={`shrink-0 min-w-[52px] h-8 px-3 rounded-full text-[12px] font-bold transition-all active:scale-95 ${
+                    selected
+                      ? 'bg-primary-container text-on-primary shadow-md shadow-primary-container/30'
+                      : 'bg-surface-container-low text-on-surface-variant ring-1 ring-black/5 hover:bg-white hover:text-on-surface hover:shadow-sm'
+                  } disabled:opacity-30 disabled:pointer-events-none`}
+                >
+                  {name.slice(0, 3)}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-        <div className="flex items-center gap-space-xs pt-space-xs">
-          <button 
-            onClick={() => setActiveAirline('all')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-label-sm text-label-sm font-semibold border transition-all ${activeAirline === 'all' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-surface-container text-on-surface border-black/5 hover:bg-surface-container-highest'}`}
-          >
-            <span className="material-symbols-outlined text-sm">done_all</span>
-            Todas
-          </button>
-          <button 
-            onClick={() => setActiveAirline('7p')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-label-sm text-label-sm font-bold border transition-all ${activeAirline === '7p' ? 'bg-secondary/10 text-secondary border-secondary/30 ring-2 ring-secondary/20' : 'bg-surface-container-lowest text-on-surface-variant border-black/5 opacity-60 hover:opacity-100'}`}
-          >
-            <span className="w-2 h-2 rounded-full bg-secondary"></span>
-            AirPanama (7P)
-          </button>
-          <button 
-            onClick={() => setActiveAirline('cm')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-label-sm text-label-sm font-bold border transition-all ${activeAirline === 'cm' ? 'bg-primary-container/10 text-primary-container border-primary-container/30 ring-2 ring-primary-container/20' : 'bg-surface-container-lowest text-on-surface-variant border-black/5 opacity-60 hover:opacity-100'}`}
-          >
-            <span className="w-2 h-2 rounded-full bg-primary-container"></span>
-            Copa (CM)
-          </button>
+        {/* Aerolínea: control segmentado con el color de cada una */}
+        <div role="tablist" aria-label="Aerolínea" className="relative grid grid-cols-3 p-1 rounded-xl bg-surface-container-low ring-1 ring-black/5">
+          <span
+            aria-hidden="true"
+            className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg bg-white shadow-md ring-1 ring-black/5 transition-transform duration-300 ease-out"
+            style={{ transform: `translateX(${airlineIdx * 100}%)` }}
+          />
+          {AIRLINES.map(a => {
+            const selected = activeAirline === a.id;
+            return (
+              <button
+                key={a.id}
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setActiveAirline(a.id)}
+                className={`relative z-10 flex items-center justify-center gap-2 py-2 px-1 rounded-lg text-[13px] font-bold transition-colors ${selected ? a.active : 'text-on-surface-variant hover:text-on-surface'}`}
+              >
+                <span className={`w-2.5 h-2.5 shrink-0 rounded-full ${a.dot} ${selected ? 'ring-4 ring-current/15' : ''}`} />
+                <span className="truncate">{a.label}</span>
+                <span className={`hidden sm:inline-flex min-w-[26px] justify-center px-1.5 py-0.5 rounded-full text-[11px] tabular-nums ${selected ? 'bg-current/10' : 'bg-black/5'}`}>
+                  {a.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -328,13 +265,17 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
         <div className="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm flex flex-col justify-between space-y-space-xs border border-black/5">
           <div className="flex items-start justify-between">
             <span className="font-label-sm text-label-sm text-on-surface-variant font-semibold">OTP {activeAirline !== 'all' && (activeAirline === '7p' ? '(Air Panama)' : '(Copa)')}</span>
-            <span className={`inline-flex items-center font-label-sm text-[11px] font-bold px-1.5 py-0.5 rounded ${metrics.otp >= 90 ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
-              {metrics.otp >= 90 ? '▲ Óptimo' : '▼ Riesgo'}
-            </span>
+            {metrics.otpBase > 0 && (
+              <span className={`inline-flex items-center font-label-sm text-[11px] font-bold px-1.5 py-0.5 rounded ${metrics.otp >= 90 ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
+                {metrics.otp >= 90 ? '▲ Óptimo' : '▼ Riesgo'}
+              </span>
+            )}
           </div>
           <div>
-            <div className="font-headline-md text-headline-md font-bold text-on-surface tracking-tight">{metrics.otp.toFixed(1)}%</div>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">A tiempo vs demorados</p>
+            <div className="font-headline-md text-headline-md font-bold text-on-surface tracking-tight">{metrics.otpBase > 0 ? `${metrics.otp.toFixed(1)}%` : '—'}</div>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+              {metrics.otpBase > 0 ? `A tiempo vs demorados · ${metrics.otpBase} vuelos con hora` : 'Sin horas registradas en este periodo'}
+            </p>
           </div>
           <div className="pt-space-xs">
             <div className="relative h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
@@ -376,25 +317,27 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
         </div>
       </section>
 
-      <section className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-sm border border-black/5">
-        <div className="flex items-start justify-between">
+      <section className="bg-surface-container-lowest rounded-xl p-4 md:p-6 shadow-sm border border-black/5">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div>
             <h3 className="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight">Aerolíneas</h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant">Pasajeros transportados por día (Air Panama vs Copa)</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+              Pasajeros transportados por {initialRange === 'year' || initialRange === '6m' ? 'mes' : 'día'} (Air Panama vs Copa)
+            </p>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className="flex items-center gap-1 font-label-sm text-[12px] text-secondary font-bold">
-              <span className="w-2.5 h-2.5 rounded-full bg-secondary"></span> Air Panama
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/10 text-secondary font-label-sm text-[12px] font-bold transition-opacity ${activeAirline === 'cm' ? 'opacity-40' : ''}`}>
+              <span className="w-2 h-2 rounded-full bg-secondary"></span> Air Panama
             </span>
-            <span className="flex items-center gap-1 font-label-sm text-[12px] text-primary-container font-bold">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary-container"></span> Copa
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-container/10 text-primary-container font-label-sm text-[12px] font-bold transition-opacity ${activeAirline === '7p' ? 'opacity-40' : ''}`}>
+              <span className="w-2 h-2 rounded-full bg-primary-container"></span> Copa
             </span>
           </div>
         </div>
 
-        <div className="w-full h-48 mt-4 -ml-4">
+        <div className="w-full h-60 md:h-72 mt-6">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={metrics.dailyChart} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+            <AreaChart data={metrics.dailyChart} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}>
               <defs>
                 <linearGradient id="colorP7" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#bb001d" stopOpacity={0.3}/>
@@ -407,15 +350,24 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e3e5" />
               <XAxis 
-                dataKey="day" 
+                dataKey="label" 
                 axisLine={false} 
                 tickLine={false} 
                 tick={{ fontSize: 11, fill: '#74777e', fontWeight: 600 }}
-                tickMargin={10}
+                tickMargin={12}
+                padding={{ left: 16, right: 16 }}
                 interval="preserveStartEnd"
-                minTickGap={20}
+                minTickGap={16}
               />
-              <Tooltip content={<CustomTooltip monthLabel={MONTHS[initialMonth - 1].substring(0, 3)} />} cursor={{ stroke: '#c4c6ce', strokeWidth: 1, strokeDasharray: '4 4' }} />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                width={44}
+                tickCount={5}
+                tick={{ fontSize: 11, fill: '#9a9da3', fontWeight: 600 }}
+                tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : `${v}`)}
+              />
+              <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#c4c6ce', strokeWidth: 1, strokeDasharray: '4 4' }} />
               {(activeAirline === 'all' || activeAirline === 'cm') && (
                 <Area 
                   type="monotone" 
@@ -510,13 +462,13 @@ export default function MensualClient({ rawFlights, initialYear, initialMonth, i
                   { 
                     name: 'Air Panama', 
                     pax: metrics.totalPaxAP, 
-                    empty: Math.max(0, (metrics.totalCap * (metrics.apCount / metrics.total)) - metrics.totalPaxAP), // Approx max cap per airline
+                    empty: Math.max(0, metrics.totalCapAP - metrics.totalPaxAP),
                     fill: '#bb001d'
                   },
                   { 
                     name: 'Copa', 
                     pax: metrics.totalPaxCM, 
-                    empty: Math.max(0, (metrics.totalCap * (metrics.cmCount / metrics.total)) - metrics.totalPaxCM), 
+                    empty: Math.max(0, metrics.totalCapCM - metrics.totalPaxCM),
                     fill: '#0a2540'
                   }
                 ]}
