@@ -487,7 +487,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
               <Link href="/forgot-password" style={{ fontSize: '0.85rem', color: '#666', textDecoration: 'none', textAlign: 'left' }}>
                 ¿Olvidaste tu contraseña?
               </Link>
-              <button type="button" className="terms-link" style={{ fontSize: '0.8rem', fontWeight: 600, color: '#888' }} onClick={() => setShowTerms(true)}>
+              <button type="button" className="terms-link" style={{ fontSize: '0.8rem', fontWeight: 600, color: '#595959' }} onClick={() => setShowTerms(true)}>
                 Términos y privacidad
               </button>
             </div>
