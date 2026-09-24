@@ -4,7 +4,7 @@ import { requireApprovedUser, requireSupervisor, type SessionUser } from "@/lib/
 import { diffFields, logAudit } from "@/lib/audit";
 import { flightLabel, getFlight, pendingDeletionIds, softDeleteFlight, TABLE, type TipoVuelo } from "@/lib/historico";
 import { loadFleetKnowledge } from "@/lib/fleet/knowledge";
-import { applyFleetRules, canonicalFlightNumber, legKey, normalizeRegistration, resolveAircraft } from "@/lib/fleet/rules";
+import { canonicalFlightNumber, normalizeRegistration, resolveAircraft } from "@/lib/fleet/rules";
 import type { ImportRow } from "@/lib/import/registroMensual";
 import type { ReporteVuelo } from "@/lib/reportes/metrics";
 
@@ -521,135 +521,6 @@ export async function deleteSalidaMalek(id: string, motivo: string) {
   return softDeleteFlight('salida', id, user, cleanMotivo(motivo));
 }
 
-// Registro de llegada/salida tal como lo arma el formulario o la importación de Excel
-export interface FlightRecordInput {
-  fecha: string;
-  aerolinea: string;
-  numero_vuelo: string;
-  origen?: string;
-  destino?: string;
-  hora_itinerario: string;
-  hora_itinerario_llegada?: string;
-  hora_real_llegada?: string;
-  hora_itinerario_salida?: string;
-  hora_real_salida?: string;
-  estado_final: string;
-  pasajeros_abordo: number;
-  capacidad_total: number;
-  avion?: string;
-  matricula?: string;
-}
-
-export async function insertFlightRecords(data: FlightRecordInput[], type: 'llegadas' | 'salidas') {
-  const user = await requireApprovedUser();
-  if (!Array.isArray(data) || (type !== 'llegadas' && type !== 'salidas')) {
-    return { success: false, error: 'Datos inválidos' };
-  }
-  const supabase = getAdminSupabase();
-  const table = 'manual_flights_log';
-  
-  const dates = [...new Set(data.map(d => d.fecha))];
-  // Seleccionamos los campos en inglés que necesitamos para la búsqueda
-  const { data: existing, error: fetchError } = await supabase
-    .from(table)
-    .select('id, flightDate, flightNumber, origin, destination')
-    .in('flightDate', dates);
-
-  if (fetchError) {
-    return { success: false, error: fetchError.message };
-  }
-
-  // Clave: fecha + número + ruta (el 693 tiene dos tramos el mismo día)
-  const existingMap = new Map(existing?.map(r => [legKey(r), r.id]) || []);
-  const kb = await loadFleetKnowledge();
-  
-  const newData = [];
-  const toUpdate = [];
-
-  for (const d of data) {
-    const isLlegada = type === 'llegadas';
-    const origin = isLlegada ? (d.origen || 'PAC') : (d.origen || 'DAV');
-    const destination = isLlegada ? (d.destino || 'DAV') : (d.destino || 'PAC');
-
-    // Mapeo hacia el esquema en INGLÉS de manual_flights_log
-    // flightNumber en la BD guarda solo el número sin prefijo (670, 682, CM013, etc.)
-    // Limpiar prefijos 7P-, CM-, y sufijos como ' A', ' B'
-    const flightNum = d.numero_vuelo
-      .replace(/^7P-?/i, '')
-      .replace(/^CM-?/i, 'CM')
-      .replace(/\s+[A-Z]$/, '') // quitar sufijos tipo ' A'
-      .trim();
-    const regRaw = (d.matricula || '').toString().trim().replace(/[^A-Z0-9-]/gi, '');
-    const mappedRecord: Record<string, string | number | boolean | null> = {
-       flightDate: d.fecha,
-       airline: d.aerolinea,
-       flightNumber: flightNum.substring(0, 10),
-       origin: origin,
-       destination: destination,
-       status_override: d.estado_final || 'LLEGÓ',
-       paxCount: d.pasajeros_abordo || 0,
-       paxMax: d.capacidad_total || (d.aerolinea === 'Air Panama' ? 78 : 160),
-       aircraft: (d.avion || (d.aerolinea === 'Air Panama' ? 'F50' : 'B738')).substring(0, 10),
-       aircraftReg: regRaw ? regRaw.substring(0, 10) : null,
-       is_archived: true
-    };
-
-    // Tiempos
-    if (isLlegada) {
-       const rawItin = d.hora_itinerario_llegada || d.hora_itinerario;
-       const rawReal = d.hora_real_llegada;
-       mappedRecord.arrivalTimeLocal = rawItin ? new Date(rawItin).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : '12:00';
-       mappedRecord.actual_arrival_time = rawReal ? new Date(rawReal).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : null;
-    } else {
-       const rawItin = d.hora_itinerario_salida || d.hora_itinerario;
-       const rawReal = d.hora_real_salida;
-       mappedRecord.departureTimeLocal = rawItin ? new Date(rawItin).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : '12:00';
-       mappedRecord.actual_departure_time = rawReal ? new Date(rawReal).toLocaleTimeString('en-GB', {timeZone: 'UTC', hour: '2-digit', minute: '2-digit'}) : null;
-    }
-
-    // Matrícula normalizada, modelo y capacidad según la flota conocida
-    const record = applyFleetRules(mappedRecord as { aircraft?: string | null; aircraftReg?: string | null; paxMax?: number | null }, kb) as typeof mappedRecord;
-
-    // Buscamos si existe la llave para actualizar (con el número ya limpio: "7P670" → "670")
-    const key = legKey({ flightDate: d.fecha, flightNumber: flightNum.substring(0, 10), origin, destination });
-    if (existingMap.has(key)) {
-      toUpdate.push({ id: existingMap.get(key), ...record });
-    } else {
-      newData.push(record);
-    }
-  }
-
-  let updatedCount = 0;
-  if (toUpdate.length > 0) {
-    const updatePromises = toUpdate.map(async (record) => {
-      const { id, ...updates } = record;
-      const { error } = await supabase.from(table).update(updates).eq('id', id);
-      if (!error) updatedCount++;
-    });
-    await Promise.all(updatePromises);
-  }
-
-  if (newData.length > 0) {
-    const { error } = await supabase.from(table).insert(newData);
-    if (error) {
-      console.error("Error bulk inserting to", table, ":", error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  const vuelos = data.map(d => `${d.numero_vuelo} (${d.fecha})`);
-  await logAudit({
-    tipo_evento: 'creacion',
-    actor: user,
-    entidad: 'vuelo',
-    nombre_referencia: vuelos.slice(0, 3).join(', ') + (vuelos.length > 3 ? ` y ${vuelos.length - 3} más` : ''),
-    descripcion: `Agregó ${data.length} ${type === 'llegadas' ? 'llegada(s)' : 'salida(s)'} manualmente: ${newData.length} nuevo(s), ${updatedCount} actualizado(s).`,
-    detalles_extra: { tipo: type, vuelos: vuelos.slice(0, 50) },
-  });
-  
-  return { success: true, inserted: newData.length, updated: updatedCount };
-}
-
 export async function getReporteMensual(year: number, month: number, range: 'month' | 'year' | '6m' = 'month') {
   await requireApprovedUser();
   const supabase = await createClient();
@@ -839,4 +710,90 @@ export async function importHistoricoRows(rows: HistoricoImportRow[], info: Impo
   });
 
   return { success: true, inserted, updated };
+}
+
+// ---------------------------------------------------------------------------
+// Agregar un vuelo directamente al Registro Histórico (Registro → Agregar vuelo)
+// ---------------------------------------------------------------------------
+export type HistoricoFlightInput = {
+  tipo: 'llegada' | 'salida';
+  fecha: string;               // YYYY-MM-DD
+  aerolinea: 'Air Panama' | 'Copa Airlines';
+  numero_vuelo: string;
+  ruta: string;                // el otro aeropuerto (origen si llega, destino si sale)
+  salida_programada?: string;  // HH:MM
+  llegada_programada?: string; // HH:MM
+  hora_real?: string;          // HH:MM de la llegada (o salida) en David
+  estado_final: string;
+  pasajeros: number;
+  capacidad: number;
+  matricula?: string;
+  avion?: string;
+};
+
+const ESTADOS_HISTORICO = new Set(['LLEGÓ', 'CUMPLIDO', 'DEMORADO', 'DESVIADO', 'CANCELADO']);
+const isHHMM = (v: unknown): v is string => typeof v === 'string' && /^\d{2}:\d{2}$/.test(v);
+
+export async function addHistoricoFlight(input: HistoricoFlightInput) {
+  const user = await requireApprovedUser();
+  const tipo = input?.tipo === 'llegada' || input?.tipo === 'salida' ? input.tipo : null;
+  const aerolinea = input?.aerolinea === 'Air Panama' || input?.aerolinea === 'Copa Airlines' ? input.aerolinea : null;
+  const fecha = typeof input?.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.fecha) ? input.fecha : null;
+  const ruta = typeof input?.ruta === 'string' && /^[A-Z]{3,4}$/.test(input.ruta) ? input.ruta : null;
+  const numero = typeof input?.numero_vuelo === 'string' && input.numero_vuelo.trim() ? canonicalFlightNumber(input.numero_vuelo.trim().slice(0, 12), aerolinea) : null;
+  const estado = typeof input?.estado_final === 'string' && ESTADOS_HISTORICO.has(input.estado_final) ? input.estado_final : null;
+  if (!tipo || !aerolinea || !fecha || !ruta || !numero || !estado) {
+    return { success: false, error: 'Revisa tipo, fecha, aerolínea, número, ruta y estado del vuelo' };
+  }
+  if (ruta === 'DAV') return { success: false, error: 'El otro aeropuerto no puede ser David' };
+
+  const supabase = getAdminSupabase();
+  const table = TABLE[tipo];
+  const routeCol = tipo === 'llegada' ? 'origen' : 'destino';
+
+  // Mismo vuelo, mismo día y misma ruta: no se duplica
+  const { data: sameDay } = await supabase.from(table).select(`id, numero_vuelo, ${routeCol}`).eq('fecha', fecha).is('eliminado_en', null);
+  const dup = ((sameDay ?? []) as unknown as Record<string, string>[])
+    .some(r => canonicalFlightNumber(r.numero_vuelo, aerolinea) === numero && r[routeCol] === ruta);
+  if (dup) return { success: false, error: `El ${numero} del ${fecha} (${tipo === 'llegada' ? `${ruta} → DAV` : `DAV → ${ruta}`}) ya está en el Registro` };
+
+  const at = (hhmm?: string) => (isHHMM(hhmm) ? new Date(`${fecha}T${hhmm}:00-05:00`).toISOString() : null);
+  const salidaProg = at(input.salida_programada);
+  const llegadaProg = at(input.llegada_programada);
+  const real = at(input.hora_real) ?? (tipo === 'llegada' ? llegadaProg : salidaProg);
+  const kb = await loadFleetKnowledge();
+  const aircraft = resolveAircraft({ aircraft: input.avion ?? null, aircraftReg: input.matricula ?? null }, kb);
+  const matricula = input.matricula ? normalizeRegistration(input.matricula) : null;
+
+  const row: Record<string, unknown> = {
+    fecha,
+    aerolinea,
+    numero_vuelo: numero,
+    [routeCol]: ruta,
+    estado_final: estado,
+    pasajeros_abordo: Math.max(0, Math.min(1000, Math.round(Number(input.pasajeros) || 0))),
+    capacidad_total: aircraft.paxMax ?? Math.max(0, Math.min(1000, Math.round(Number(input.capacidad) || 0))),
+    matricula,
+    avion: aircraft.code ?? (input.avion ? input.avion.toUpperCase().slice(0, 10) : null),
+    hora_itinerario: tipo === 'llegada' ? llegadaProg : salidaProg,
+    hora_itinerario_salida: salidaProg,
+    hora_itinerario_llegada: llegadaProg,
+    fuente: 'manual',
+  };
+  if (tipo === 'llegada') { row.hora_real_llegada = real; row.hora_llegada_real = real; }
+  else { row.hora_real_salida = real; row.hora_salida_real = real; }
+
+  const { data, error } = await supabase.from(table).insert(row).select('id').single();
+  if (error) return { success: false, error: error.message };
+
+  await logAudit({
+    tipo_evento: 'creacion',
+    actor: user,
+    entidad: 'vuelo',
+    entidad_id: data.id,
+    nombre_referencia: flightLabel(row, tipo),
+    descripcion: `Agregó el vuelo al Registro (${estado}, ${row.pasajeros_abordo} pasajeros)`,
+    detalles_extra: { vuelo: row },
+  });
+  return { success: true };
 }

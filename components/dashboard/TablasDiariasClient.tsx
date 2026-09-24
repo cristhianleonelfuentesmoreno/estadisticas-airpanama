@@ -2,8 +2,9 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, insertFlightRecords, getImportKnowledge, importHistoricoRows, type FlightRecordInput, type HistoricoUpdates } from "@/app/actions/flights";
+import { updateLlegadaMalek, updateSalidaMalek, deleteLlegadaMalek, deleteSalidaMalek, getImportKnowledge, importHistoricoRows, type HistoricoUpdates } from "@/app/actions/flights";
 import { requestFlightDeletion } from "@/app/actions/deletionRequests";
+import { ManualFlightForm } from "./ManualFlightForm";
 import { can, type Role } from "@/lib/permissions";
 import { parseRegistroMensual, type ImportResult, type SheetInput, type Cell } from "@/lib/import/registroMensual";
 import * as XLSX from 'xlsx';
@@ -143,23 +144,8 @@ export default function TablasDiariasClient({
   // Supervisores eliminan directo; los usuarios envían una solicitud
   const canDelete = can.deleteFlights(role);
   
-  // Add Flight Form State
-  const [addFormData, setAddFormData] = useState({
-    type: 'llegadas' as 'llegadas' | 'salidas',
-    aerolinea: 'Air Panama',
-    numero_vuelo: '',
-    origen: '',
-    destino: '',
-    fecha: currentDateStr,
-    hora_itinerario_salida: '',
-    hora_real_salida: '',
-    hora_itinerario_llegada: '',
-    hora_real_llegada: '',
-    estado_final: 'LLEGÓ',
-    pasajeros_abordo: 0,
-    capacidad_total: 78,
-    avion: 'DH8D'
-  });
+  // Vuelos agregados desde "Agregar vuelo" (al cerrar se recarga para verlos)
+  const [addedFlights, setAddedFlights] = useState(0);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingFlight, setEditingFlight] = useState<MalekFlight | null>(null);
   const [editFormData, setEditFormData] = useState({
@@ -358,45 +344,6 @@ export default function TablasDiariasClient({
     } finally {
       setDeleteBusy(false);
       setFlightToDelete(null);
-    }
-  };
-  const handleAddFlightSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const isLlegada = addFormData.type === 'llegadas';
-    
-    // Create correct Date objects (Using real time for both real and itin)
-    const realSalida = new Date(`${addFormData.fecha}T${addFormData.hora_real_salida || '00:00'}:00-05:00`);
-    const itinSalida = realSalida;
-    const realLlegada = new Date(`${addFormData.fecha}T${addFormData.hora_real_llegada || '00:00'}:00-05:00`);
-    const itinLlegada = realLlegada;
-    
-    const record: FlightRecordInput = {
-      fecha: addFormData.fecha,
-      aerolinea: addFormData.aerolinea,
-      numero_vuelo: addFormData.numero_vuelo,
-      estado_final: addFormData.estado_final,
-      pasajeros_abordo: Number(addFormData.pasajeros_abordo),
-      capacidad_total: Number(addFormData.capacidad_total),
-      hora_itinerario_salida: itinSalida.toISOString(),
-      hora_real_salida: realSalida.toISOString(),
-      hora_itinerario_llegada: itinLlegada.toISOString(),
-      hora_real_llegada: realLlegada.toISOString(),
-      hora_itinerario: (isLlegada ? itinLlegada : itinSalida).toISOString(),
-    };
-
-    if (isLlegada) {
-      record.origen = addFormData.origen;
-      record.hora_real_llegada = realLlegada.toISOString();
-    } else {
-      record.destino = addFormData.destino;
-      record.hora_real_salida = realSalida.toISOString();
-    }
-
-    const res = await insertFlightRecords([record], addFormData.type);
-    if (res.success) {
-      window.location.reload();
-    } else {
-      alert("Error al guardar: " + res.error);
     }
   };
 
@@ -1171,158 +1118,34 @@ export default function TablasDiariasClient({
         </div>
       )}
 
-      {/* MODAL: Agregar Vuelo */}
+      {/* MODAL: Agregar vuelo al Registro (mismo formulario guiado de Próximos Vuelos) */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">add_circle</span>
-                Agregar Registro de Vuelo
-              </h2>
-              <button onClick={() => setIsAddModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 transition-colors">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-50 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[94vh]">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white">
+              <div>
+                <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">add_circle</span>
+                  Agregar vuelo al Registro
+                </h2>
+                <p className="text-[12px] text-slate-500">Para vuelos que ya se realizaron. Toca las opciones: casi todo se completa solo.</p>
+              </div>
+              <button onClick={() => setIsAddModalOpen(false)} aria-label="Cerrar" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            
-            <form onSubmit={handleAddFlightSubmit} className="flex flex-col flex-1 overflow-hidden">
-              <div className="p-6 overflow-y-auto flex flex-col gap-5">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Tipo de Operación</label>
-                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.type} onChange={(e) => setAddFormData({...addFormData, type: e.target.value as 'llegadas' | 'salidas'})} required>
-                      <option value="llegadas">Llegada</option>
-                      <option value="salidas">Salida</option>
-                    </select>
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Fecha (YYYY-MM-DD)</label>
-                    <input type="date" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.fecha} onChange={(e) => setAddFormData({...addFormData, fecha: e.target.value})} required />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Aerolínea</label>
-                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.aerolinea} onChange={(e) => setAddFormData({...addFormData, aerolinea: e.target.value})} required>
-                      <option value="Air Panama">Air Panama</option>
-                      <option value="Copa Airlines">Copa Airlines</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Avión</label>
-                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.avion} 
-                      onChange={(e) => {
-                        const avionStr = e.target.value;
-                        const defaultCap = AIRCRAFT_MODELS.find(m => m.id === avionStr)?.cap || 100;
-                        setAddFormData({...addFormData, avion: avionStr, capacidad_total: defaultCap});
-                      }} required>
-                      {AIRCRAFT_MODELS.map(model => (
-                        <option key={model.id} value={model.id}>{model.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Número de Vuelo</label>
-                    <input list="add-flight-numbers" type="text" placeholder="Ej: 7P-972" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.numero_vuelo} onChange={(e) => setAddFormData({...addFormData, numero_vuelo: e.target.value})} required />
-                    <datalist id="add-flight-numbers">
-                      {COMMON_FLIGHTS.map(f => <option key={f} value={f} />)}
-                    </datalist>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">{addFormData.type === 'llegadas' ? 'Origen' : 'Destino'}</label>
-                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.type === 'llegadas' ? addFormData.origen : addFormData.destino} 
-                      onChange={(e) => addFormData.type === 'llegadas' ? setAddFormData({...addFormData, origen: e.target.value}) : setAddFormData({...addFormData, destino: e.target.value})} required>
-                      <option value="">Seleccione...</option>
-                      {AIRPORTS.map(apt => (
-                        <option key={apt.code} value={apt.code}>{apt.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Estado Final</label>
-                    <select className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.estado_final} onChange={(e) => setAddFormData({...addFormData, estado_final: e.target.value})} required>
-                      <option value="LLEGÓ">Arribo</option>
-                      <option value="CUMPLIDO">Cumplido</option>
-                      <option value="DEMORADO">Demorado</option>
-                      <option value="DESVIADO">Desviado</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5 hidden">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">
-                      Hora Itin. Salida (HH:MM)
-                    </label>
-                    <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.hora_itinerario_salida} onChange={(e) => setAddFormData({...addFormData, hora_itinerario_salida: e.target.value})} />
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1.5 w-1/2">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">
-                      Hora Real Salida (HH:MM)
-                    </label>
-                    <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.hora_real_salida} onChange={(e) => setAddFormData({...addFormData, hora_real_salida: e.target.value})} />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5 hidden">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">
-                      Hora Itin. Llegada (HH:MM)
-                    </label>
-                    <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.hora_itinerario_llegada} onChange={(e) => setAddFormData({...addFormData, hora_itinerario_llegada: e.target.value})} />
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1.5 w-1/2">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">
-                      Hora Real Llegada (HH:MM)
-                    </label>
-                    <input type="time" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.hora_real_llegada} onChange={(e) => setAddFormData({...addFormData, hora_real_llegada: e.target.value})} />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Pasajeros</label>
-                    <input type="number" min="0" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.pasajeros_abordo} onChange={(e) => setAddFormData({...addFormData, pasajeros_abordo: parseInt(e.target.value)})} required />
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <label className="text-[12px] text-slate-500 font-bold uppercase tracking-wider">Capacidad</label>
-                    <input type="number" min="0" className="h-10 px-3 bg-white text-slate-800 text-sm font-semibold rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary outline-none" 
-                      value={addFormData.capacidad_total} onChange={(e) => setAddFormData({...addFormData, capacidad_total: parseInt(e.target.value)})} required />
-                  </div>
-                </div>
-
-              </div>
-              <div className="p-6 border-t border-slate-100 bg-white shrink-0">
-                <div className="flex items-center gap-3">
-                  <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 h-11 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors">
-                    Cancelar
-                  </button>
-                  <button type="submit" className="flex-1 h-11 rounded-xl bg-primary text-white font-bold shadow-md hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined text-[18px]">save</span>
-                    Guardar
-                  </button>
-                </div>
-              </div>
-            </form>
+            <div className="p-5 sm:p-6 overflow-y-auto">
+              <ManualFlightForm mode="registro" defaultDate={currentDateStr} onSaved={() => setAddedFlights(n => n + 1)} />
+            </div>
+            <div className="px-6 py-3 border-t border-slate-200 bg-white flex items-center justify-between gap-3">
+              <span className="text-[12px] text-slate-500">{addedFlights > 0 ? `${addedFlights} ${addedFlights === 1 ? 'vuelo agregado' : 'vuelos agregados'}` : 'Puedes agregar varios seguidos'}</span>
+              <button
+                onClick={() => { setIsAddModalOpen(false); if (addedFlights > 0) window.location.reload(); }}
+                className="h-10 px-5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
+              >
+                {addedFlights > 0 ? 'Listo' : 'Cerrar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

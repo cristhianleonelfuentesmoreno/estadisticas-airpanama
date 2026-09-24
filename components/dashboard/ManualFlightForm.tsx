@@ -3,11 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { addMultipleManualFlights, getManualFormKnowledge, type FrequentFlight, type KnownAircraft } from "@/app/actions/manualFlights";
+import { addHistoricoFlight } from "@/app/actions/flights";
 import { AIRPORTS, airportLabel } from "@/lib/airports";
 import { capacityOf, routeMinutes, type FleetKnowledge } from "@/lib/fleet/rules";
 import { estimatedArrival, reviewWarnings } from "@/lib/ocr/review";
 
-// Ingreso manual guiado: se elige en vez de escribir. Un vuelo regular completa ruta,
+// Ingreso manual guiado: se elige en vez de escribir. Dos usos:
+//  - "itinerario": vuelo del día en Próximos Vuelos (con tripulación)
+//  - "registro": vuelo ya realizado, directo al Registro Histórico (llegada/salida en David,
+//    hora real y estado final; el histórico no guarda tripulación)
+// Un vuelo regular completa ruta,
 // horario y avión; una matrícula completa modelo y capacidad; la tripulación se elige
 // por rol. Todo sale de la base de conocimiento y del histórico.
 
@@ -48,15 +53,33 @@ function Chip({ active, onClick, children, title, color }: { active: boolean; on
   );
 }
 
-export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
+type Tipo = "llegada" | "salida";
+const ESTADOS: { value: string; label: string; tone: string }[] = [
+  { value: "LLEGÓ", label: "Llegó", tone: "#059669" },
+  { value: "CUMPLIDO", label: "Cumplido", tone: "#059669" },
+  { value: "DEMORADO", label: "Demorado", tone: "#d97706" },
+  { value: "DESVIADO", label: "Desviado", tone: "#7c3aed" },
+  { value: "CANCELADO", label: "Cancelado", tone: "#dc2626" },
+];
+
+export function ManualFlightForm({ onSaved, mode = "itinerario", defaultDate }: {
+  onSaved: () => void;
+  mode?: "itinerario" | "registro";
+  defaultDate?: string;
+}) {
+  const isRegistro = mode === "registro";
   const [data, setData] = useState<Knowledge | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [date, setDate] = useState(todayPanama());
+  const [date, setDate] = useState(defaultDate || todayPanama());
+  const [tipo, setTipo] = useState<Tipo>("llegada");
+  const [realTime, setRealTime] = useState("");
+  const [estado, setEstado] = useState("");
   const [airline, setAirline] = useState<Airline>("Air Panama");
   const [flightNumber, setFlightNumber] = useState("");
   const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
+  // En registro arranca como llegada: David es el destino
+  const [destination, setDestination] = useState(isRegistro ? "DAV" : "");
   const [departure, setDeparture] = useState("");
   const [arrival, setArrival] = useState("");
   const [arrivalTouched, setArrivalTouched] = useState(false);
@@ -114,14 +137,34 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
     setArrival(dep ? estimatedArrival({ airline, origin: ori, destination: des, departureTimeLocal: dep }, kb) : "");
   };
 
+  const chooseTipo = (t: Tipo) => {
+    if (t === tipo) return;
+    const other = tipo === "llegada" ? origin : destination;
+    setTipo(t);
+    const ori = t === "llegada" ? (other === "DAV" ? "" : other) : "DAV";
+    const des = t === "llegada" ? "DAV" : (other === "DAV" ? "" : other);
+    setOrigin(ori);
+    setDestination(des);
+    recalcArrival(departure, ori, des);
+  };
+  const setOtherAirport = (code: string) => {
+    const ori = tipo === "llegada" ? code : "DAV";
+    const des = tipo === "llegada" ? "DAV" : code;
+    setOrigin(ori);
+    setDestination(des);
+    recalcArrival(departure, ori, des);
+  };
+
   const chooseAirline = (a: Airline) => {
     if (a === airline) return;
     setAirline(a);
-    setFlightNumber(""); setOrigin(""); setDestination(""); setDeparture(""); setArrival(""); setArrivalTouched(false);
+    setFlightNumber(""); setOrigin(isRegistro && tipo === "salida" ? "DAV" : ""); setDestination(isRegistro && tipo === "llegada" ? "DAV" : "");
+    setDeparture(""); setArrival(""); setArrivalTouched(false); setRealTime("");
     setRegistration(""); setModel(""); setPaxMax(""); setCaptain(""); setFirstOfficer(""); setCabin([]);
   };
 
   const pickFlight = (f: (typeof frequent)[number]) => {
+    if (isRegistro) setTipo(f.destination === "DAV" ? "llegada" : "salida");
     setFlightNumber(f.flightNumber);
     setOrigin(f.origin);
     setDestination(f.destination);
@@ -164,18 +207,52 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
     paxCount: paxNum ?? null, paxMax: capNum || null,
   };
   const warnings = kb ? reviewWarnings(draft, kb).filter(w => !w.startsWith("Hora no leída")) : [];
-  const missing = [
-    !flightNumber && "número de vuelo",
-    (!origin || !destination) && "ruta",
-    !departure && "hora de salida",
-    !arrival && "hora de llegada",
-  ].filter(Boolean) as string[];
+  const estadoFinal = estado || (tipo === "llegada" ? "LLEGÓ" : "CUMPLIDO");
+  const cancelled = estadoFinal === "CANCELADO";
+  const missing = (isRegistro
+    ? [
+        !flightNumber && "número de vuelo",
+        (!origin || !destination) && (tipo === "llegada" ? "de dónde viene" : "a dónde va"),
+        !cancelled && tipo === "llegada" && !arrival && !realTime && "hora de llegada",
+        !cancelled && tipo === "salida" && !departure && !realTime && "hora de salida",
+      ]
+    : [
+        !flightNumber && "número de vuelo",
+        (!origin || !destination) && "ruta",
+        !departure && "hora de salida",
+        !arrival && "hora de llegada",
+      ]
+  ).filter(Boolean) as string[];
   const blocking = missing.length > 0 || (origin !== "" && origin === destination) || (occupancy != null && paxNum! > capNum);
 
   const save = async () => {
     if (blocking) return;
     setSaving(true);
     try {
+      if (isRegistro) {
+        const res = await addHistoricoFlight({
+          tipo,
+          fecha: date,
+          aerolinea: airline,
+          numero_vuelo: flightNumber.trim(),
+          ruta: tipo === "llegada" ? origin : destination,
+          salida_programada: departure || undefined,
+          llegada_programada: arrival || undefined,
+          hora_real: realTime || undefined,
+          estado_final: estadoFinal,
+          pasajeros: paxNum ?? 0,
+          capacidad: capNum,
+          matricula: registration || undefined,
+          avion: model || undefined,
+        });
+        if (!res.success) throw new Error(res.error);
+        toast.success(`${brand.prefix}-${flightNumber} agregado al Registro del ${date}`);
+        setFlightNumber(""); setDeparture(""); setArrival(""); setArrivalTouched(false); setRealTime(""); setEstado("");
+        setRegistration(""); setModel(""); setPaxMax(""); setPax("");
+        setOrigin(tipo === "salida" ? "DAV" : ""); setDestination(tipo === "llegada" ? "DAV" : "");
+        onSaved();
+        return;
+      }
       await addMultipleManualFlights([{
         flightNumber: flightNumber.trim(),
         airline,
@@ -269,6 +346,31 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
 
       {/* 3. Ruta y horario */}
       <Step n={3} title="Ruta y horario" hint={minutes ? `duración de la ruta: ${minutes} min` : undefined}>
+        {isRegistro ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              {(["llegada", "salida"] as Tipo[]).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => chooseTipo(t)}
+                  className={`h-11 rounded-xl border-2 font-bold text-[14px] flex items-center justify-center gap-1.5 transition-all ${tipo === t ? "text-white shadow-md" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}
+                  style={tipo === t ? { background: brand.color, borderColor: brand.color } : undefined}
+                >
+                  <span className="material-symbols-outlined text-[18px]">{t === "llegada" ? "flight_land" : "flight_takeoff"}</span>
+                  {t === "llegada" ? "Llegó a David" : "Salió de David"}
+                </button>
+              ))}
+            </div>
+            <label className="flex flex-col gap-1 min-w-0">
+              <span className={caption}>{tipo === "llegada" ? "Viene de" : "Va a"}</span>
+              <select value={tipo === "llegada" ? origin : destination} onChange={e => setOtherAirport(e.target.value)} className={field}>
+                <option value="">Elegir…</option>
+                {AIRPORTS.filter(a => a.code !== "DAV").map(a => <option key={a.code} value={a.code}>{airportLabel(a.code)}</option>)}
+              </select>
+            </label>
+          </div>
+        ) : (
         <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
           <label className="flex flex-col gap-1 min-w-0">
             <span className={caption}>Origen</span>
@@ -294,8 +396,9 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
             </select>
           </label>
         </div>
+        )}
         <div className="flex gap-2 mt-2">
-          {!origin && !destination && (
+          {!isRegistro && !origin && !destination && (
             <>
               <Chip active={false} onClick={() => setDestination("DAV")}>Llega a David</Chip>
               <Chip active={false} onClick={() => setOrigin("DAV")}>Sale de David</Chip>
@@ -304,14 +407,21 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
         </div>
         <div className="grid grid-cols-2 gap-3 mt-3">
           <label className="flex flex-col gap-1">
-            <span className={caption}>Salida</span>
+            <span className={caption}>{isRegistro ? "Salida programada" : "Salida"}</span>
             <input type="time" value={departure} onChange={e => { setDeparture(e.target.value); recalcArrival(e.target.value, origin, destination); }} className={field} />
           </label>
           <label className="flex flex-col gap-1">
-            <span className={caption}>Llegada{!arrivalTouched && arrival ? " · calculada" : ""}</span>
+            <span className={caption}>{isRegistro ? "Llegada programada" : "Llegada"}{!arrivalTouched && arrival ? " · calculada" : ""}</span>
             <input type="time" value={arrival} onChange={e => { setArrival(e.target.value); setArrivalTouched(true); }} className={field} />
           </label>
         </div>
+        {isRegistro && (
+          <label className="flex flex-col gap-1 mt-3 sm:max-w-[50%]">
+            <span className={caption}>{tipo === "llegada" ? "Hora real de llegada a David" : "Hora real de salida de David"}</span>
+            <input type="time" value={realTime} onChange={e => setRealTime(e.target.value)} className={field} />
+            <span className="text-[12px] text-slate-500">Déjala vacía si fue a la hora programada.</span>
+          </label>
+        )}
       </Step>
 
       {/* 4. Avión */}
@@ -349,8 +459,17 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
       </Step>
 
       {/* 5. Tripulación y pasajeros */}
-      <Step n={5} title={isAP ? "Tripulación y pasajeros" : "Pasajeros"}>
-        {isAP && (
+      <Step n={5} title={isRegistro ? "Estado y pasajeros" : isAP ? "Tripulación y pasajeros" : "Pasajeros"}>
+        {isRegistro && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {ESTADOS.filter(e => (tipo === "llegada" ? e.value !== "CUMPLIDO" : e.value !== "LLEGÓ")).map(e => (
+              <Chip key={e.value} active={estadoFinal === e.value} onClick={() => setEstado(e.value)} color={e.tone}>
+                {e.label}
+              </Chip>
+            ))}
+          </div>
+        )}
+        {isAP && !isRegistro && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="flex flex-col gap-1">
@@ -384,7 +503,7 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
             </div>
           </>
         )}
-        <div className={`flex items-end gap-3 ${isAP ? "mt-4" : ""}`}>
+        <div className={`flex items-end gap-3 ${isAP && !isRegistro ? "mt-4" : ""}`}>
           <label className="flex flex-col gap-1 w-32">
             <span className={caption}>Pasajeros</span>
             <input type="number" inputMode="numeric" min={0} value={pax} onChange={e => setPax(e.target.value)} placeholder="0" className={field} />
@@ -406,11 +525,12 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-[18px] font-black" style={{ color: brand.color }}>{brand.prefix}-{flightNumber || "…"}</span>
           <span className="text-[14px] font-bold text-slate-800">{origin || "?"} → {destination || "?"}</span>
-          <span className="text-[14px] text-slate-600">{departure || "--:--"} – {arrival || "--:--"}</span>
+          <span className="text-[14px] text-slate-600">{departure || "--:--"} – {arrival || "--:--"}{isRegistro && realTime ? ` · real ${realTime}` : ""}</span>
+          {isRegistro && <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700">{ESTADOS.find(e => e.value === estadoFinal)?.label}</span>}
           <span className="text-[14px] text-slate-600">{model || "avión ?"}{registration ? ` · ${registration}` : ""}</span>
           <span className="text-[14px] text-slate-600">{paxNum ?? "?"}/{capNum || "?"} pax</span>
         </div>
-        {isAP && pilotLine && <p className="text-[13px] text-slate-600">{pilotLine}{cabin.length ? ` · Cabina: ${cabin.join(", ")}` : ""}</p>}
+        {isAP && !isRegistro && pilotLine && <p className="text-[13px] text-slate-600">{pilotLine}{cabin.length ? ` · Cabina: ${cabin.join(", ")}` : ""}</p>}
         {(missing.length > 0 || warnings.length > 0) && (
           <div className="flex flex-wrap gap-1.5">
             {missing.length > 0 && (
@@ -431,7 +551,7 @@ export function ManualFlightForm({ onSaved }: { onSaved: () => void }) {
           style={{ background: brand.color }}
         >
           <span className={`material-symbols-outlined text-[20px] ${saving ? "animate-spin" : ""}`}>{saving ? "progress_activity" : "add"}</span>
-          {saving ? "Agregando…" : "Agregar vuelo"}
+          {saving ? "Agregando…" : isRegistro ? "Agregar al Registro" : "Agregar vuelo"}
         </button>
       </div>
     </div>
