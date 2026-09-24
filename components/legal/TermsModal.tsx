@@ -30,7 +30,7 @@ export function TermsModal({ open, onClose, onAccept }: { open: boolean; onClose
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-slate-100">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-red-600">AirPanama · Estación Enrique Malek</p>
-            <h2 id="terms-title" className="text-xl font-bold text-slate-900 mt-1">Términos y condiciones de uso</h2>
+            <h2 id="terms-title" className="text-xl font-bold text-slate-900 mt-1">Términos de uso y política de privacidad</h2>
             <p className="text-[12px] text-slate-500 mt-0.5">Versión {TERMS_VERSION} · {TERMS_DATE}</p>
           </div>
           <button onClick={onClose} aria-label="Cerrar" className="w-9 h-9 shrink-0 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center">
@@ -42,7 +42,7 @@ export function TermsModal({ open, onClose, onAccept }: { open: boolean; onClose
           <div className="flex gap-3 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100">
             <span className="material-symbols-outlined text-emerald-600">verified_user</span>
             <p className="text-[13px] text-emerald-900 leading-relaxed">
-              <strong>En resumen:</strong> tus datos se usan solo dentro de esta plataforma, para su seguridad y la auditoría de la operación. No se venden ni se comparten con fines comerciales, y la plataforma no está conectada a inteligencia artificial.
+              <strong>En resumen:</strong> tus datos se usan solo dentro de esta plataforma, para su seguridad y la auditoría de la operación. No se venden ni se comparten con fines comerciales, no hay cookies de seguimiento y la plataforma no está conectada a inteligencia artificial.
             </p>
           </div>
           {TERMS.map(section => (

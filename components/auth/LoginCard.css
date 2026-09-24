@@ -22,7 +22,7 @@
   translate: 0 0;
   transition: 0.65s ease-in-out;
   background-repeat: no-repeat;
-  background-image: var(--bg-image-desktop, url("/bg-plane.png"));
+  background-image: var(--bg-image-desktop, url("/bg-plane.webp"));
   background-size: var(--bg-size-desktop, cover);
   background-position: var(--bg-position-desktop, center);
 }
@@ -448,7 +448,7 @@
     bottom: auto;
     translate: 0 0 !important; /* Desactivamos el slide */
     border-radius: 0;
-    background-image: var(--bg-image-mobile, url("/bg-plane.png"));
+    background-image: var(--bg-image-mobile, url("/bg-plane.webp"));
     background-size: var(--bg-size-mobile, cover);
     background-position: var(--bg-position-mobile, center);
   }

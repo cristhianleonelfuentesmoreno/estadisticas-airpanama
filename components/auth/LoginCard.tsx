@@ -31,6 +31,9 @@ const CardBackground = ({ activeView, bgStyle }: { activeView: string, bgStyle: 
   <div className={`card-bg ${activeView === "login" ? "login" : ""}`} style={bgStyle} />
 );
 
+// El fondo por defecto se sirve en WebP (19 KB en vez de 570 KB del PNG original)
+const loginBackground = (url?: string) => (!url || url === "/bg-plane.png" ? "/bg-plane.webp" : url);
+
 const GoogleButton = ({ text, onClick, loading }: { text: string, onClick: () => void, loading: boolean }) => {
   return (
     <button 
@@ -394,7 +397,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         <CardBackground 
           activeView={activeView} 
           bgStyle={{
-            '--bg-image-desktop': `url(${settings?.bgUrl || "/bg-plane.png"})`,
+            '--bg-image-desktop': `url(${loginBackground(settings?.bgUrl)})`,
             '--bg-size-desktop': settings?.bgSize || "cover",
             '--bg-position-desktop': settings?.bgPosition || "center",
             '--bg-size-mobile': settings?.bgSizeMobile || settings?.bgSize || "cover",
@@ -437,7 +440,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
               <input type="checkbox" checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} />
               <span>
                 Acepto los{" "}
-                <button type="button" className="terms-link" onClick={() => setShowTerms(true)}>términos y condiciones</button>
+                <button type="button" className="terms-link" onClick={() => setShowTerms(true)}>términos y la política de privacidad</button>
               </span>
             </label>
 
@@ -480,9 +483,14 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
               </button>
             </div>
             
-            <Link href="/forgot-password" style={{ paddingTop: 6, marginBottom: 7, fontSize: '0.85rem', color: '#666', textDecoration: 'none', textAlign: 'left' }}>
-              ¿Olvidaste tu contraseña?
-            </Link>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingTop: 6, marginBottom: 7 }}>
+              <Link href="/forgot-password" style={{ fontSize: '0.85rem', color: '#666', textDecoration: 'none', textAlign: 'left' }}>
+                ¿Olvidaste tu contraseña?
+              </Link>
+              <button type="button" className="terms-link" style={{ fontSize: '0.8rem', fontWeight: 600, color: '#888' }} onClick={() => setShowTerms(true)}>
+                Términos y privacidad
+              </button>
+            </div>
             <DockButton
               label="INICIAR SESIÓN"
               loadingLabel="PROCESANDO..."

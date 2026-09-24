@@ -13,8 +13,20 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://airpanama-david.vercel.app"),
   title: "Air Panama",
-  description: "Plataforma operativa y estadística de Air Panama",
+  description: "Plataforma de operaciones de la Estación Aeropuerto Internacional Enrique Malek: vuelos, registro histórico y reportes.",
+  applicationName: "Air Panama",
+  // Herramienta interna: que los buscadores no la muestren (ver también app/robots.ts)
+  robots: { index: false, follow: false, googleBot: { index: false, follow: false } },
+  // Vista previa al compartir el enlace (WhatsApp, correo…); imagen en app/opengraph-image.png
+  openGraph: {
+    type: "website",
+    locale: "es_PA",
+    siteName: "Air Panama",
+    title: "Air Panama · Plataforma de Operaciones",
+    description: "Estación Aeropuerto Internacional Enrique Malek. Acceso solo para personal autorizado.",
+  },
 };
 
 // Se permite el zoom con dos dedos (accesibilidad). El zoom automático de iOS
@@ -34,8 +46,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <head>
         <meta content="mobile_tab" name="shell-type" />
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+        {/* Íconos: una sola variante fija (antes se cargaban dos hojas con todas las variantes, 1,1 MB) */}
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet" />
       </head>
       <body className="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen" suppressHydrationWarning>
         {children}

@@ -195,8 +195,21 @@ export async function updateAppSettings(formData: FormData) {
     const ext = ALLOWED_IMAGE_TYPES[imageFile.type];
     if (!ext) return { error: "Formato de imagen no permitido (usa JPG, PNG o WEBP)" };
     if (imageFile.size > 8 * 1024 * 1024) return { error: "La imagen supera 8 MB" };
-    const fileName = `bg-${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabaseAdmin.storage.from('assets').upload(fileName, imageFile, { upsert: true, contentType: imageFile.type });
+    // Se guarda comprimida en WebP (máx. 1920 px de ancho): el login carga rápido en celular.
+    // Recodificarla también descarta cualquier contenido que no sea una imagen real.
+    let body: Buffer;
+    try {
+      const { default: sharp } = await import("sharp");
+      body = await sharp(Buffer.from(await imageFile.arrayBuffer()))
+        .rotate()
+        .resize({ width: 1920, withoutEnlargement: true })
+        .webp({ quality: 78 })
+        .toBuffer();
+    } catch {
+      return { error: "No se pudo procesar la imagen. Prueba con otro archivo JPG o PNG." };
+    }
+    const fileName = `bg-${Date.now()}.webp`;
+    const { error: uploadError } = await supabaseAdmin.storage.from('assets').upload(fileName, body, { upsert: true, contentType: 'image/webp' });
     if (uploadError) return { error: uploadError.message };
     
     const { data: urlData } = supabaseAdmin.storage.from('assets').getPublicUrl(fileName);
@@ -228,6 +241,5 @@ export async function updateAppSettings(formData: FormData) {
   });
 
   revalidatePath("/login");
-  revalidatePath("/register");
   return { success: true, settings: newSettings };
 }

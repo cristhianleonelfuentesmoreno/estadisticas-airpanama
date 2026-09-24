@@ -1,6 +1,6 @@
 // Términos y condiciones de la plataforma. Si cambia el contenido, sube TERMS_VERSION:
 // queda guardada junto a la aceptación de cada registro.
-export const TERMS_VERSION = "1.0";
+export const TERMS_VERSION = "1.1";
 export const TERMS_DATE = "24 de septiembre de 2026";
 
 export const TERMS: { title: string; body: string[] }[] = [
@@ -49,13 +49,20 @@ export const TERMS: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "7. Bitácora de auditoría",
+    title: "7. Cookies y almacenamiento en tu dispositivo",
+    body: [
+      "La plataforma usa solo lo necesario para funcionar: la cookie de tu sesión (para que no tengas que iniciar sesión en cada página) y un identificador de la sesión de acceso guardado en tu navegador.",
+      "No usa cookies de publicidad, de seguimiento ni de estadísticas de terceros. Por eso no se muestra un aviso de cookies: no hay nada que aceptar o rechazar.",
+    ],
+  },
+  {
+    title: "8. Bitácora de auditoría",
     body: [
       "Las acciones quedan en una bitácora que nadie puede modificar ni borrar. Solo supervisores y el administrador pueden consultarla, para control operativo y de seguridad.",
     ],
   },
   {
-    title: "8. Uso aceptable",
+    title: "9. Uso aceptable",
     body: [
       "Registrar información veraz y corregir los errores que detectes.",
       "No compartir la información operativa fuera de la organización.",
@@ -64,7 +71,7 @@ export const TERMS: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "9. Conservación y derechos",
+    title: "10. Conservación y derechos",
     body: [
       "Los datos se conservan mientras tu cuenta esté activa y por el tiempo necesario para la operación y la auditoría interna.",
       "Puedes pedir al administrador la revisión o corrección de tus datos personales.",
@@ -72,7 +79,7 @@ export const TERMS: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "10. Cambios",
+    title: "11. Cambios",
     body: [
       "Estos términos pueden actualizarse. Si el cambio es importante, se te avisará y podrá pedirse que los aceptes de nuevo.",
     ],
