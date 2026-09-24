@@ -301,9 +301,17 @@ export default function DashboardLayoutShell({
           {geoStatus === "ok" ? children : (
             <div className="min-h-[60vh] flex items-center justify-center py-12">
               {geoStatus === "checking" ? (
-                <div className="flex flex-col items-center gap-3 text-on-surface-variant">
-                  <span className="material-symbols-outlined text-[40px] animate-pulse">location_searching</span>
-                  <p className="font-body-md text-body-md">Verificando tu ubicación…</p>
+                // Mismo cubo de la pantalla de carga de la app (app/loading.tsx)
+                <div className="flex flex-col items-center" aria-busy="true" aria-label="Cargando">
+                  <div className="spinner mb-8">
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                  </div>
+                  <p className="font-body-md text-body-md text-on-surface-variant animate-pulse">Cargando módulos…</p>
                 </div>
               ) : (
                 <div role="alert" className="max-w-md w-full bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-sm p-6 text-center flex flex-col items-center gap-4">
