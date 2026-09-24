@@ -1,3 +1,4 @@
+import 'server-only'
 // Operaciones internas del histórico de vuelos (sin "use server": no son acciones
 // públicas; las llaman acciones que ya verificaron permisos).
 import { createAdminClient } from "@/lib/supabase/admin";

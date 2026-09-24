@@ -1,3 +1,4 @@
+import 'server-only' // la llave maestra nunca debe llegar al navegador (falla la compilación)
 import { createClient } from '@supabase/supabase-js'
 
 // Cliente con la Service Role Key: se salta RLS.

@@ -350,8 +350,8 @@ async function updateHistorico(tipo: TipoVuelo, id: string, updates: HistoricoUp
   if ('hora_real_salida' in payload && tipo === 'salida') payload.hora_salida_real = payload.hora_real_salida;
   if (Object.keys(cambios).length === 0) return { success: true };
 
-  const supabase = await createClient();
-  const { error } = await supabase.from(TABLE[tipo]).update({ ...payload, actualizado_en: new Date().toISOString() }).eq('id', id);
+  // Escribe el servidor (los usuarios solo leen directamente): el permiso ya se verificó
+  const { error } = await getAdminSupabase().from(TABLE[tipo]).update({ ...payload, actualizado_en: new Date().toISOString() }).eq('id', id);
   if (error) {
     console.log(`Error updating ${tipo} Malek:`, error?.message || error);
     return { success: false, error: error.message };

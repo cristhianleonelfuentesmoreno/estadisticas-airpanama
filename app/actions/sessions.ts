@@ -150,6 +150,20 @@ export async function cerrarSesion(sessionId: string) {
 // un evento fijo y limita el tamaño del texto recibido.
 export async function logFailedLogin(email: string) {
   const ref = typeof email === 'string' ? email.trim().slice(0, 254) : '';
+  // Es pública (se llama antes de iniciar sesión): con un tope por IP nadie puede llenar
+  // la bitácora (que no se puede limpiar) repitiendo este pedido
+  const h = await headers();
+  const ip = (h.get('x-forwarded-for') || h.get('x-real-ip') || '').split(',')[0].trim();
+  if (ip) {
+    const since = new Date(Date.now() - 10 * 60_000).toISOString();
+    const { count } = await createAdminClient()
+      .from('registros_auditoria')
+      .select('id', { count: 'exact', head: true })
+      .eq('tipo_evento', 'acceso_fallido')
+      .eq('ip', ip)
+      .gte('creado_en', since);
+    if ((count ?? 0) >= 20) return;
+  }
   await logAudit({
     tipo_evento: 'acceso_fallido',
     nombre_referencia: ref || 'Intento Anónimo',
