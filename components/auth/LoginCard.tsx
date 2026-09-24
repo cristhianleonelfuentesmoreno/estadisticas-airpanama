@@ -9,6 +9,7 @@ import { logFailedLogin } from "@/app/actions/sessions";
 import { DockButton } from "./DockButton";
 import { TermsModal } from "@/components/legal/TermsModal";
 import { TERMS_VERSION } from "@/lib/terms";
+import { alertDialog } from "@/components/ui/dialogs";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -273,7 +274,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         }
       });
       if (error) {
-        alert("Error con Google: " + error.message);
+        alertDialog({ title: "No se pudo continuar con Google", message: error.message, tone: "danger" });
         setLoading(false);
       }
     } catch {

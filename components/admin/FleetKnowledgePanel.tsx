@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { deleteFleetRow, getFleetAdminData, saveFleetRow, type FleetRow, type FleetTable } from "@/app/actions/fleet";
+import { confirmDialog } from "@/components/ui/dialogs";
 
 // Base de conocimiento de flota y tripulación: la usan el lector de itinerarios,
 // la importación de Excel y el formulario manual para no equivocarse.
@@ -195,7 +196,7 @@ function EditableRow({ def, row, codes, isNew = false, onSaved }: {
   };
 
   const remove = async () => {
-    if (!window.confirm("¿Eliminar este registro de la base de flota?")) return;
+    if (!(await confirmDialog({ title: "¿Eliminar este registro?", message: "Se quitará de la base de flota y tripulación.", tone: "danger", confirmText: "Eliminar" }))) return;
     const res = await deleteFleetRow(def.id, String(row[def.key]));
     if (res.error) return toast.error(res.error);
     toast.success("Eliminado");

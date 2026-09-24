@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 import TransitionLoader from "@/components/ui/TransitionLoader";
+import { DialogHost } from "@/components/ui/dialogs";
 
 import { Suspense } from "react";
 
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen" suppressHydrationWarning>
         {children}
         <Toaster position="top-center" richColors />
+        <DialogHost />
         <Suspense fallback={null}>
           <TransitionLoader />
         </Suspense>

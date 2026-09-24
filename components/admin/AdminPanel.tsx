@@ -10,6 +10,7 @@ import { AuditoriaPanel } from "./AuditoriaPanel";
 import { FleetKnowledgePanel } from "./FleetKnowledgePanel";
 import { DeletionRequestsPanel } from "./DeletionRequestsPanel";
 import { can, canManageAccount, ROLE_LABEL, type Role } from "@/lib/permissions";
+import { confirmDialog } from "@/components/ui/dialogs";
 
 export interface User {
   id: string;
@@ -96,7 +97,13 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
 
   const handleDelete = async () => {
     if (!editingUser) return;
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a ${editingUser.email}? Esta acción no se puede deshacer.`)) return;
+    const ok = await confirmDialog({
+      title: "¿Eliminar esta cuenta para siempre?",
+      message: <><strong>{editingUser.nombre || editingUser.email}</strong> ({editingUser.email}) ya no podrá entrar. Esta acción no se puede deshacer; lo que hizo sigue en la bitácora.</>,
+      tone: "danger",
+      confirmText: "Eliminar cuenta",
+    });
+    if (!ok) return;
 
     setIsDeleting(true);
     try {
@@ -115,7 +122,13 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
 
   const handleSendReset = async () => {
     if (!editingUser) return;
-    if (!window.confirm(`¿Enviar a ${editingUser.email} un correo para restablecer su contraseña?`)) return;
+    const ok = await confirmDialog({
+      title: "¿Enviar enlace para nueva contraseña?",
+      message: <>Le llegará un correo a <strong>{editingUser.email}</strong> para crear una contraseña nueva. Tú no la verás en ningún momento.</>,
+      tone: "info",
+      confirmText: "Enviar correo",
+    });
+    if (!ok) return;
 
     setIsSendingReset(true);
     try {

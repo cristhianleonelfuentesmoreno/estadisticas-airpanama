@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { FlightData } from "@/app/actions/flights";
 import { updateFlightDetails, deleteManualFlight } from "@/app/actions/manualFlights";
+import { confirmDialog } from "@/components/ui/dialogs";
 
 export function FlightEditModal({
   flight,
@@ -74,7 +75,7 @@ export function FlightEditModal({
 
   const handleDelete = async () => {
     if (!flight.manualLogId) return;
-    if (confirm("¿Estás seguro de que deseas eliminar este vuelo por completo? Esta acción no se puede deshacer.")) {
+    if (await confirmDialog({ title: `¿Eliminar el ${flight.flightNumber} del itinerario?`, message: "Se quitará de Próximos Vuelos. Esta acción no se puede deshacer.", tone: "danger", confirmText: "Eliminar" })) {
       setLoading(true);
       try {
         await deleteManualFlight(flight.manualLogId);

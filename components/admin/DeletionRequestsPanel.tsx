@@ -6,6 +6,7 @@ import {
   getDeletedFlights, getDeletionRequests, resolveDeletionRequest, restoreFlight,
   type SolicitudEliminacion, type VueloEliminado,
 } from "@/app/actions/deletionRequests";
+import { confirmDialog } from "@/components/ui/dialogs";
 
 type Tab = "pendientes" | "resueltas" | "eliminados";
 
@@ -62,7 +63,13 @@ export function DeletionRequestsPanel() {
   }, [load]);
 
   const approve = async (req: SolicitudEliminacion) => {
-    if (!window.confirm(`¿Aprobar la eliminación del vuelo ${req.resumen.numero_vuelo}? Saldrá del Registro y de los Reportes (se puede restaurar).`)) return;
+    const ok = await confirmDialog({
+      title: `¿Aprobar la eliminación del ${req.resumen.numero_vuelo}?`,
+      message: <>Pedido por <strong>{req.solicitado_nombre ?? "un usuario"}</strong>. Motivo: “{req.motivo}”.<br />El vuelo saldrá del Registro y de los Reportes. Se puede restaurar después.</>,
+      tone: "danger",
+      confirmText: "Aprobar eliminación",
+    });
+    if (!ok) return;
     setBusyId(req.id);
     const res = await resolveDeletionRequest(req.id, true);
     setBusyId(null);
@@ -84,7 +91,13 @@ export function DeletionRequestsPanel() {
   };
 
   const restore = async (f: VueloEliminado) => {
-    if (!window.confirm(`¿Restaurar el vuelo ${f.numero_vuelo} del ${fmtDay(f.fecha)}? Volverá al Registro y a los Reportes.`)) return;
+    const ok = await confirmDialog({
+      title: `¿Restaurar el ${f.numero_vuelo}?`,
+      message: <>Vuelo del {fmtDay(f.fecha)}. Volverá al Registro y a los Reportes.</>,
+      tone: "success",
+      confirmText: "Restaurar",
+    });
+    if (!ok) return;
     setBusyId(f.id);
     const res = await restoreFlight(f.tipo, f.id);
     setBusyId(null);

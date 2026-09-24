@@ -12,6 +12,7 @@ import { FlightAuditBoard, fetchPendingAudit } from "./FlightAuditBoard";
 import { ExcelImportPreviewModal } from "./ExcelImportPreviewModal";
 import { UploadGlyph, UploadProgress, type UploadJob } from "@/components/ui/UploadProgress";
 import { DailyFlightCard, MalekFlight, formatTime, getAirlineBadge } from "./DailyFlightCard";
+import { alertDialog } from "@/components/ui/dialogs";
 
 
 // Valor de una celda leída con sheet_to_json({ raw: true })
@@ -310,7 +311,7 @@ export default function TablasDiariasClient({
       setIsDrawerOpen(false);
       window.location.reload();
     } else {
-      alert("Error al actualizar: " + res.error);
+      alertDialog({ title: "No se pudo guardar el cambio", message: res.error, tone: "danger" });
     }
   };
   const handleDeleteClick = (flight: MalekFlight) => {
@@ -337,10 +338,10 @@ export default function TablasDiariasClient({
           setImportResult({ show: true, type: 'success', message: `Solicitud enviada. Un supervisor revisará la eliminación del vuelo ${flightToDelete.numero_vuelo}; mientras tanto no cuenta en los reportes.` });
         }
       } else {
-        alert((canDelete ? "Error al eliminar: " : "No se pudo enviar la solicitud: ") + res.error);
+        alertDialog({ title: canDelete ? "No se pudo eliminar el vuelo" : "No se pudo enviar la solicitud", message: res.error, tone: "danger" });
       }
     } catch (err) {
-      alert("Error inesperado: " + (err as Error).message);
+      alertDialog({ title: "Ocurrió un error inesperado", message: (err as Error).message, tone: "danger" });
     } finally {
       setDeleteBusy(false);
       setFlightToDelete(null);
@@ -421,7 +422,7 @@ export default function TablasDiariasClient({
         }
       } catch (err) {
         console.error("Error leyendo Excel:", err);
-        alert("Error procesando archivo. Detalles: " + (err as Error).message);
+        alertDialog({ title: "No se pudo leer el archivo", message: `Verifica que sea un Excel válido. Detalle: ${(err as Error).message}`, tone: "danger" });
         setImporting(false);
       }
     };
