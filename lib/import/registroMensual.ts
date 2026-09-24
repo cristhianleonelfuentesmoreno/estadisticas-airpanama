@@ -11,6 +11,7 @@
 //  - Lo dudoso no se corrige solo: se marca con un aviso para revisarlo en la vista previa.
 
 import { canonicalFlightNumber, normalizeRegistration, resolveAircraft, type FleetKnowledge } from "@/lib/fleet/rules";
+import { AIRPORTS, KNOWN_AIRPORTS } from "@/lib/airports";
 
 export type Cell = string | number | boolean | null | undefined;
 export type SheetInput = { name: string; rows: Cell[][] };
@@ -47,23 +48,8 @@ export type ImportResult = {
   fixes: Record<string, number>; // corrección aplicada → veces
 };
 
-// Aeropuertos con los que operan ambas aerolíneas desde David (los más usados primero).
-// Sin nombre = código visto en los registros cuyo nombre no está confirmado.
-export const AIRPORTS: { code: string; name?: string }[] = [
-  { code: "PAC", name: "Albrook, Panamá" },
-  { code: "PTY", name: "Tocumen, Panamá" },
-  { code: "BOC", name: "Bocas del Toro" },
-  { code: "CHX", name: "Changuinola" },
-  { code: "CTD", name: "Chitré" },
-  { code: "SJO", name: "San José, Costa Rica" },
-  { code: "PUE", name: "Puerto Obaldía" },
-  { code: "PYC", name: "Playón Chico" },
-  { code: "OGM", name: "Ogobsucum" },
-  { code: "LCL" },
-  { code: "SIC" },
-  { code: "MAN" },
-];
-const KNOWN_AIRPORTS = new Set(AIRPORTS.map(a => a.code));
+// Lista única de aeropuertos (lib/airports); se reexporta para el selector de la vista previa
+export { AIRPORTS };
 const PANAMA_OFFSET_DAYS = 5 / 24;
 
 const norm = (v: Cell) =>

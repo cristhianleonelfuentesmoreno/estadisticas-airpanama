@@ -7,8 +7,11 @@ import { parseItineraryImage } from "@/app/actions/imageParser";
 import * as Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { UploadProgress, type UploadJob } from "@/components/ui/UploadProgress";
+import { getImportKnowledge } from "@/app/actions/flights";
+import { estimatedArrival, reviewWarnings, withAircraft } from "@/lib/ocr/review";
+import type { FleetKnowledge } from "@/lib/fleet/rules";
+import { ItineraryFlightEditor, type ReviewFlight } from "./ItineraryFlightEditor";
 
-type ReviewFlight = ManualFlightInput & { warnings?: string[] };
 
 interface Props {
   isOpen: boolean;
@@ -22,13 +25,29 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
   const [loadingSeconds, setLoadingSeconds] = useState(0);
   // Vuelos a revisar antes de importar; `warnings` viene de la base de conocimiento
   const [fileData, setFileData] = useState<ReviewFlight[]>([]);
-  // Edita una celda; al corregir pasajeros u hora se quita el aviso correspondiente
-  const updateRow = (i: number, patch: Partial<ReviewFlight>, clears?: RegExp) => {
-    setFileData(rows => rows.map((r, j) => j !== i ? r : {
-      ...r,
-      ...patch,
-      warnings: clears ? r.warnings?.filter(w => !clears.test(w)) : r.warnings,
+  const [editingRow, setEditingRow] = useState<number | null>(null);
+  // Base de conocimiento para completar y validar lo que se corrige en la revisión
+  const [kb, setKb] = useState<FleetKnowledge | null>(null);
+  useEffect(() => {
+    if (fileData.length === 0 || kb) return;
+    getImportKnowledge().then(setKb).catch(() => {});
+  }, [fileData.length, kb]);
+
+  // Edita un vuelo: la matrícula completa modelo y capacidad, la salida o la ruta
+  // recalculan la llegada, y los avisos se vuelven a calcular con la base
+  const updateRow = (i: number, patch: Partial<ReviewFlight>) => {
+    setFileData(rows => rows.map((r, j) => {
+      if (j !== i) return r;
+      let next: ReviewFlight = { ...r, ...patch };
+      if (kb && 'aircraftReg' in patch) next = withAircraft(next, kb);
+      const routeOrTime = 'departureTimeLocal' in patch || 'origin' in patch || 'destination' in patch;
+      if (kb && routeOrTime && !('arrivalTimeLocal' in patch)) next.arrivalTimeLocal = estimatedArrival(next, kb);
+      return { ...next, warnings: kb ? reviewWarnings(next, kb) : r.warnings };
     }));
+  };
+  const removeRow = (i: number) => {
+    setFileData(rows => rows.filter((_, j) => j !== i));
+    setEditingRow(null);
   };
   const reviewCount = fileData.filter(f => f.warnings?.length).length;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -352,7 +371,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                 <div>
                   <h3 className="font-label-lg font-bold text-primary mb-1">Confirmación de Vuelos</h3>
                   <p className="text-sm text-on-surface-variant">
-                    Se han detectado <strong>{fileData.length}</strong> vuelos válidos. Revisa y edita cualquier dato en la tabla (vuelo, tripulación, pasajeros) si el escáner cometió algún error, antes de importarlos.
+                    Se han detectado <strong>{fileData.length}</strong> vuelos válidos. Toca un vuelo (o el lápiz) para corregir cualquier dato: vuelo, horas, ruta, avión, tripulación y pasajeros. Los avisos se actualizan solos al corregir.
                   </p>
                 </div>
               </div>
@@ -381,76 +400,68 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                         <th className="px-4 py-3 bg-surface-container-high">Ruta</th>
                         <th className="px-4 py-3 bg-surface-container-high">Avión</th>
                         <th className="px-4 py-3 bg-surface-container-high">Tripulación</th>
-                        <th className="px-4 py-3 bg-surface-container-high">Capacidad</th>
+                        <th className="px-4 py-3 bg-surface-container-high">Pax</th>
+                        <th className="px-3 py-3 bg-surface-container-high"><span className="sr-only">Editar</span></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant/20">
                       {fileData.map((f, i) => (
                         <Fragment key={i}>
-                        <tr className={`transition-colors ${f.warnings?.length ? 'bg-amber-50 hover:bg-amber-100/70' : 'hover:bg-surface-container-highest'}`}>
-                          <td className="px-4 py-3 text-on-surface-variant font-medium">
-                            <input 
-                            type="text" 
-                            value={f.flightNumber} 
-                            onChange={(e) => updateRow(i, { flightNumber: e.target.value })}
-                            className="w-16 bg-transparent border-b border-outline-variant/30 focus:border-primary focus:outline-none"
-                          />
-                          <input
-                            type="time"
-                            value={f.departureTimeLocal}
-                            onChange={(e) => updateRow(i, { departureTimeLocal: e.target.value }, /^Hora/)}
-                            className="mt-1 block text-xs text-on-surface-variant/80 bg-transparent focus:outline-none"
-                            aria-label="Hora de salida"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-surface-variant/50 px-2 py-0.5 rounded text-xs">{f.origin}</span>
-                          <span className="mx-2 text-on-surface-variant/50">→</span>
-                          <span className="bg-surface-variant/50 px-2 py-0.5 rounded text-xs">{f.destination}</span>
-                        </td>
-                        <td className="px-4 py-3 text-on-surface-variant">
-                          {f.aircraft || f.aircraftReg ? (
-                            <div className="flex flex-col">
-                              <span>{f.aircraft || ''}</span>
-                              <span className="text-xs text-on-surface-variant/70">{f.aircraftReg || ''}</span>
-                            </div>
-                          ) : (
-                            <span className="italic opacity-50">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-on-surface-variant text-xs">
-                          <input 
-                            type="text" 
-                            value={f.pilot || ''} 
-                            onChange={(e) => updateRow(i, { pilot: e.target.value })}
-                            className="w-full min-w-[120px] max-w-[190px] bg-transparent border-b border-outline-variant/30 focus:border-primary focus:outline-none"
-                            placeholder="Pilotos"
-                            title="Capitán / Primer oficial"
-                          />
-                          <input
-                            type="text"
-                            value={f.cabin_crew || ''}
-                            onChange={(e) => updateRow(i, { cabin_crew: e.target.value })}
-                            className="mt-1 w-full min-w-[120px] max-w-[190px] bg-transparent border-b border-outline-variant/20 text-on-surface-variant/70 focus:border-primary focus:outline-none"
-                            placeholder="Cabina"
-                            title="Tripulantes de cabina"
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-on-surface-variant">
-                          <div className="flex items-center gap-1">
-                            <input 
-                              type="number" 
-                              value={f.paxCount !== undefined ? f.paxCount : ''} 
-                              onChange={(e) => updateRow(i, { paxCount: e.target.value ? parseInt(e.target.value, 10) : 0 }, /pasajeros/i)}
-                              className="w-12 text-center bg-surface-container-highest rounded border border-outline-variant/30 focus:border-primary focus:outline-none text-on-surface"
-                            />
-                            {f.paxMax && <span className="text-on-surface-variant/70 text-xs">/ {f.paxMax}</span>}
-                          </div>
-                        </td>
-                      </tr>
-                      {f.warnings?.length ? (
+                        <tr
+                          className={`cursor-pointer transition-colors ${editingRow === i ? 'bg-primary/5' : f.warnings?.length ? 'bg-amber-50 hover:bg-amber-100/70' : 'hover:bg-surface-container-highest'}`}
+                          onClick={() => setEditingRow(editingRow === i ? null : i)}
+                        >
+                          <td className="px-4 py-3">
+                            <span className="block font-bold text-on-surface">{f.flightNumber || '—'}</span>
+                            <span className={`block text-xs ${f.departureTimeLocal ? 'text-on-surface-variant' : 'text-amber-700 font-semibold'}`}>
+                              {f.departureTimeLocal ? `${f.departureTimeLocal}${f.arrivalTimeLocal ? ` → ${f.arrivalTimeLocal}` : ''}` : 'Sin hora'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="bg-surface-variant/50 px-2 py-0.5 rounded text-xs font-semibold">{f.origin || '?'}</span>
+                            <span className="mx-1.5 text-on-surface-variant/50">→</span>
+                            <span className="bg-surface-variant/50 px-2 py-0.5 rounded text-xs font-semibold">{f.destination || '?'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-on-surface-variant">
+                            <span className="block font-semibold text-on-surface">{f.aircraft || '—'}</span>
+                            <span className="block text-xs whitespace-nowrap">{f.aircraftReg || ''}</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-on-surface-variant max-w-[200px]">
+                            <span className="block truncate text-on-surface">{f.pilot || <em className="opacity-50">Sin pilotos</em>}</span>
+                            {f.cabin_crew && <span className="block truncate">{f.cabin_crew}</span>}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`font-bold ${f.paxCount == null ? 'text-amber-700' : 'text-on-surface'}`}>{f.paxCount ?? '?'}</span>
+                            <span className="text-on-surface-variant/70 text-xs"> / {f.paxMax || '?'}</span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={e => { e.stopPropagation(); setEditingRow(editingRow === i ? null : i); }}
+                              className={`w-9 h-9 rounded-lg inline-flex items-center justify-center transition-colors ${editingRow === i ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary'}`}
+                              aria-label={`Editar vuelo ${f.flightNumber}`}
+                              title="Editar"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">{editingRow === i ? 'expand_less' : 'edit'}</span>
+                            </button>
+                          </td>
+                        </tr>
+                        {editingRow === i && (
+                          <tr>
+                            <td colSpan={6} className="p-0">
+                              <ItineraryFlightEditor
+                                flight={f}
+                                kb={kb}
+                                onChange={patch => updateRow(i, patch)}
+                                onRemove={() => removeRow(i)}
+                                onDone={() => setEditingRow(null)}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      {f.warnings?.length && editingRow !== i ? (
                         <tr className="bg-amber-50">
-                          <td colSpan={5} className="px-4 pb-3 pt-0">
+                          <td colSpan={6} className="px-4 pb-3 pt-0">
                             <div className="flex flex-wrap gap-1.5">
                               {f.warnings.map(w => (
                                 <span key={w} className="inline-flex items-center gap-1 text-[12px] font-medium text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
@@ -472,7 +483,7 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
 
             <div className="p-6 border-t border-outline-variant/20 flex justify-end gap-3 bg-surface-container-low rounded-b-[28px] mt-auto flex-shrink-0">
               <button 
-                onClick={() => setFileData([])}
+                onClick={() => { setFileData([]); setEditingRow(null); }}
                 className="px-6 py-2.5 rounded-full font-label-md font-bold text-error hover:bg-error/10 transition-colors"
                 disabled={loading}
               >
