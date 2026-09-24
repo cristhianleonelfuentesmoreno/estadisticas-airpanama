@@ -402,26 +402,34 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
           </div>
         ) : (
           <>
-            {/* Tabs */}
-            <div className="flex border-b border-outline-variant/20">
-              <button 
-                onClick={() => setActiveTab('image')}
-                className={`py-4 px-4 font-label-md font-bold text-sm border-b-2 transition-colors ${activeTab === 'image' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
-              >
-                Subir Fotografía (IA)
-              </button>
-              <button 
-                onClick={() => setActiveTab('upload')}
-                className={`py-4 px-4 font-label-md font-bold text-sm border-b-2 transition-colors ${activeTab === 'upload' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
-              >
-                Subir Archivo (Excel/CSV)
-              </button>
-              <button 
-                onClick={() => setActiveTab('manual')}
-                className={`py-4 px-4 font-label-md font-bold text-sm border-b-2 transition-colors ${activeTab === 'manual' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}
-              >
-                Ingreso Manual (Individual)
-              </button>
+            {/* Tres formas de cargar: tarjetas con pastilla deslizante */}
+            <div className="px-6 pt-5">
+              <div role="tablist" aria-label="Forma de carga" className="relative grid grid-cols-3 p-1 rounded-2xl bg-surface-container-high">
+                <span
+                  aria-hidden="true"
+                  className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-xl bg-surface-container-lowest shadow-md ring-1 ring-black/5 transition-transform duration-300 ease-out"
+                  style={{ transform: `translateX(${['image', 'upload', 'manual'].indexOf(activeTab) * 100}%)` }}
+                />
+                {([
+                  { id: 'image', icon: 'document_scanner', title: 'Escanear', hint: 'Foto o captura' },
+                  { id: 'upload', icon: 'upload_file', title: 'Importar', hint: 'Excel o CSV' },
+                  { id: 'manual', icon: 'edit_note', title: 'Manual', hint: 'Vuelo por vuelo' },
+                ] as const).map(t => (
+                  <button
+                    key={t.id}
+                    role="tab"
+                    aria-selected={activeTab === t.id}
+                    onClick={() => setActiveTab(t.id)}
+                    className={`relative z-10 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2.5 py-2.5 px-2 rounded-xl transition-colors ${activeTab === t.id ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}
+                  >
+                    <span className={`material-symbols-outlined text-[22px] ${activeTab === t.id ? 'text-primary' : ''}`}>{t.icon}</span>
+                    <span className="flex flex-col items-center sm:items-start leading-tight">
+                      <span className="text-[14px] font-bold">{t.title}</span>
+                      <span className="hidden sm:block text-[11px] font-medium opacity-70">{t.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Content */}
