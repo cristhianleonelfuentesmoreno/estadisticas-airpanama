@@ -40,7 +40,7 @@ function peso(bytes: number) {
   return `${bytes} B`;
 }
 const pct = (v: number, max: number) => (v / max) * 100;
-const pctTxt = (p: number) => (p < 0.1 && p > 0 ? "< 0,1 %" : `${p.toFixed(1).replace(".", ",")} %`);
+const pctTxt = (p: number) => (p < 0.1 && p > 0 ? "< 0.1 %" : `${p.toFixed(1)} %`);
 const num = (n: number) => n.toLocaleString("es-PA");
 
 function estado(p: number) {
@@ -71,8 +71,6 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<UsoSupabase | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [filtro, setFiltro] = useState<(typeof FILTROS)[number]>("Todas");
-  const [buscar, setBuscar] = useState("");
 
   const cargar = useCallback(() => {
     setCargando(true);
@@ -90,6 +88,16 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
       .finally(() => { if (!cancelled) setCargando(false); });
     return () => { cancelled = true; };
   }, []);
+
+  return <MonitoreoVista data={data} error={error} cargando={cargando} onRefresh={cargar} onClose={onClose} />;
+}
+
+// La ventana en sí (separada de la consulta para poder previsualizarla con datos de ejemplo)
+export function MonitoreoVista({ data, error, cargando, onRefresh, onClose }: {
+  data: UsoSupabase | null; error: string | null; cargando: boolean; onRefresh: () => void; onClose: () => void;
+}) {
+  const [filtro, setFiltro] = useState<(typeof FILTROS)[number]>("Todas");
+  const [buscar, setBuscar] = useState("");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -135,21 +143,21 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-labelledby="monitoreo-title"
         onClick={e => e.stopPropagation()}
-        className="w-full sm:max-w-5xl max-h-[94vh] bg-[#0d1117] text-slate-100 rounded-t-3xl sm:rounded-3xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300"
+        className="w-full sm:max-w-5xl max-h-[94dvh] bg-[#0d1117] text-slate-100 rounded-t-3xl sm:rounded-3xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300"
       >
         {/* Encabezado */}
-        <div className="flex items-start gap-4 px-5 sm:px-7 pt-6 pb-5 border-b border-white/10">
+        <div className="flex items-start gap-3 sm:gap-4 px-4 sm:px-7 pt-5 sm:pt-6 pb-4 sm:pb-5 border-b border-white/10">
           <div className="hidden sm:flex w-14 h-14 shrink-0 rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/30 items-center justify-center">
             <span className="material-symbols-outlined text-emerald-400 text-[30px]">monitor_heart</span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 id="monitoreo-title" className="text-xl sm:text-2xl font-bold">Monitoreo de Base de Datos</h2>
+              <h2 id="monitoreo-title" className="text-lg sm:text-2xl font-bold leading-tight">Monitoreo<span className="hidden sm:inline"> de Base de Datos</span></h2>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wider bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/30">EN VIVO</span>
             </div>
-            <p className="text-sm text-slate-400 mt-1">Límites del plan gratuito de Supabase y lo que ocupa cada tabla.</p>
+            <p className="hidden sm:block text-sm text-slate-400 mt-1">Límites del plan gratuito de Supabase y lo que ocupa cada tabla.</p>
           </div>
-          <button onClick={cargar} disabled={cargando} className="h-10 px-3 sm:px-4 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+          <button onClick={onRefresh} disabled={cargando} className="h-10 px-3 sm:px-4 rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
             <span className={`material-symbols-outlined text-[18px] ${cargando ? "animate-spin" : ""}`}>refresh</span>
             <span className="hidden sm:inline">Actualizar</span>
           </button>
@@ -158,7 +166,7 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-6 flex flex-col gap-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-7 py-5 sm:py-6 flex flex-col gap-5 sm:gap-6">
           {error ? (
             <p className="py-10 text-center text-red-300 bg-red-500/10 rounded-2xl">No se pudo consultar Supabase: {error}</p>
           ) : !data ? (
@@ -171,10 +179,10 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
                   valor={peso(data.db_bytes)} de="/ 500 MB" porcentaje={dbPct}
                   izq={`${pctTxt(dbPct)} usado`} der={`${peso(LIMITES.db - data.db_bytes)} libres`} derCls={estado(dbPct).text} />
                 <Tarjeta icon="cloud_upload" titulo="Archivos (Storage)" plan="Gratis 1 GB" planCls="text-amber-300 ring-amber-500/30 bg-amber-500/10"
-                  valor={peso(data.storage_bytes)} de="/ 1 024 MB" porcentaje={stPct}
+                  valor={peso(data.storage_bytes)} de="/ 1,024 MB" porcentaje={stPct}
                   izq={`${num(data.storage_archivos)} archivo${data.storage_archivos === 1 ? "" : "s"}`} der={`${pctTxt(stPct)} usado`} derCls={estado(stPct).text} />
                 <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 flex flex-col">
-                  <Cabecera icon="swap_vert" titulo="Transferencia" plan="Gratis 5 GB/mes" planCls="text-sky-300 ring-sky-500/30 bg-sky-500/10" />
+                  <Cabecera icon="swap_vert" titulo="Transferencia" plan="Gratis 5 GB por mes" planCls="text-sky-300 ring-sky-500/30 bg-sky-500/10" />
                   <p className="text-[13px] text-slate-400 mt-3 leading-snug flex-1">
                     Lo que se descarga de Supabase al usar la app. Supabase no lo expone a la base de datos; se ve en su panel.
                   </p>
@@ -183,7 +191,7 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
                   </a>
                 </div>
                 <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-                  <Cabecera icon="verified_user" titulo="Usuarios y estado" plan="50 000 MAU" planCls="text-emerald-300 ring-emerald-500/30 bg-emerald-500/10" />
+                  <Cabecera icon="verified_user" titulo="Usuarios y estado" plan="Gratis 50,000 usuarios/mes" planCls="text-emerald-300 ring-emerald-500/30 bg-emerald-500/10" />
                   <p className="mt-3"><span className="text-3xl font-bold">{num(data.usuarios_mes)}</span> <span className="text-sm text-slate-400">activos este mes</span></p>
                   <Barra porcentaje={pct(data.usuarios_mes, LIMITES.mau)} />
                   <div className="flex justify-between gap-2 mt-2 text-[13px]">
@@ -196,8 +204,8 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
               </div>
 
               {/* Diagnóstico */}
-              <div className="rounded-2xl bg-emerald-500/[0.06] ring-1 ring-emerald-500/20 p-4 sm:p-5 flex gap-4">
-                <span className={`material-symbols-outlined text-[32px] ${peor.text}`}>{Math.max(dbPct, stPct) < 80 ? "check_circle" : "warning"}</span>
+              <div className="rounded-2xl bg-emerald-500/[0.06] ring-1 ring-emerald-500/20 p-4 sm:p-5 flex gap-3 sm:gap-4">
+                <span className={`material-symbols-outlined text-[28px] sm:text-[32px] shrink-0 ${peor.text}`}>{Math.max(dbPct, stPct) < 80 ? "check_circle" : "warning"}</span>
                 <div className="flex-1 min-w-0 text-[14px] leading-relaxed text-slate-300">
                   <p className="font-bold text-slate-100 text-base">Diagnóstico de capacidad: <span className={peor.text}>{peor.label}</span></p>
                   <p className="mt-1">
@@ -207,8 +215,8 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
                     {interna && interna.bytes > data.db_bytes / 2 && <>{" "}La mayor parte del espacio usado es la base interna de Supabase, que casi no crece.</>}
                   </p>
                   <p className="mt-1 text-slate-400 text-[13px]">
-                    Última actividad: {data.ultima_actividad ? new Date(data.ultima_actividad).toLocaleString("es-PA", { dateStyle: "medium", timeStyle: "short" }) : "—"}.
-                    {" "}El plan gratuito pausa el proyecto si pasa {LIMITES.pausaDias} días sin uso (se reactiva desde el panel de Supabase).
+                    Última actividad: {data.ultima_actividad ? new Date(data.ultima_actividad).toLocaleString("es-PA", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}
+                    {" · "}El plan gratuito pausa el proyecto si pasa {LIMITES.pausaDias} días sin uso (se reactiva desde el panel de Supabase).
                   </p>
                 </div>
                 <span className="hidden md:flex items-start gap-1 text-[12px] text-slate-500 whitespace-nowrap">
@@ -228,7 +236,7 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
                   <div className="lg:ml-auto flex flex-wrap gap-2">
                     {FILTROS.map(f => (
                       <button key={f} onClick={() => setFiltro(f)}
-                        className={`px-3 h-8 rounded-lg text-sm font-semibold ${filtro === f ? "bg-emerald-500 text-white" : "bg-white/5 text-slate-300 hover:bg-white/10"}`}>
+                        className={`px-3 h-9 rounded-lg text-sm font-semibold ${filtro === f ? "bg-emerald-500 text-white" : "bg-white/5 text-slate-300 hover:bg-white/10"}`}>
                         {f}
                       </button>
                     ))}
@@ -240,7 +248,36 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
                     className="w-full h-11 pl-10 pr-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 focus:ring-emerald-500/50 outline-none text-sm placeholder:text-slate-500" />
                 </label>
 
-                <div className="overflow-x-auto rounded-2xl ring-1 ring-white/10">
+                {/* Celular: una tarjeta por tabla */}
+                <div className="sm:hidden flex flex-col gap-2">
+                  {visibles.map(f => {
+                    const p = pct(f.bytes, data.db_bytes);
+                    return (
+                      <div key={f.tabla} className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-100 leading-tight">{f.nombre}</p>
+                            <p className="font-mono text-[11px] text-slate-500 truncate">{f.tabla}</p>
+                          </div>
+                          <span className={`shrink-0 px-2 py-0.5 rounded-md text-[11px] font-semibold ring-1 ${MODULO_CLS[f.modulo]}`}>{f.modulo}</span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-[13px]">
+                          <span className="text-slate-300">{f.filas === null ? "—" : `${num(f.filas)} registros`}</span>
+                          <span className="font-mono text-slate-300">{peso(f.bytes)}</span>
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.max(2, p)}%` }} />
+                          </div>
+                          <span className="font-mono text-[11px] text-slate-400 w-14 text-right">{pctTxt(p)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {visibles.length === 0 && <p className="py-6 text-center text-slate-500">Ninguna tabla coincide con la búsqueda.</p>}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto rounded-2xl ring-1 ring-white/10">
                   <table className="w-full text-sm min-w-[640px]">
                     <thead className="bg-white/[0.04] text-[11px] uppercase tracking-wider text-slate-400">
                       <tr>
@@ -289,7 +326,7 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Pie */}
-        <div className="px-5 sm:px-7 py-4 border-t border-white/10 flex items-center justify-between gap-3">
+        <div className="px-4 sm:px-7 py-3 sm:py-4 border-t border-white/10 flex items-center justify-between gap-3">
           <p className="text-[13px] text-slate-400 flex items-center gap-2 min-w-0">
             <span className="material-symbols-outlined text-[18px] text-slate-500">dns</span>
             <span className="truncate">Proyecto Supabase: <strong className="text-slate-200 font-mono">{data?.proyecto ?? "…"}</strong></span>
@@ -304,11 +341,11 @@ function MonitoreoModal({ onClose }: { onClose: () => void }) {
 
 function Cabecera({ icon, titulo, plan, planCls }: { icon: string; titulo: string; plan: string; planCls: string }) {
   return (
-    <div className="flex items-start justify-between gap-2">
+    <div className="flex flex-col items-start gap-2">
       <p className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider text-slate-400">
         <span className="material-symbols-outlined text-[18px]">{icon}</span>{titulo}
       </p>
-      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 whitespace-nowrap ${planCls}`}>{plan}</span>
+      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 ${planCls}`}>{plan}</span>
     </div>
   );
 }
