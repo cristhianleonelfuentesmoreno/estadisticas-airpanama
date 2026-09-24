@@ -2,7 +2,7 @@
 
 import { requireApprovedUser, requireAdmin } from "@/lib/auth";
 import { loadFleetKnowledge } from "@/lib/fleet/knowledge";
-import { applyFleetRules, legKey, normalizeRegistration, resolveAircraft } from "@/lib/fleet/rules";
+import { applyFleetRules, canonicalFlightNumber, legKey, normalizeRegistration, resolveAircraft } from "@/lib/fleet/rules";
 import type { ImportRow } from "@/lib/import/registroMensual";
 import type { ReporteVuelo } from "@/lib/reportes/metrics";
 
@@ -190,14 +190,15 @@ async function saveArrivals(flights: FlightData[]) {
     .select('numero_vuelo')
     .eq('fecha', today);
 
-  const existingFlightNumbers = new Set(existingFlights?.map(f => f.numero_vuelo) || []);
+  // Comparación por número estándar: "971" y "7P-971" son el mismo vuelo
+  const existingFlightNumbers = new Set(existingFlights?.map(f => canonicalFlightNumber(f.numero_vuelo)) || []);
 
   const flightsToInsert = arrivedMalekFlights
-    .filter(f => !existingFlightNumbers.has(f.flightNumber))
+    .filter(f => !existingFlightNumbers.has(canonicalFlightNumber(f.flightNumber, f.airline)))
     .map(f => ({
       fecha: today,
       aerolinea: f.airline,
-      numero_vuelo: f.flightNumber,
+      numero_vuelo: canonicalFlightNumber(f.flightNumber, f.airline),
       origen: f.origin,
       hora_itinerario: `${today}T${f.arrivalTimeLocal}:00-05:00`,
       hora_real_llegada: `${today}T${f.actualArrivalTime || f.arrivalTimeLocal}:00-05:00`,
@@ -362,14 +363,15 @@ async function saveDepartures(flights: FlightData[]) {
     .select('numero_vuelo')
     .eq('fecha', today);
 
-  const existingFlightNumbers = new Set(existingFlights?.map(f => f.numero_vuelo) || []);
+  // Comparación por número estándar: "971" y "7P-971" son el mismo vuelo
+  const existingFlightNumbers = new Set(existingFlights?.map(f => canonicalFlightNumber(f.numero_vuelo)) || []);
 
   const flightsToInsert = departedMalekFlights
-    .filter(f => !existingFlightNumbers.has(f.flightNumber))
+    .filter(f => !existingFlightNumbers.has(canonicalFlightNumber(f.flightNumber, f.airline)))
     .map(f => ({
       fecha: today,
       aerolinea: f.airline,
-      numero_vuelo: f.flightNumber,
+      numero_vuelo: canonicalFlightNumber(f.flightNumber, f.airline),
       destino: f.destination,
       hora_itinerario: `${today}T${f.departureTimeLocal}:00-05:00`,
       hora_real_salida: `${today}T${f.actualDepartureTime || f.departureTimeLocal}:00-05:00`,
@@ -696,7 +698,7 @@ export async function importHistoricoRows(rows: HistoricoImportRow[]) {
     const fecha = typeof r?.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.fecha) ? r.fecha : null;
     const aerolinea = r?.aerolinea === 'Air Panama' || r?.aerolinea === 'Copa Airlines' ? r.aerolinea : null;
     const tipo = r?.tipo === 'llegada' || r?.tipo === 'salida' ? r.tipo : null;
-    const numero_vuelo = cut(r?.numero_vuelo, 20)?.toUpperCase() ?? null;
+    const numero_vuelo = aerolinea && cut(r?.numero_vuelo, 20) ? canonicalFlightNumber(cut(r.numero_vuelo, 20), aerolinea) : null;
     const ruta = cut(r?.ruta, 5)?.toUpperCase() ?? null;
     if (!fecha || !aerolinea || !tipo || !numero_vuelo || !ruta || !/^[A-Z]{3,4}$/.test(ruta)) {
       return { success: false, error: `Vuelo inválido: ${numero_vuelo ?? '?'} ${fecha ?? ''} (revisa fecha, número y ruta)` };
@@ -734,20 +736,21 @@ export async function importHistoricoRows(rows: HistoricoImportRow[]) {
 
     const { data: existing, error: fetchError } = await supabase
       .from(table)
-      .select(`id, fecha, numero_vuelo, ${routeCol}`)
+      .select(`id, fecha, aerolinea, numero_vuelo, ${routeCol}`)
       .gte('fecha', fechas[0])
       .lte('fecha', fechas[fechas.length - 1]);
     if (fetchError) return { success: false, error: fetchError.message };
 
-    const key = (fecha: string, numero: string, ruta: string) => `${fecha}|${numero}|${ruta}`.toUpperCase();
+    const key = (fecha: string, numero: string, ruta: string, aerolinea: string) =>
+      `${fecha}|${canonicalFlightNumber(numero, aerolinea)}|${ruta}`.toUpperCase();
     const existingIds = new Map(
-      (existing as unknown as Record<string, string>[] ?? []).map(e => [key(e.fecha, e.numero_vuelo, e[routeCol]), e.id])
+      (existing as unknown as Record<string, string>[] ?? []).map(e => [key(e.fecha, e.numero_vuelo, e[routeCol], e.aerolinea), e.id])
     );
 
     const toInsert = [];
     const toUpdate: { id: string; fields: Record<string, unknown> }[] = [];
     for (const r of batch) {
-      const id = existingIds.get(key(r.fecha, r.numero_vuelo, r.ruta));
+      const id = existingIds.get(key(r.fecha, r.numero_vuelo, r.ruta, r.aerolinea));
       if (id) toUpdate.push({ id, fields: r.fields });
       else toInsert.push({
         fecha: r.fecha,

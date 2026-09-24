@@ -18,6 +18,22 @@ export const EMPTY_KNOWLEDGE: FleetKnowledge = { types: [], aircraft: [], crew: 
 export const legKey = (f: { flightDate?: string; flightNumber: string; origin: string; destination: string }) =>
   `${f.flightDate ?? ""}_${f.flightNumber}_${f.origin}_${f.destination}`.toUpperCase();
 
+// Número de vuelo en su forma estándar del histórico: "971", "7P971", "7P-971" → "7P-971";
+// "CM 013", "CM013", "13" (Copa) → "CM-13"; los sufijos se conservan ("7P 971 A" → "7P-971-A").
+// Todo lo que guarda en el histórico pasa por aquí, así el mismo vuelo nunca se escribe distinto.
+export function canonicalFlightNumber(raw: string | null | undefined, airline?: string | null): string {
+  const text = String(raw ?? "").toUpperCase().trim();
+  const parts = text.replace(/^(7P|CMP?)(?=\d)/, "$1 ").split(/[\s-]+/).filter(Boolean);
+  let prefix = airline === "Copa Airlines" ? "CM" : airline === "Air Panama" ? "7P" : null;
+  if (parts[0] === "7P" || parts[0] === "CM" || parts[0] === "CMP") {
+    const given = parts.shift() === "7P" ? "7P" : "CM";
+    prefix ??= given;
+  }
+  const [num, ...suffix] = parts;
+  if (!prefix || !num) return text;
+  return [prefix, /^\d+$/.test(num) ? String(Number(num)) : num, ...suffix].join("-");
+}
+
 const plain = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 

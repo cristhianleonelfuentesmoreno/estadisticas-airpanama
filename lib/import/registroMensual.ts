@@ -10,7 +10,7 @@
 //  - Nombres corregidos contra la base (matrícula, modelo, formato del número de vuelo).
 //  - Lo dudoso no se corrige solo: se marca con un aviso para revisarlo en la vista previa.
 
-import { normalizeRegistration, resolveAircraft, type FleetKnowledge } from "@/lib/fleet/rules";
+import { canonicalFlightNumber, normalizeRegistration, resolveAircraft, type FleetKnowledge } from "@/lib/fleet/rules";
 
 export type Cell = string | number | boolean | null | undefined;
 export type SheetInput = { name: string; rows: Cell[][] };
@@ -99,14 +99,7 @@ function findColumns(rows: Cell[][]) {
 }
 
 // "CM 013" → CM-13 · "7P 971 A" → 7P-971-A · "7P970" → 7P-970
-function normalizeFlight(raw: Cell, aerolinea: ImportRow["aerolinea"]): string {
-  const parts = String(raw ?? "").toUpperCase().trim().replace(/^(7P|CMP?)(?=\d)/, "$1 ").split(/\s+/).filter(Boolean);
-  if (parts[0] === "7P" || parts[0] === "CM" || parts[0] === "CMP") parts.shift();
-  const [num = "", ...suffix] = parts;
-  const prefix = aerolinea === "Air Panama" ? "7P" : "CM";
-  const cleanNum = /^\d+$/.test(num) ? String(Number(num)) : num;
-  return [prefix, cleanNum, ...suffix].join("-");
-}
+const normalizeFlight = (raw: Cell, aerolinea: ImportRow["aerolinea"]) => canonicalFlightNumber(String(raw ?? ""), aerolinea);
 
 export function parseRegistroMensual(sheets: SheetInput[], kb: FleetKnowledge): ImportResult {
   const rows: ImportRow[] = [];

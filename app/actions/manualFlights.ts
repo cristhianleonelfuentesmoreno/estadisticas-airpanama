@@ -3,7 +3,7 @@
 import { requireApprovedUser, requireAdmin } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { loadFleetKnowledge } from '@/lib/fleet/knowledge';
-import { applyFleetRules, capacityOf, classifyCrewLine, legKey, normalizeRegistration } from '@/lib/fleet/rules';
+import { applyFleetRules, canonicalFlightNumber, capacityOf, classifyCrewLine, legKey, normalizeRegistration } from '@/lib/fleet/rules';
 
 const getAdminSupabase = createAdminClient;
 
@@ -175,11 +175,31 @@ export async function archiveFlight(id: string) {
     finalStatusDeparture = 'CANCELADO';
   }
 
+  // El itinerario guarda "971"; el histórico usa "7P-971". Si el vuelo ya está en el
+  // histórico (p. ej. PENDIENTE del guardado automático), se aprueba esa misma fila.
+  const numeroVuelo = canonicalFlightNumber(manualFlight.flightNumber, manualFlight.airline);
+  const upsertHistorico = async (table: 'llegadas_malek_historico' | 'salidas_malek_historico', routeCol: 'origen' | 'destino', payload: Record<string, unknown>) => {
+    const { data: sameDay } = await supabase.from(table).select(`id, numero_vuelo, ${routeCol}, estado_final`).eq('fecha', manualFlight.flightDate);
+    const matches = ((sameDay ?? []) as unknown as Record<string, string>[])
+      .filter(r => canonicalFlightNumber(r.numero_vuelo, manualFlight.airline) === numeroVuelo && r[routeCol] === payload[routeCol]);
+    if (matches.length === 0) {
+      const { error: insertErr } = await supabase.from(table).insert(payload);
+      if (insertErr) throw new Error(insertErr.message);
+      return;
+    }
+    // Se conserva una fila (la ya aprobada si la hay) y se quitan las copias pendientes
+    const keep = matches.find(r => r.estado_final !== 'PENDIENTE') ?? matches[0];
+    const { error: updateErr } = await supabase.from(table).update({ ...payload, actualizado_en: new Date().toISOString() }).eq('id', keep.id);
+    if (updateErr) throw new Error(updateErr.message);
+    const extras = matches.filter(r => r.id !== keep.id && r.estado_final === 'PENDIENTE').map(r => r.id);
+    if (extras.length > 0) await supabase.from(table).delete().in('id', extras);
+  };
+
   if (manualFlight.destination === 'DAV') {
     const payload = {
       fecha: manualFlight.flightDate,
       aerolinea: manualFlight.airline,
-      numero_vuelo: manualFlight.flightNumber,
+      numero_vuelo: numeroVuelo,
       origen: manualFlight.origin,
       hora_itinerario: `${manualFlight.flightDate}T${manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
       hora_real_llegada: `${manualFlight.flightDate}T${manualFlight.actual_arrival_time?.padStart(5, '0') || manualFlight.arrivalTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
@@ -189,17 +209,12 @@ export async function archiveFlight(id: string) {
       capacidad_total: manualFlight.paxMax
     };
 
-    const { data: existing } = await supabase.from('llegadas_malek_historico').select('id').eq('numero_vuelo', manualFlight.flightNumber).eq('fecha', manualFlight.flightDate).single();
-    if (existing) {
-      await supabase.from('llegadas_malek_historico').update(payload).eq('id', existing.id);
-    } else {
-      await supabase.from('llegadas_malek_historico').insert(payload);
-    }
+    await upsertHistorico('llegadas_malek_historico', 'origen', payload);
   } else if (manualFlight.origin === 'DAV') {
     const payload = {
       fecha: manualFlight.flightDate,
       aerolinea: manualFlight.airline,
-      numero_vuelo: manualFlight.flightNumber,
+      numero_vuelo: numeroVuelo,
       destino: manualFlight.destination,
       hora_itinerario: `${manualFlight.flightDate}T${manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
       hora_real_salida: `${manualFlight.flightDate}T${manualFlight.actual_departure_time?.padStart(5, '0') || manualFlight.departureTimeLocal?.padStart(5, '0') || '12:00'}:00-05:00`,
@@ -209,12 +224,7 @@ export async function archiveFlight(id: string) {
       capacidad_total: manualFlight.paxMax
     };
 
-    const { data: existing } = await supabase.from('salidas_malek_historico').select('id').eq('numero_vuelo', manualFlight.flightNumber).eq('fecha', manualFlight.flightDate).single();
-    if (existing) {
-      await supabase.from('salidas_malek_historico').update(payload).eq('id', existing.id);
-    } else {
-      await supabase.from('salidas_malek_historico').insert(payload);
-    }
+    await upsertHistorico('salidas_malek_historico', 'destino', payload);
   }
 
   return true;
