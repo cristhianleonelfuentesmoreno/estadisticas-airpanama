@@ -17,8 +17,8 @@ type GeoStatus = "checking" | "ok" | "denied" | "unavailable" | "timeout" | "uns
 // Mensajes genéricos: sirven para cualquier dispositivo o sistema (computadora, celular o tablet)
 const GEO_MESSAGES: Record<Exclude<GeoStatus, "checking" | "ok">, { title: string; text: string }> = {
   denied: {
-    title: "Acceso a la ubicación bloqueado",
-    text: "Por seguridad, este sistema necesita tu ubicación para registrar desde dónde te conectas. Permite el acceso a la ubicación para este sitio en la configuración de tu navegador y vuelve a intentarlo.",
+    title: "Se requiere tu ubicación",
+    text: "Se requiere tu ubicación para ver esta información. Permite el acceso a la ubicación para este sitio en la configuración de tu navegador y vuelve a intentarlo.",
   },
   unavailable: {
     title: "No se pudo obtener tu ubicación",
