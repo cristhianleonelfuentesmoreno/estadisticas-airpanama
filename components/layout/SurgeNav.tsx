@@ -21,7 +21,15 @@ export function SurgeNav({ items, pathname }: { items: NavItem[]; pathname: stri
   const routeIndex = items.findIndex(i => i.path === pathname);
   // Se mueve en el clic, sin esperar a que cargue la página
   const [clicked, setClicked] = useState<{ index: number; from: string } | null>(null);
+  // Al cambiar de página el clic ya cumplió: se olvida. Si no, al volver a la página de
+  // origen por otro camino (p. ej. el logo) el menú marcaría la sección del clic viejo.
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    setClicked(null);
+  }
   const active = clicked && clicked.from === pathname ? clicked.index : routeIndex;
+  const shown = useRef(active); // sección donde está dibujada la barra
   const [live, setLive] = useState(false);
   const anim = useRef<number | null>(null); // frame de la animación en curso
 
@@ -44,32 +52,17 @@ export function SurgeNav({ items, pathname }: { items: NavItem[]; pathname: stri
     bar.style.setProperty("--energy", energy.toFixed(3));
   };
 
-  // Posición inicial y al cambiar el tamaño de la ventana
-  useLayoutEffect(() => {
-    const bar = barRef.current;
-    if (!bar) return;
-    const W = parseFloat(getComputedStyle(bar).getPropertyValue("--arc-w")) || 44;
-    const snap = () => {
-      if (active < 0) return;
-      const c = centerOf(active);
-      place(c - W / 2, c + W / 2, 0);
-    };
-    if (anim.current === null) snap();
-    window.addEventListener("resize", snap);
-    return () => window.removeEventListener("resize", snap);
-  }, [active]);
-
   // Hasta que el script mide y coloca la barra, se muestra la versión CSS
   useEffect(() => {
     const id = requestAnimationFrame(() => setLive(true));
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const moveTo = (next: number) => {
+  const moveTo = (from: number, next: number) => {
     const bar = barRef.current;
-    if (!bar || next === active || active < 0 || next < 0) return;
+    if (!bar || next === from || from < 0 || next < 0) return;
     const W = parseFloat(getComputedStyle(bar).getPropertyValue("--arc-w")) || 44;
-    const x0 = centerOf(active);
+    const x0 = centerOf(from);
     const x1 = centerOf(next);
     const D = Math.abs(x1 - x0);
     const dir = Math.sign(x1 - x0);
@@ -105,6 +98,28 @@ export function SurgeNav({ items, pathname }: { items: NavItem[]; pathname: stri
     anim.current = requestAnimationFrame(tick);
   };
 
+  // Posición inicial y al cambiar el tamaño de la ventana
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const W = parseFloat(getComputedStyle(bar).getPropertyValue("--arc-w")) || 44;
+    const snap = () => {
+      if (active < 0) return;
+      const c = centerOf(active);
+      place(c - W / 2, c + W / 2, 0);
+    };
+    if (anim.current === null) {
+      // Cambio sin clic en el menú: la barra viaja igual desde donde estaba
+      if (shown.current >= 0 && active >= 0 && shown.current !== active) moveTo(shown.current, active);
+      else snap();
+    }
+    shown.current = active;
+    window.addEventListener("resize", snap);
+    return () => window.removeEventListener("resize", snap);
+    // moveTo solo usa refs; se ejecuta únicamente cuando cambia la sección activa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
   return (
     <nav aria-label="Secciones" className={`surge ${live ? "surge--live" : ""}`}>
       <div ref={listRef} className="surge__list">
@@ -115,7 +130,8 @@ export function SurgeNav({ items, pathname }: { items: NavItem[]; pathname: stri
             className="surge__item"
             aria-current={i === active ? "page" : undefined}
             onClick={() => {
-              moveTo(i);
+              moveTo(active, i);
+              shown.current = i;
               setClicked({ index: i, from: pathname });
             }}
           >
