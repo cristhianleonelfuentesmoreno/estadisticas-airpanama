@@ -7,6 +7,7 @@ import { updateFlightStatusOverride } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
 import { UploadGlyph } from "@/components/ui/UploadProgress";
 import { toast } from "sonner";
+import Link from "next/link";
 
 type ListProps = {
   canDelete?: boolean;
@@ -306,6 +307,7 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
   const localStatus = flight.status;
   const [loadingAction, setLoadingAction] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleAction = async (actionType: 'DESPEGAR' | 'ATERRIZAR' | 'CANCELAR' | 'RESTABLECER') => {
     if (!flight.manualLogId) {
@@ -328,7 +330,8 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
       }
 
       await updateFlightStatusOverride(flight.manualLogId, payload);
-      toast.success(`Vuelo ${actionType} correctamente`);
+      const done = { DESPEGAR: 'despegó', ATERRIZAR: 'aterrizó · pasa a Pendientes', CANCELAR: 'cancelado · pasa a Pendientes', RESTABLECER: 'restablecido al itinerario' }[actionType];
+      toast.success(`${flight.flightNumber} ${done}`);
       if (onRefresh) onRefresh();
     } catch (err) {
       toast.error((err as Error).message || "Error al actualizar");
@@ -457,65 +460,106 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
         </div>
       </div>
 
-      {/* Actions Bar (Available to everyone) */}
-      {flight.manualLogId && !flight.isArchived && (
-        <div className="mt-2 flex items-center justify-end gap-2 pt-3 border-t border-white/5">
-          <span className="text-[11px] text-on-surface-variant uppercase tracking-wider mr-auto font-bold">Acciones</span>
-          
-          <button 
-            onClick={() => setIsEditModalOpen(true)}
-            disabled={loadingAction}
-            className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface-variant rounded-md text-xs font-bold transition-colors flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-[14px]">edit</span>
-            Editar
-          </button>
-          
-          <div className="w-[1px] h-6 bg-surface-container-high mx-1"></div>
+      {/* Acciones. Mientras vuela: Opciones (editar, cancelar, restablecer) + la acción principal.
+          Cuando arribó o se canceló, el vuelo pasa a Pendientes y allí se revisa y aprueba. */}
+      {flight.manualLogId && !flight.isArchived && (() => {
+        const awaitingApproval = localStatus === 'ARRIBÓ' || localStatus === 'CANCELADO';
+        const menuItems = [
+          ...(!awaitingApproval ? [{ key: 'edit', icon: 'edit', label: 'Editar datos del vuelo', tone: 'text-on-surface', run: () => setIsEditModalOpen(true) }] : []),
+          ...(!awaitingApproval ? [{ key: 'cancel', icon: 'cancel', label: 'Marcar como cancelado', tone: 'text-error', run: () => handleAction('CANCELAR') }] : []),
+          ...(flight.statusOverride ? [{ key: 'reset', icon: 'undo', label: awaitingApproval ? 'Deshacer (volver al itinerario)' : 'Restablecer al itinerario', tone: 'text-on-surface-variant', run: () => handleAction('RESTABLECER') }] : []),
+        ];
+        return (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-surface-container-high">
+            {awaitingApproval ? (
+              <div className="flex items-center gap-2 min-w-0 mr-auto">
+                <span className="w-8 h-8 shrink-0 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">pending_actions</span>
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-on-surface leading-tight">Pendiente de aprobación</p>
+                  <p className="text-[12px] text-on-surface-variant leading-tight">Revisa pasajeros y horas en Pendientes antes de aprobarlo.</p>
+                </div>
+              </div>
+            ) : (
+              <span className="text-[11px] text-on-surface-variant uppercase tracking-wider mr-auto font-bold">Acciones</span>
+            )}
 
-          {localStatus !== 'CANCELADO' && localStatus !== 'ARRIBÓ' && (
-            <button 
-              onClick={() => handleAction('CANCELAR')}
-              disabled={loadingAction}
-              className="px-3 py-1.5 bg-error/10 text-error hover:bg-error/20 rounded-md text-xs font-bold transition-colors"
-            >
-              Vuelo Cancelado
-            </button>
-          )}
-          
-          {(localStatus === 'PROGRAMADO' || localStatus === 'ABORDANDO' || localStatus === 'RETRASADO') && (
-            <button 
-              onClick={() => handleAction('DESPEGAR')}
-              disabled={loadingAction}
-              className="px-4 py-1.5 bg-emerald-500 text-white rounded-md text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[14px]">flight_takeoff</span>
-              Despegar
-            </button>
-          )}
+            <div className="flex items-center gap-2 ml-auto">
+              {menuItems.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setMenuOpen(o => !o)}
+                    disabled={loadingAction}
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    className="h-9 pl-3 pr-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">tune</span>
+                    Opciones
+                    <span className={`material-symbols-outlined text-[18px] transition-transform ${menuOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                  </button>
+                  {menuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} aria-hidden="true" />
+                      <div role="menu" className="absolute right-0 bottom-full mb-2 z-40 w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 animate-in fade-in zoom-in-95 duration-150">
+                        {menuItems.map(item => (
+                          <button
+                            key={item.key}
+                            role="menuitem"
+                            onClick={() => { setMenuOpen(false); item.run(); }}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold hover:bg-slate-50 ${item.tone}`}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
-          {localStatus === 'EN VUELO' && (
-            <button 
-              onClick={() => handleAction('ATERRIZAR')}
-              disabled={loadingAction}
-              className="px-4 py-1.5 bg-primary text-on-primary rounded-md text-xs font-bold shadow-sm hover:bg-primary/90 transition-colors flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[14px]">flight_land</span>
-              Aterrizó
-            </button>
-          )}
+              {(localStatus === 'PROGRAMADO' || localStatus === 'ABORDANDO' || localStatus === 'RETRASADO') && (
+                <button
+                  onClick={() => handleAction('DESPEGAR')}
+                  disabled={loadingAction}
+                  className="h-9 px-4 bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+                  Despegar
+                </button>
+              )}
 
-          {flight.statusOverride && (
-            <button 
-              onClick={() => handleAction('RESTABLECER')}
-              disabled={loadingAction}
-              className="px-3 py-1.5 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-md text-xs font-bold transition-colors flex items-center gap-1"
-              title="Restablecer horas y estado a los del itinerario original"
-            >
-              <span className="material-symbols-outlined text-[14px]">undo</span>
-              Restablecer
-            </button>
-          )}
+              {localStatus === 'EN VUELO' && (
+                <button
+                  onClick={() => handleAction('ATERRIZAR')}
+                  disabled={loadingAction}
+                  className="h-9 px-4 bg-primary text-on-primary rounded-lg text-xs font-bold shadow-sm hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">flight_land</span>
+                  Aterrizó
+                </button>
+              )}
+
+              {awaitingApproval && (
+                <Link
+                  href="/dashboard/diario?pendientes=1"
+                  className="h-9 px-4 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-amber-600 transition-colors flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">fact_check</span>
+                  Revisar en Pendientes
+                </Link>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {flight.isArchived && (
+        <div className="mt-2 flex items-center gap-2 pt-3 border-t border-surface-container-high text-emerald-700 text-[13px] font-bold">
+          <span className="material-symbols-outlined text-[18px]">verified</span>
+          Aprobado y archivado en el Registro
         </div>
       )}
 

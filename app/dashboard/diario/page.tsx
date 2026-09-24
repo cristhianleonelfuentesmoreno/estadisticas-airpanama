@@ -37,6 +37,7 @@ export default async function TablasDiariasPage({
         initialData={{ llegadas: llegadas || [], salidas: salidas || [] }} 
         currentDateStr={currentDateStr}
         role={user.role}
+        openPendientes={params.pendientes === '1'}
       />
     </div>
   );

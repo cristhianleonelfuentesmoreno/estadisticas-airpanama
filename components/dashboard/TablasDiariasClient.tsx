@@ -43,11 +43,13 @@ const COMMON_FLIGHTS = [
 export default function TablasDiariasClient({
   initialData,
   currentDateStr,
-  role = 'usuario'
+  role = 'usuario',
+  openPendientes = false
 }: {
   initialData: { llegadas: MalekFlight[], salidas: MalekFlight[] };
   currentDateStr: string;
   role?: Role;
+  openPendientes?: boolean; // llegó desde "Revisar en Pendientes" del itinerario
 }) {
   const [viewType, setViewType] = useState<'llegadas' | 'salidas' | 'todos'>('todos');
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,7 +76,7 @@ export default function TablasDiariasClient({
   
   // Aprobacion state
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false);
-  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(openPendientes);
   const [pendingAuditCount, setPendingAuditCount] = useState(0);
 
   // Derivados de initialData para separar PENDIENTES
@@ -1429,8 +1431,10 @@ export default function TablasDiariasClient({
           onClose={() => { 
             setIsAuditModalOpen(false); 
             loadPendingAudit(); 
-            // Reload historical data so changes are visible instantly
-            window.location.reload(); 
+            // Recarga para ver lo aprobado; sin ?pendientes para que no se vuelva a abrir sola
+            const url = new URL(window.location.href);
+            url.searchParams.delete('pendientes');
+            window.location.replace(url.toString());
           }} 
         />
       )}
