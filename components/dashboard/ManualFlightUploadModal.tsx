@@ -455,20 +455,23 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 bg-surface-container p-4 rounded-xl border border-white/5">
-                    <span className="material-symbols-outlined text-primary">calendar_month</span>
-                    <div className="flex flex-col flex-1">
-                      <label className="text-xs font-bold text-on-surface-variant uppercase">Fecha de Referencia</label>
-                      <span className="text-xs text-on-surface-variant/70">Fecha que se asignará si la foto no la incluye explícitamente</span>
+                  {/* Copa trae el mes en el título de la imagen: la fecha solo aplica al diario de Air Panama */}
+                  {selectedAirline === 'airpanama' && (
+                    <div className="flex items-center gap-3 bg-surface-container p-4 rounded-xl border border-white/5">
+                      <span className="material-symbols-outlined text-primary">calendar_month</span>
+                      <div className="flex flex-col flex-1">
+                        <label className="text-xs font-bold text-on-surface-variant uppercase">Fecha de Referencia</label>
+                        <span className="text-xs text-on-surface-variant/70">Fecha que se asignará si la foto no la incluye explícitamente</span>
+                      </div>
+                      <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} className="h-10 px-3 bg-surface-container-high rounded-lg border border-outline-variant/30 text-sm focus:ring-1 focus:ring-primary" />
                     </div>
-                    <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} className="h-10 px-3 bg-surface-container-high rounded-lg border border-outline-variant/30 text-sm focus:ring-1 focus:ring-primary" />
-                  </div>
+                  )}
 
                   <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-on-surface-variant text-sm flex gap-3">
                     <span className="material-symbols-outlined text-blue-500">document_scanner</span>
                     <p>
                       {selectedAirline === 'copa'
-                        ? <><strong>Copa Airlines (Mensual):</strong> Sube la foto del itinerario. El sistema leerá el mes de la <strong>Fecha de Referencia</strong> y cargará automáticamente todos los vuelos del mes usando el motor OCR local — sin internet ni IA. 🛫 B738</>  
+                        ? <><strong>Copa Airlines (Mensual):</strong> Sube la imagen del itinerario del mes. El sistema lee el mes del título (p. ej. <em>SEPTIEMBRE-RV00-2026</em>) y carga todos los vuelos del mes: por cada rotación que opera, la llegada desde PTY y el regreso a PTY — sin internet ni IA.</>  
                         : <><strong>Air Panama (Diario):</strong> Sube la hoja de vuelos del día. El motor OCR local analizará la imagen y extraerá los vuelos (número, ruta, hora, tripulación) — sin internet ni IA. 🛫</>  
                       }
                     </p>
