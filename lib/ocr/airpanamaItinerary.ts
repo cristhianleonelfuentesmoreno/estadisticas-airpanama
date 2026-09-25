@@ -36,6 +36,7 @@ async function prepareForOcr(buffer: Buffer): Promise<Buffer> {
 function normalizeOcrText(text: string): string {
   return text
     .replace(/\bD[HN][B8S]D\b/g, 'DH8D')         // DHBD, DHSD, DN8D → DH8D
+    .replace(/\bD[S5]H\b/g, 'DH8D')               // DSH (así escriben el Dash 8 del HP-1997) → DH8D
     .replace(/\bFK?-?5[O0]\b/g, 'F-50')           // F50, F-5O, FK50 → F-50
     .replace(/\bC-?2[O0]8\b/g, 'C-208')           // C208, C-2O8 → C-208
     .replace(/\bHP\s*-?\s*(\d{3,4})\b/g, 'HP-$1') // HP 1997 → HP-1997
