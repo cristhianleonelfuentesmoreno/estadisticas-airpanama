@@ -68,10 +68,19 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
     return () => clearInterval(interval);
   }, [boardDate, refreshCounter, pending, initial?.date]);
 
+  // Get unique destinations and airlines for the filters
+  const uniqueDests = Array.from(new Set(flights.map(f => f.destination)));
+  const uniqueAirlines = Array.from(new Set(flights.map(f => f.airline)));
+
+  // Si el filtro elegido no existe en los vuelos del día (p. ej. solo hay Copa DAV→PTY),
+  // se usa TODOS en vez de ocultar todos los vuelos sin ninguna opción marcada
+  const activeDest = flights.some(f => f.destination === destinationFilter || f.origin === destinationFilter) ? destinationFilter : 'TODOS';
+  const activeAirline = uniqueAirlines.includes(airlineFilter) ? airlineFilter : 'TODOS';
+
   // 1. Filter Flights
   const filteredFlights = flights.filter(f => {
-    const passDest = destinationFilter === 'TODOS' || f.destination === destinationFilter || f.origin === destinationFilter;
-    const passAirline = airlineFilter === 'TODOS' || f.airline === airlineFilter;
+    const passDest = activeDest === 'TODOS' || f.destination === activeDest || f.origin === activeDest;
+    const passAirline = activeAirline === 'TODOS' || f.airline === activeAirline;
     const passStatus = statusFilter === 'TODOS' || f.status === statusFilter;
     return passDest && passAirline && passStatus;
   });
@@ -106,10 +115,6 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
 
   // 3. Limit visible flights on the dashboard (e.g., top 12)
   const visibleFlights = sortedFlights.slice(0, 12);
-
-  // Get unique destinations and airlines for the filters
-  const uniqueDests = Array.from(new Set(flights.map(f => f.destination)));
-  const uniqueAirlines = Array.from(new Set(flights.map(f => f.airline)));
 
   return (
     <>
@@ -181,13 +186,13 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
           <FilterRow
             label="Rutas"
             options={[{ value: 'TODOS', label: 'TODOS' }, ...uniqueDests.map(d => ({ value: d, label: d }))]}
-            value={destinationFilter}
+            value={activeDest}
             onChange={setDestinationFilter}
           />
           <FilterRow
             label="Aerolínea"
             options={[{ value: 'TODOS', label: 'TODAS' }, ...uniqueAirlines.map(a => ({ value: a, label: a.toUpperCase() }))]}
-            value={airlineFilter}
+            value={activeAirline}
             onChange={setAirlineFilter}
           />
           <FilterRow
@@ -231,7 +236,7 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
               <div className="flex items-center gap-3">
                 <h2 className="font-headline-md text-headline-md font-bold text-on-surface">Vuelos de Hoy ({sortedFlights.length})</h2>
                 <div className="px-3 py-1 bg-surface-container-high rounded-full font-label-sm text-label-sm font-bold text-on-surface border border-white/5">
-                  Ruta: {destinationFilter === 'TODOS' ? 'Todas' : destinationFilter}
+                  Ruta: {activeDest === 'TODOS' ? 'Todas' : activeDest}
                 </div>
               </div>
               <button 
