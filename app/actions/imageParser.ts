@@ -63,6 +63,17 @@ async function parseCopaMonthly(base64Data: string): Promise<ParsedFlight[]> {
   return flights;
 }
 
+// Si el worker del OCR se cae, tesseract.js no rechaza la promesa y la petición quedaría
+// esperando hasta que Vercel la corte; mejor fallar con un mensaje claro
+const OCR_TIMEOUT_MS = 90_000;
+function withTimeout<T>(work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('La lectura de la imagen tardó demasiado (>90s). Intenta de nuevo o carga los vuelos a mano.')), OCR_TIMEOUT_MS);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
 // --------------------------------------------------------------------------
 // PUNTO DE ENTRADA PÚBLICO
 // --------------------------------------------------------------------------
@@ -80,11 +91,11 @@ export async function parseItineraryImage(
 
     if (airline === 'copa') {
       console.log('OCR local — Copa Airlines mensual...');
-      return await parseCopaMonthly(base64Data);
+      return await withTimeout(parseCopaMonthly(base64Data));
     }
 
     console.log('OCR local — Air Panama diario...');
-    return await parseAirPanamaDaily(base64Data, targetDateStr);
+    return await withTimeout(parseAirPanamaDaily(base64Data, targetDateStr));
   } catch (error) {
     console.error('Error en parseItineraryImage:', error);
     throw new Error((error as Error).message || 'Error al procesar la imagen con el motor OCR local.');
