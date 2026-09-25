@@ -306,6 +306,8 @@ function FilterRow({ label, options, value, onChange }: {
 
 function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canDelete?: boolean, onRefresh?: () => void }) {
   const localStatus = flight.status;
+  // Solo los vuelos que llegan o salen de DAV pasan por Pendientes y al Registro histórico
+  const touchesDav = flight.origin === 'DAV' || flight.destination === 'DAV';
   const [loadingAction, setLoadingAction] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -331,7 +333,8 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
       }
 
       await updateFlightStatusOverride(flight.manualLogId, payload);
-      const done = { DESPEGAR: 'despegó', ATERRIZAR: 'aterrizó · pasa a Pendientes', CANCELAR: 'cancelado · pasa a Pendientes', RESTABLECER: 'restablecido al itinerario' }[actionType];
+      const toPending = touchesDav ? ' · pasa a Pendientes' : '';
+      const done = { DESPEGAR: 'despegó', ATERRIZAR: `aterrizó${toPending}`, CANCELAR: `cancelado${toPending}`, RESTABLECER: 'restablecido al itinerario' }[actionType];
       toast.success(`${flight.flightNumber} ${done}`);
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -372,7 +375,7 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
   if (localStatus === 'EN VUELO') {
     dotClass = 'bg-current animate-pulse';
   } else if (localStatus === 'ARRIBÓ') {
-    dotClass = flight.isArchived ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse';
+    dotClass = flight.isArchived ? 'bg-emerald-500' : touchesDav ? 'bg-amber-500 animate-pulse' : 'bg-current';
   }
 
   return (
@@ -462,13 +465,15 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
       </div>
 
       {/* Acciones. Mientras vuela: Opciones (editar, cancelar, restablecer) + la acción principal.
-          Cuando arribó o se canceló, el vuelo pasa a Pendientes y allí se revisa y aprueba. */}
+          Cuando arribó o se canceló: si es de DAV pasa a Pendientes y allí se revisa y aprueba;
+          los vuelos entre otras estaciones solo se cierran (no van al Registro histórico). */}
       {flight.manualLogId && !flight.isArchived && (() => {
-        const awaitingApproval = localStatus === 'ARRIBÓ' || localStatus === 'CANCELADO';
+        const finished = localStatus === 'ARRIBÓ' || localStatus === 'CANCELADO';
+        const awaitingApproval = finished && touchesDav;
         const menuItems = [
-          ...(!awaitingApproval ? [{ key: 'edit', icon: 'edit', label: 'Editar datos del vuelo', tone: 'text-on-surface', run: () => setIsEditModalOpen(true) }] : []),
-          ...(!awaitingApproval ? [{ key: 'cancel', icon: 'cancel', label: 'Marcar como cancelado', tone: 'text-error', run: () => handleAction('CANCELAR') }] : []),
-          ...(flight.statusOverride ? [{ key: 'reset', icon: 'undo', label: awaitingApproval ? 'Deshacer (volver al itinerario)' : 'Restablecer al itinerario', tone: 'text-on-surface-variant', run: () => handleAction('RESTABLECER') }] : []),
+          ...(!finished ? [{ key: 'edit', icon: 'edit', label: 'Editar datos del vuelo', tone: 'text-on-surface', run: () => setIsEditModalOpen(true) }] : []),
+          ...(!finished ? [{ key: 'cancel', icon: 'cancel', label: 'Marcar como cancelado', tone: 'text-error', run: () => handleAction('CANCELAR') }] : []),
+          ...(flight.statusOverride ? [{ key: 'reset', icon: 'undo', label: finished ? 'Deshacer (volver al itinerario)' : 'Restablecer al itinerario', tone: 'text-on-surface-variant', run: () => handleAction('RESTABLECER') }] : []),
         ];
         return (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-surface-container-high">
@@ -480,6 +485,16 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
                 <div className="min-w-0">
                   <p className="text-[13px] font-bold text-on-surface leading-tight">Pendiente de aprobación</p>
                   <p className="text-[12px] text-on-surface-variant leading-tight">Revisa pasajeros y horas en Pendientes antes de aprobarlo.</p>
+                </div>
+              </div>
+            ) : finished ? (
+              <div className="flex items-center gap-2 min-w-0 mr-auto">
+                <span className="w-8 h-8 shrink-0 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">{localStatus === 'CANCELADO' ? 'event_busy' : 'flight_land'}</span>
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-on-surface leading-tight">{localStatus === 'CANCELADO' ? 'Vuelo cancelado' : 'Vuelo finalizado'}</p>
+                  <p className="text-[12px] text-on-surface-variant leading-tight">No opera en DAV: no pasa al Registro histórico.</p>
                 </div>
               </div>
             ) : (
