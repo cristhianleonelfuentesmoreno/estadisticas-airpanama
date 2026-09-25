@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { updateAppSettings, getAppSettings } from "@/app/actions/admin";
+import { BackgroundFramer } from "./BackgroundFramer";
+import { DEFAULT_BG_ASPECT, frameFor, type BgDevice, type BgFrame } from "@/lib/loginBackground";
+
+const DEFAULT_BG = "/bg-plane.webp";
+const CENTERED: BgFrame = { zoom: 1, x: 50, y: 50 };
 
 export function SettingsWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,15 +18,25 @@ export function SettingsWidget() {
   const [registerTitle, setRegisterTitle] = useState("");
   const [registerText, setRegisterText] = useState("");
   
-  const [bgPosition, setBgPosition] = useState("center");
-  const [bgSize, setBgSize] = useState("cover");
-  const [bgPositionMobile, setBgPositionMobile] = useState("center");
-  const [bgSizeMobile, setBgSizeMobile] = useState("cover");
-  
+  const [frames, setFrames] = useState<Record<BgDevice, BgFrame>>({ desktop: CENTERED, mobile: CENTERED });
+  const [aspect, setAspect] = useState(DEFAULT_BG_ASPECT);
+
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [bgUrlPreview, setBgUrlPreview] = useState("/bg-plane.png");
-  
-  const [activeTab, setActiveTab] = useState<'desktop' | 'mobile'>('desktop');
+  const [bgUrlPreview, setBgUrlPreview] = useState(DEFAULT_BG);
+
+  const [activeTab, setActiveTab] = useState<BgDevice>('desktop');
+
+  // Proporción real de la imagen: el encuadre la necesita para calcular el zoom
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => { if (img.naturalWidth && img.naturalHeight) setAspect(img.naturalWidth / img.naturalHeight); };
+    img.src = bgUrlPreview;
+  }, [bgUrlPreview]);
+
+  const updateFrame = useCallback(
+    (update: (f: BgFrame) => BgFrame) => setFrames(prev => ({ ...prev, [activeTab]: update(prev[activeTab]) })),
+    [activeTab],
+  );
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,11 +48,8 @@ export function SettingsWidget() {
         setLoginText(s.loginText ?? "Ingresa tus datos personales y empieza el viaje con nosotros.");
         setRegisterTitle(s.registerTitle ?? "¡Bienvenido de vuelta!");
         setRegisterText(s.registerText ?? "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información.");
-        setBgPosition(s.bgPosition || "center");
-        setBgSize(s.bgSize || "cover");
-        setBgPositionMobile(s.bgPositionMobile || s.bgPosition || "center");
-        setBgSizeMobile(s.bgSizeMobile || s.bgSize || "cover");
-        setBgUrlPreview(s.bgUrl || "/bg-plane.png");
+        setFrames({ desktop: frameFor(s, "desktop"), mobile: frameFor(s, "mobile") });
+        setBgUrlPreview(!s.bgUrl || s.bgUrl === "/bg-plane.png" ? DEFAULT_BG : s.bgUrl);
       }
     } catch (e) {
       console.error(e);
@@ -49,6 +61,8 @@ export function SettingsWidget() {
       const file = e.target.files[0];
       setImageFile(file);
       setBgUrlPreview(URL.createObjectURL(file));
+      // Imagen nueva: se empieza llenando el espacio, centrada
+      setFrames({ desktop: CENTERED, mobile: CENTERED });
     }
   };
 
@@ -60,11 +74,15 @@ export function SettingsWidget() {
       formData.append("loginText", loginText);
       formData.append("registerTitle", registerTitle);
       formData.append("registerText", registerText);
-      formData.append("bgPosition", bgPosition);
-      formData.append("bgSize", bgSize);
-      formData.append("bgPositionMobile", bgPositionMobile);
-      formData.append("bgSizeMobile", bgSizeMobile);
-      formData.append("bgUrl", bgUrlPreview);
+      formData.append("bgAspect", String(aspect));
+      formData.append("bgZoom", String(frames.desktop.zoom));
+      formData.append("bgX", String(frames.desktop.x));
+      formData.append("bgY", String(frames.desktop.y));
+      formData.append("bgZoomMobile", String(frames.mobile.zoom));
+      formData.append("bgXMobile", String(frames.mobile.x));
+      formData.append("bgYMobile", String(frames.mobile.y));
+      // Una imagen local (blob:) no es una URL válida para guardar: la sube el archivo
+      if (!imageFile) formData.append("bgUrl", bgUrlPreview);
       
       if (imageFile) {
         formData.append("imageFile", imageFile);
@@ -93,11 +111,6 @@ export function SettingsWidget() {
       setLoading(false);
     }
   };
-
-  const currentSize = activeTab === 'desktop' ? bgSize : bgSizeMobile;
-  const setSize = activeTab === 'desktop' ? setBgSize : setBgSizeMobile;
-  const currentPosition = activeTab === 'desktop' ? bgPosition : bgPositionMobile;
-  const setPosition = activeTab === 'desktop' ? setBgPosition : setBgPositionMobile;
 
   return (
     <>
@@ -189,90 +202,28 @@ export function SettingsWidget() {
                   </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-6">
-                  {/* Vista Previa */}
-                  <div className="w-full md:w-1/2 flex flex-col gap-3">
-                    <span className="font-label-md font-bold text-on-surface text-xs">Vista Previa ({activeTab === 'desktop' ? 'Computadora' : 'Celular'})</span>
-                    <div 
-                      className="w-full bg-surface-container rounded-2xl overflow-hidden border border-outline-variant/20 shadow-inner relative transition-all mx-auto flex items-center justify-center text-center text-white"
-                      style={{ aspectRatio: activeTab === 'desktop' ? '550 / 500' : '390 / 220', maxWidth: activeTab === 'desktop' ? '280px' : '100%' }}
-                    >
-                      <div 
-                        className="absolute inset-0 z-0"
-                        style={{
-                          backgroundImage: `url(${bgUrlPreview})`,
-                          backgroundSize: currentSize,
-                          backgroundPosition: currentPosition,
-                          backgroundRepeat: 'no-repeat'
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-black/30 z-10" />
-                      
-                      <div className="relative z-20 flex flex-col items-center justify-center p-4 w-full">
-                        <h2 className="font-bold drop-shadow-md" style={{ fontSize: activeTab === 'desktop' ? '1.1rem' : '1.4rem', margin: '0 0 4px 0' }}>
-                          {loginTitle || "¡Hola!"}
-                        </h2>
-                        {loginText && (
-                          <p className="drop-shadow-md" style={{ fontSize: activeTab === 'desktop' ? '0.65rem' : '0.8rem', margin: 0, opacity: 0.9, maxWidth: '85%', lineHeight: 1.2 }}>
-                            {loginText}
-                          </p>
-                        )}
-                        <div style={{ marginTop: '12px', padding: '4px 16px', border: '1px solid white', borderRadius: '20px', fontSize: '0.55rem', letterSpacing: '1px', background: 'transparent' }}>
-                          REGISTRARSE
-                        </div>
-                      </div>
-                    </div>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
-                      ref={fileInputRef} 
-                      onChange={handleFileChange} 
-                    />
-                    <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mt-2 w-full py-2 bg-surface-variant text-on-surface-variant rounded-xl font-label-md font-bold flex items-center justify-center gap-2 hover:bg-surface-variant/80 transition-colors"
-                    >
-                      <span className="material-symbols-outlined">upload</span>
-                      Cambiar imagen
-                    </button>
-                  </div>
-
-                  {/* Controles */}
-                  <div className="w-full md:w-1/2 flex flex-col gap-5">
-                    <div className="flex flex-col gap-2">
-                      <label className="font-label-md font-bold text-on-surface text-xs">Tamaño de la imagen (Zoom)</label>
-                      <select 
-                        value={currentSize} 
-                        onChange={e => setSize(e.target.value)}
-                        className="h-10 px-3 rounded-lg bg-surface-container text-sm focus:outline-none focus:ring-2 ring-primary/20"
-                      >
-                        <option value="cover">Llenar todo (Recomendado)</option>
-                        <option value="contain">Ajustar completo</option>
-                        <option value="100%">100% (Original)</option>
-                        <option value="120%">120% (Zoom in)</option>
-                        <option value="150%">150% (Zoom in max)</option>
-                        <option value="200%">200% (Ultra Zoom)</option>
-                      </select>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <label className="font-label-md font-bold text-on-surface text-xs">Posicionamiento</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {['top left', 'top center', 'top right', 'center left', 'center', 'center right', 'bottom left', 'bottom center', 'bottom right'].map(pos => (
-                          <button
-                            key={pos}
-                            onClick={() => setPosition(pos)}
-                            className={`py-2 rounded-lg text-xs font-bold transition-colors ${currentPosition === pos ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
-                          >
-                            {pos.replace('top', '↑').replace('bottom', '↓').replace('left', '←').replace('right', '→').replace('center', '•')}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-on-surface-variant text-center mt-1">Usa la cuadrícula para alinear la imagen.</p>
-                    </div>
-                  </div>
-                </div>
+                <BackgroundFramer
+                  device={activeTab}
+                  imageUrl={bgUrlPreview}
+                  aspect={aspect}
+                  frame={frames[activeTab]}
+                  onChange={updateFrame}
+                  title={loginTitle}
+                />
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-2 bg-surface-variant text-on-surface-variant rounded-xl font-label-md font-bold flex items-center justify-center gap-2 hover:bg-surface-variant/80 transition-colors"
+                >
+                  <span className="material-symbols-outlined">upload</span>
+                  Cambiar imagen
+                </button>
               </div>
             </div>
 

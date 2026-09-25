@@ -7,12 +7,13 @@ import { fetchUpcomingFlights } from "@/lib/client/api";
 import { archiveFlight, updateFlightDetails, deleteManualFlight } from "@/app/actions/manualFlights";
 import { FlightEditModal } from "./FlightEditModal";
 
-// Vuelos de DAV que ya llegaron o se cancelaron y aún no se archivan
+// Vuelos que llegaron a DAV o salieron de DAV y ya arribaron, aún sin archivar.
+// Los cancelados no pasan a Pendientes ni al histórico.
 export async function fetchPendingAudit(date: string): Promise<FlightData[]> {
   const data = await fetchUpcomingFlights(date);
   return data.filter(f =>
     (f.origin === 'DAV' || f.destination === 'DAV') &&
-    (f.status === 'ARRIBÓ' || f.status === 'CANCELADO') && !f.isArchived
+    f.status === 'ARRIBÓ' && !f.isArchived
   );
 }
 
@@ -167,7 +168,7 @@ export function FlightAuditBoard({ onClose, canDelete = false }: { onClose: () =
                 Auditoría de Vuelos Pendientes de Cierre
                 <span className="bg-error text-white text-xs px-2 py-0.5 rounded-full shadow-sm">{flights.length}</span>
               </h2>
-              <p className="text-sm text-on-surface-variant mt-0.5">Revisa y aprueba los vuelos que ya han llegado o sido cancelados antes de guardarlos en el histórico definitivo.</p>
+              <p className="text-sm text-on-surface-variant mt-0.5">Revisa y aprueba los vuelos que ya han llegado antes de guardarlos en el histórico definitivo.</p>
             </div>
           </div>
           <div className="flex items-center gap-4 mr-12">

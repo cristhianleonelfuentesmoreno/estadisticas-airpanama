@@ -21,10 +21,32 @@
   border-radius: 18px;
   translate: 0 0;
   transition: 0.65s ease-in-out;
+  overflow: hidden;
+  /* El encuadre (lib/loginBackground.ts) usa cqw/cqh de este panel */
+  container-type: size;
+  background: #0a2540;
+}
+
+.card-bg-img,
+.card-bg-blur {
+  position: absolute;
+  inset: 0;
   background-repeat: no-repeat;
-  background-image: var(--bg-image-desktop, url("/bg-plane.webp"));
+  background-image: var(--bg-image, url("/bg-plane.webp"));
+}
+
+.card-bg-img {
   background-size: var(--bg-size-desktop, cover);
   background-position: var(--bg-position-desktop, center);
+}
+
+/* Al alejar la imagen, la misma imagen desenfocada rellena los huecos */
+.card-bg-blur {
+  display: var(--bg-backdrop-desktop, none);
+  inset: -40px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(28px) brightness(0.8) saturate(1.1);
 }
 
 /* Overlays a dark tint to make text readable */
@@ -448,9 +470,19 @@
     bottom: auto;
     translate: 0 0 !important; /* Desactivamos el slide */
     border-radius: 0;
-    background-image: var(--bg-image-mobile, url("/bg-plane.webp"));
+  }
+
+  .card-bg-img {
     background-size: var(--bg-size-mobile, cover);
     background-position: var(--bg-position-mobile, center);
+  }
+
+  .card-bg-blur {
+    display: var(--bg-backdrop-mobile, none);
+  }
+
+  .card-bg::after {
+    border-radius: 0;
   }
 
   /* Reseteamos posiciones absolutas y traslaciones */

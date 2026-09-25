@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin, requireSupervisor, type SessionUser } from "@/lib/auth";
 import { canManageAccount, ROLE_LABEL, toRole, type Role } from "@/lib/permissions";
+import { BG_ZOOM_MAX, BG_ZOOM_MIN, DEFAULT_BG_ASPECT, clamp } from "@/lib/loginBackground";
 
 // Estas acciones devuelven { error } en vez de lanzar, porque la UI lo muestra en un toast.
 // Supervisores: aceptan/rechazan usuarios y editan su nombre y cargo.
@@ -216,16 +217,25 @@ export async function updateAppSettings(formData: FormData) {
     bgUrl = urlData.publicUrl;
   }
 
+  // Encuadre del fondo (ver lib/loginBackground.ts): números acotados, nunca texto CSS libre
+  const num = (key: string, min: number, max: number, fallback: number) => {
+    const n = Number(formData.get(key));
+    return Number.isFinite(n) ? clamp(n, min, max) : fallback;
+  };
+
   const newSettings = {
     loginTitle: formData.get("loginTitle") as string,
     loginText: formData.get("loginText") as string,
     registerTitle: formData.get("registerTitle") as string,
     registerText: formData.get("registerText") as string,
     bgUrl: bgUrl,
-    bgSize: formData.get("bgSize") as string,
-    bgPosition: formData.get("bgPosition") as string,
-    bgSizeMobile: formData.get("bgSizeMobile") as string,
-    bgPositionMobile: formData.get("bgPositionMobile") as string,
+    bgAspect: num("bgAspect", 0.2, 5, DEFAULT_BG_ASPECT),
+    bgZoom: num("bgZoom", BG_ZOOM_MIN, BG_ZOOM_MAX, 1),
+    bgX: num("bgX", 0, 100, 50),
+    bgY: num("bgY", 0, 100, 50),
+    bgZoomMobile: num("bgZoomMobile", BG_ZOOM_MIN, BG_ZOOM_MAX, 1),
+    bgXMobile: num("bgXMobile", 0, 100, 50),
+    bgYMobile: num("bgYMobile", 0, 100, 50),
   };
   
   const { error } = await supabaseAdmin.storage.from('assets').upload('settings.json', JSON.stringify(newSettings), { contentType: 'application/json', upsert: true });

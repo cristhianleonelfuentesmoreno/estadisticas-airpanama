@@ -48,3 +48,6 @@ _local/
 
 # caché de idioma de Tesseract (se descarga sola)
 eng.traineddata
+
+# tutoriales grabados (video + scripts de Playwright con node_modules)
+/tutorial-output/
