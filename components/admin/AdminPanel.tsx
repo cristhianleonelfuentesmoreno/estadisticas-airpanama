@@ -219,7 +219,7 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
               {activos} activos
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-2 my-space-md bg-surface-container-low p-2.5 rounded-lg">
+          <div className="grid grid-cols-2 gap-2 mt-space-md bg-surface-container-low p-2.5 rounded-lg">
             <div className="flex flex-col">
               <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Supervisores</span>
               <span className="font-headline-sm text-headline-sm font-bold text-primary">{supervisores}</span>
@@ -229,10 +229,6 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
               <span className="font-headline-sm text-headline-sm font-bold text-secondary-container">{pendientes}</span>
             </div>
           </div>
-          <button className="w-full mt-auto flex items-center justify-center gap-1.5 py-2.5 px-space-sm rounded-lg bg-primary-container text-on-primary font-label-md text-label-md active:scale-95 transition-all opacity-50 cursor-not-allowed">
-            <span className="material-symbols-outlined text-[18px]">person_add</span>
-            + Nuevo Usuario & Permisos
-          </button>
         </div>
 
         {/* Card 2: Monitoreo Activo */}
