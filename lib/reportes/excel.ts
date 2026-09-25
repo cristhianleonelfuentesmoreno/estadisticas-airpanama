@@ -12,6 +12,11 @@ type Opts = { year: number; month: number; range: ReportRange; airline: ReportAi
 
 const pct = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 1000) / 10 : 0);
 
+// En el Registro Histórico una llegada se guarda como LLEGÓ y una salida como CUMPLIDO;
+// en el reporte ambos son ARRIBÓ y solo entran los vuelos que arribaron (no pendientes ni cancelados)
+const ARRIBO = new Set(['LLEGÓ', 'CUMPLIDO', 'ARRIBÓ']);
+const arribo = (f: ReporteVuelo) => ARRIBO.has((f.estado_final ?? '').toUpperCase());
+
 export function buildReportWorkbook(rows: ReporteVuelo[], metrics: ReportMetrics, o: Opts) {
   const period = periodLabel(o.year, o.month, o.range);
   const header = [
@@ -25,7 +30,7 @@ export function buildReportWorkbook(rows: ReporteVuelo[], metrics: ReportMetrics
 
   // --- Hoja 1: vuelos -------------------------------------------------------
   const flights = rows
-    .filter(f => matchesAirline(f, o.airline))
+    .filter(f => matchesAirline(f, o.airline) && arribo(f))
     .sort((a, b) =>
       a.fecha.localeCompare(b.fecha) ||
       Number(isLlegada(b)) - Number(isLlegada(a)) ||
@@ -33,7 +38,7 @@ export function buildReportWorkbook(rows: ReporteVuelo[], metrics: ReportMetrics
     );
 
   const columns = ['Fecha', 'Tipo', 'Aerolínea', 'Vuelo', 'Origen', 'Destino', 'Matrícula', 'Avión',
-    'Pasajeros', 'Capacidad', 'Ocupación %', 'Estado', 'Handler', 'Stand', 'Servicio', 'Notas'];
+    'Pasajeros', 'Capacidad', 'Ocupación %', 'Estado'];
   const body = flights.map(f => {
     const llegada = isLlegada(f);
     const pax = f.pasajeros_abordo ?? 0;
@@ -49,11 +54,7 @@ export function buildReportWorkbook(rows: ReporteVuelo[], metrics: ReportMetrics
       pax,
       f.capacidad_total ?? 0,
       pct(pax, f.capacidad_total ?? 0),
-      f.estado_final ?? '',
-      f.handler ?? '',
-      f.stand ?? '',
-      f.servicio ?? '',
-      f.notas ?? '',
+      'ARRIBÓ',
     ];
   });
   const totalPax = flights.reduce((s, f) => s + (f.pasajeros_abordo ?? 0), 0);
@@ -62,7 +63,7 @@ export function buildReportWorkbook(rows: ReporteVuelo[], metrics: ReportMetrics
 
   const vuelos = XLSX.utils.aoa_to_sheet([...header, columns, ...body, [], totals]);
   const headerRow = header.length; // índice 0 de la fila de títulos
-  vuelos['!cols'] = [12, 9, 14, 11, 8, 8, 11, 8, 10, 10, 12, 11, 24, 7, 9, 40].map(wch => ({ wch }));
+  vuelos['!cols'] = [12, 9, 14, 11, 8, 8, 11, 8, 10, 10, 12, 11].map(wch => ({ wch }));
   vuelos['!autofilter'] = {
     ref: XLSX.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: headerRow + body.length, c: columns.length - 1 } }),
   };
