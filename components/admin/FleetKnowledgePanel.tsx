@@ -50,11 +50,11 @@ const TABS: TabDef[] = [
   },
   {
     id: "flight_routes", label: "Rutas", icon: "route", key: "id", review: "verified",
-    help: "Minutos de vuelo por ruta y modelo: se usan para calcular la hora de llegada. Cada avión vuela a distinta velocidad; agrega la misma ruta con otro modelo si tarda distinto. \"Todos\" vale para los modelos sin tiempo propio.",
+    help: "Minutos de vuelo por ruta y modelo, para calcular la hora de llegada. Cada ruta vale de ida y de vuelta (PAC-DAV sirve también para DAV-PAC). Si un avión tarda distinto, agrega la ruta con su modelo; \"Todos\" vale para los modelos sin tiempo propio.",
     cols: [
       { field: "airline", label: "Aerolínea", kind: "text", width: "w-32" },
-      { field: "origin", label: "Origen", kind: "upper", width: "w-20" },
-      { field: "destination", label: "Destino", kind: "upper", width: "w-20" },
+      { field: "origin", label: "Aeropuerto", kind: "upper", width: "w-20" },
+      { field: "destination", label: "↔ Aeropuerto", kind: "upper", width: "w-20" },
       { field: "aircraft_code", label: "Modelo", kind: "aircraftCode", width: "w-32", emptyLabel: "Todos" },
       { field: "estimated_duration_minutes", label: "Minutos", kind: "int", width: "w-20" },
       { field: "verified", label: "Confirmado", kind: "bool" },
@@ -100,12 +100,18 @@ export function FleetKnowledgePanel() {
 
   const confirmAll = async () => {
     const keys = toConfirm.map(r => String(r[def.key]));
+    const ok = await confirmDialog({
+      title: `¿Confirmar ${keys.length} ${def.label.toLowerCase()} por revisar?`,
+      message: "Confírmalos solo si ya revisaste que los datos son correctos. Si otro administrador debe verificarlos, cancela.",
+      confirmText: "Sí, confirmar todos",
+    });
+    if (!ok) return;
     setConfirmingAll(true);
     const res = await confirmFleetRows(def.id, keys);
     setConfirmingAll(false);
     if (res.error) return toast.error(res.error);
-    setData(d => d && { ...d, [def.id]: d[def.id].map(r => (keys.includes(String(r[def.key])) ? { ...r, [def.review!]: true } : r)) });
     toast.success(`${keys.length} confirmado${keys.length === 1 ? "" : "s"}`);
+    reload();
   };
 
   return (
@@ -154,7 +160,7 @@ export function FleetKnowledgePanel() {
           <button
             onClick={confirmAll}
             disabled={confirmingAll}
-            className="shrink-0 inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-amber-500 hover:bg-amber-600 text-white font-label-md font-bold text-sm disabled:opacity-60"
+            className="shrink-0 inline-flex items-center gap-1.5 px-4 h-9 rounded-full border border-amber-500 text-amber-800 hover:bg-amber-50 font-label-md font-bold text-sm disabled:opacity-60"
           >
             <span className="material-symbols-outlined text-[18px]">done_all</span>
             {confirmingAll ? "Confirmando…" : `Confirmar todos (${toConfirm.length})`}
@@ -229,17 +235,17 @@ function EditableRow({ def, row, codes, isNew = false, onSaved, onPatched }: {
     onSaved();
   };
 
-  // "Confirmado" se guarda al marcarlo, sin pulsar Guardar (solo cambia ese campo)
+  // "Confirmado" se guarda al marcarlo, sin pulsar Guardar (solo cambia ese campo).
+  // La casilla muestra lo guardado y luego se recarga, así la pantalla siempre coincide con la base.
   const toggleReview = async (checked: boolean) => {
     const field = def.review!;
-    setDraft(d => ({ ...d, [field]: checked }));
     onPatched?.({ [field]: checked });
     const res = await saveFleetRow(def.id, String(row[def.key]), { [field]: checked });
     if (res.error) {
-      setDraft(d => ({ ...d, [field]: !checked }));
       onPatched?.({ [field]: !checked });
-      return toast.error(res.error);
+      toast.error(res.error);
     }
+    onSaved();
   };
 
   const remove = async () => {
@@ -262,7 +268,7 @@ function EditableRow({ def, row, codes, isNew = false, onSaved, onPatched }: {
             {c.kind === "bool" ? (
               <input
                 type="checkbox"
-                checked={v === true}
+                checked={(instantReview(c) ? row[c.field] : v) === true}
                 onChange={e => (instantReview(c) ? toggleReview(e.target.checked) : set(e.target.checked))}
                 aria-label={c.label}
               />

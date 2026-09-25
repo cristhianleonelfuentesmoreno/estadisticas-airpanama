@@ -112,7 +112,8 @@ export async function saveFleetRow(table: string, key: string | null, input: Fle
     ? await db.from(table).insert(row)
     : await db.from(table).update(row).eq(def.key, key);
   if (error) {
-    return { error: error.code === "23505" ? `Ya existe ese ${def.label}` : error.code === "23503" ? "El modelo indicado no existe" : error.message };
+    const duplicate = table === "flight_routes" ? "Ya existe esa ruta para ese modelo (vale de ida y de vuelta)" : `Ya existe ese ${def.label}`;
+    return { error: error.code === "23505" ? duplicate : error.code === "23503" ? "El modelo indicado no existe" : error.message };
   }
 
   await logAudit({

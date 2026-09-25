@@ -88,9 +88,11 @@ export function applyFleetRules<T extends { aircraft?: string | null; aircraftRe
 }
 
 // Minutos de la ruta para ese modelo (cada avión vuela a distinta velocidad);
-// si el modelo no tiene tiempo propio, se usa el de la ruta para cualquier modelo
+// si el modelo no tiene tiempo propio, se usa el de la ruta para cualquier modelo.
+// Una ruta es de ida y vuelta: PAC-DAV también vale para DAV-PAC.
 export function routeMinutes(airline: string, origin: string, destination: string, kb: FleetKnowledge, aircraftCode?: string | null): number | null {
-  const same = kb.routes.filter(r => r.airline === airline && r.origin === origin && r.destination === destination);
+  const same = kb.routes.filter(r => r.airline === airline &&
+    ((r.origin === origin && r.destination === destination) || (r.origin === destination && r.destination === origin)));
   const code = aircraftCode ? resolveAircraftCode(aircraftCode, kb) ?? aircraftCode.toUpperCase() : null;
   return (code ? same.find(r => r.code === code) : undefined)?.minutes ?? same.find(r => !r.code)?.minutes ?? null;
 }
