@@ -306,7 +306,7 @@ function FilterRow({ label, options, value, onChange }: {
 
 function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canDelete?: boolean, onRefresh?: () => void }) {
   const localStatus = flight.status;
-  // Solo los vuelos que llegan o salen de DAV pasan por Pendientes y al Registro histórico
+  // Solo los vuelos que llegan o salen de DAV y arriban pasan por Pendientes y al Registro histórico
   const touchesDav = flight.origin === 'DAV' || flight.destination === 'DAV';
   const [loadingAction, setLoadingAction] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -334,7 +334,7 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
 
       await updateFlightStatusOverride(flight.manualLogId, payload);
       const toPending = touchesDav ? ' · pasa a Pendientes' : '';
-      const done = { DESPEGAR: 'despegó', ATERRIZAR: `aterrizó${toPending}`, CANCELAR: `cancelado${toPending}`, RESTABLECER: 'restablecido al itinerario' }[actionType];
+      const done = { DESPEGAR: 'despegó', ATERRIZAR: `aterrizó${toPending}`, CANCELAR: 'cancelado', RESTABLECER: 'restablecido al itinerario' }[actionType];
       toast.success(`${flight.flightNumber} ${done}`);
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -465,11 +465,11 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
       </div>
 
       {/* Acciones. Mientras vuela: Opciones (editar, cancelar, restablecer) + la acción principal.
-          Cuando arribó o se canceló: si es de DAV pasa a Pendientes y allí se revisa y aprueba;
-          los vuelos entre otras estaciones solo se cierran (no van al Registro histórico). */}
+          Cuando arribó: si es de DAV pasa a Pendientes y allí se revisa y aprueba. Los cancelados
+          y los vuelos entre otras estaciones solo se cierran (no van al Registro histórico). */}
       {flight.manualLogId && !flight.isArchived && (() => {
         const finished = localStatus === 'ARRIBÓ' || localStatus === 'CANCELADO';
-        const awaitingApproval = finished && touchesDav;
+        const awaitingApproval = localStatus === 'ARRIBÓ' && touchesDav;
         const menuItems = [
           ...(!finished ? [{ key: 'edit', icon: 'edit', label: 'Editar datos del vuelo', tone: 'text-on-surface', run: () => setIsEditModalOpen(true) }] : []),
           ...(!finished ? [{ key: 'cancel', icon: 'cancel', label: 'Marcar como cancelado', tone: 'text-error', run: () => handleAction('CANCELAR') }] : []),
@@ -494,7 +494,7 @@ function FlightCard({ flight, canDelete, onRefresh }: { flight: FlightData, canD
                 </span>
                 <div className="min-w-0">
                   <p className="text-[13px] font-bold text-on-surface leading-tight">{localStatus === 'CANCELADO' ? 'Vuelo cancelado' : 'Vuelo finalizado'}</p>
-                  <p className="text-[12px] text-on-surface-variant leading-tight">No opera en DAV: no pasa al Registro histórico.</p>
+                  <p className="text-[12px] text-on-surface-variant leading-tight">{localStatus === 'CANCELADO' ? 'No pasa a Pendientes ni al Registro histórico.' : 'No opera en DAV: no pasa al Registro histórico.'}</p>
                 </div>
               </div>
             ) : (
