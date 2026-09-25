@@ -41,8 +41,8 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
     setBoardDate(d.toISOString().split('T')[0]);
   };
 
-  const [destinationFilter, setDestinationFilter] = useState<string>('DAV');
-  const [airlineFilter, setAirlineFilter] = useState<string>('Air Panama');
+  const [destinationFilter, setDestinationFilter] = useState<string>('TODOS');
+  const [airlineFilter, setAirlineFilter] = useState<string>('TODOS');
   const [statusFilter, setStatusFilter] = useState<string>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);

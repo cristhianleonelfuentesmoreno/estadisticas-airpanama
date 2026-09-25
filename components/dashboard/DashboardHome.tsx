@@ -17,9 +17,9 @@ type Props = {
   decisionsPromise: Promise<{ decisions: FlightDecision[]; fetchedAt: number }>;
 };
 
-// Vuelos de David (DAV), tanto los que llegan como los que salen
+// Vuelos de Air Panama en David (DAV), tanto los que llegan como los que salen
 function davStats(flights: FlightData[]) {
-  const dav = flights.filter(f => f.origin === "DAV" || f.destination === "DAV");
+  const dav = flights.filter(f => f.airline === "Air Panama" && (f.origin === "DAV" || f.destination === "DAV"));
   return { vuelos: dav.length, pasajeros: dav.reduce((acc, f) => acc + (f.paxCount || 0), 0) };
 }
 
