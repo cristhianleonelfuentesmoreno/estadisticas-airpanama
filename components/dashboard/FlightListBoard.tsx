@@ -16,10 +16,14 @@ type ListProps = {
   initial?: { date: string; flights: FlightData[] };
   // Solo el estado de carga, sin pedir datos (fallback de Suspense)
   pending?: boolean;
+  // Avisa qué vuelos hay en la fecha elegida (las tarjetas del inicio siguen esa fecha)
+  onFlightsChange?: (date: string, flights: FlightData[]) => void;
 };
 
-export function FlightListBoard({ canDelete = false, initial, pending = false }: ListProps) {
+export function FlightListBoard({ canDelete = false, initial, pending = false, onFlightsChange }: ListProps) {
   const [flights, setFlights] = useState<FlightData[]>(initial?.flights ?? []);
+  // Fecha a la que corresponden los vuelos cargados (mientras carga otra fecha siguen los anteriores)
+  const [flightsDate, setFlightsDate] = useState<string | null>(initial?.date ?? null);
   const [loading, setLoading] = useState(!initial);
   // La primera carga ya vino del servidor para esta fecha
   const skipFirstLoad = useRef(!!initial);
@@ -54,6 +58,7 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
       try {
         const data = await fetchUpcomingFlights(boardDate);
         setFlights(data);
+        setFlightsDate(boardDate);
       } catch (err) {
         console.error("Error loading flights:", err);
       } finally {
@@ -64,9 +69,13 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
     if (pending) return;
     if (skipFirstLoad.current && initial?.date === boardDate) skipFirstLoad.current = false;
     else loadData();
-    const interval = setInterval(loadData, 300000);
+    const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
   }, [boardDate, refreshCounter, pending, initial?.date]);
+
+  useEffect(() => {
+    if (flightsDate) onFlightsChange?.(flightsDate, flights);
+  }, [flights, flightsDate, onFlightsChange]);
 
   // Get unique destinations and airlines for the filters
   const uniqueDests = Array.from(new Set(flights.map(f => f.destination)));
@@ -250,7 +259,7 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
             {/* Modal Content - Scrollable list of all sorted flights */}
             <div className="p-space-md overflow-y-auto flex flex-col gap-space-sm bg-surface">
               {sortedFlights.map(flight => (
-                <FlightCard key={flight.id} flight={flight} canDelete={canDelete} onRefresh={() => setBoardDate(d => d + " ")} />
+                <FlightCard key={flight.id} flight={flight} canDelete={canDelete} onRefresh={() => setRefreshCounter(c => c + 1)} />
               ))}
             </div>
           </div>
@@ -267,6 +276,7 @@ export function FlightListBoard({ canDelete = false, initial, pending = false }:
                 setLoading(true);
                 const data = await fetchUpcomingFlights(boardDate);
                 setFlights(data);
+                setFlightsDate(boardDate);
                 setLoading(false);
               };
               fetchNew();

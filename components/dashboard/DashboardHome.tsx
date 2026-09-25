@@ -1,10 +1,9 @@
 "use client";
 
-import { Suspense, use, useEffect, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useState } from "react";
 import { FlightDecisionBoard } from "@/components/dashboard/FlightDecisionBoard";
 import { FlightListBoard } from "@/components/dashboard/FlightListBoard";
 import type { FlightData } from "@/app/actions/flights";
-import { fetchUpcomingFlights } from "@/lib/client/api";
 import type { FlightDecision } from "@/app/actions/weather";
 
 type Props = {
@@ -31,6 +30,9 @@ function davStats(flights: FlightData[]): DavStats {
 
 export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today, flightsPromise, decisionsPromise }: Props) {
   const [currentTime, setCurrentTime] = useState("");
+  // Vuelos del día elegido en Próximos Vuelos; las tarjetas cuentan sobre esa misma fecha
+  const [board, setBoard] = useState<{ date: string; flights: FlightData[] } | null>(null);
+  const handleFlightsChange = useCallback((date: string, flights: FlightData[]) => setBoard({ date, flights }), []);
 
   useEffect(() => {
     // Siempre en hora de Panamá, sin importar la zona horaria del dispositivo
@@ -84,8 +86,8 @@ export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today
 </div>
 
 {/*  Executive KPI Grid  */}
-<Suspense fallback={<KpiGrid stats={null} />}>
-  <LiveKpis flightsPromise={flightsPromise} today={today} />
+<Suspense fallback={<KpiGrid stats={null} date={today} today={today} />}>
+  <LiveKpis flightsPromise={flightsPromise} today={today} board={board} />
 </Suspense>
 
 {/*  Panel de Decisión de Vuelos (TAF)  */}
@@ -98,7 +100,7 @@ export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today
 {/*  Scheduled Flight Feed  */}
 <div className="pt-space-xs pb-space-lg">
   <Suspense fallback={<FlightListBoard canDelete={canDelete} pending />}>
-    <FlightListFromServer flightsPromise={flightsPromise} today={today} canDelete={canDelete} />
+    <FlightListFromServer flightsPromise={flightsPromise} today={today} canDelete={canDelete} onFlightsChange={handleFlightsChange} />
   </Suspense>
 </div>
 </div>
@@ -113,35 +115,30 @@ function DecisionsFromServer({ decisionsPromise }: { decisionsPromise: Props["de
   return <FlightDecisionBoard initial={initial} />;
 }
 
-function FlightListFromServer({ flightsPromise, today, canDelete }: { flightsPromise: Props["flightsPromise"]; today: string; canDelete: boolean }) {
+function FlightListFromServer({ flightsPromise, today, canDelete, onFlightsChange }: { flightsPromise: Props["flightsPromise"]; today: string; canDelete: boolean; onFlightsChange: (date: string, flights: FlightData[]) => void }) {
   const flights = use(flightsPromise);
-  return <FlightListBoard canDelete={canDelete} initial={{ date: today, flights }} />;
+  return <FlightListBoard canDelete={canDelete} initial={{ date: today, flights }} onFlightsChange={onFlightsChange} />;
 }
 
-// Contadores: llegan con la página y se refrescan cada minuto
-function LiveKpis({ flightsPromise, today }: { flightsPromise: Props["flightsPromise"]; today: string }) {
+// Contadores: llegan con la página y luego siguen la fecha y los datos de Próximos Vuelos
+// (esa lista se refresca cada minuto)
+function LiveKpis({ flightsPromise, today, board }: { flightsPromise: Props["flightsPromise"]; today: string; board: { date: string; flights: FlightData[] } | null }) {
   const initial = use(flightsPromise);
-  const [stats, setStats] = useState(() => davStats(initial));
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchUpcomingFlights(today)
-        .then(flights => setStats(davStats(flights)))
-        .catch(e => console.error("Error fetching metrics:", e));
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [today]);
-
-  return <KpiGrid stats={stats} />;
+  const date = board?.date ?? today;
+  return <KpiGrid stats={davStats(board?.flights ?? initial)} date={date} today={today} />;
 }
 
-function KpiGrid({ stats }: { stats: DavStats | null }) {
+function KpiGrid({ stats, date, today }: { stats: DavStats | null; date: string; today: string }) {
+  const isToday = date === today;
+  const [y, m, d] = date.split("-");
+  const day = isToday ? "Día en curso" : `${d}/${m}/${y}`;
+  const moved = isToday ? "Llegaron y viajaron hoy" : `Llegaron y viajaron el ${d}/${m}/${y}`;
   return (
 <div className="grid grid-cols-1 md:grid-cols-2 gap-space-sm">
-<KpiCard title="VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK" value={stats?.airpanama.vuelos ?? null} caption="Día en curso (Air Panama)" icon="flight_land" iconClass="bg-sky-100 text-sky-700" />
-<KpiCard title="PASAJEROS TOTALES" value={stats?.airpanama.pasajeros ?? null} caption="Llegaron y viajaron hoy (Air Panama)" icon="groups" iconClass="bg-indigo-100 text-indigo-700" />
-<KpiCard title="VUELOS COPA AIRLINES" value={stats?.copa.vuelos ?? null} caption="Día en curso (Copa Airlines)" icon="flight_land" iconClass="bg-[#0032A0]/10 text-[#0032A0]" />
-<KpiCard title="PASAJEROS COPA AIRLINES" value={stats?.copa.pasajeros ?? null} caption="Llegaron y viajaron hoy (Copa Airlines)" icon="groups" iconClass="bg-[#0032A0]/10 text-[#0032A0]" />
+<KpiCard title="VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK" value={stats?.airpanama.vuelos ?? null} caption={`${day} (Air Panama)`} icon="flight_land" iconClass="bg-sky-100 text-sky-700" />
+<KpiCard title="PASAJEROS TOTALES" value={stats?.airpanama.pasajeros ?? null} caption={`${moved} (Air Panama)`} icon="groups" iconClass="bg-indigo-100 text-indigo-700" />
+<KpiCard title="VUELOS COPA AIRLINES" value={stats?.copa.vuelos ?? null} caption={`${day} (Copa Airlines)`} icon="flight_land" iconClass="bg-[#0032A0]/10 text-[#0032A0]" />
+<KpiCard title="PASAJEROS COPA AIRLINES" value={stats?.copa.pasajeros ?? null} caption={`${moved} (Copa Airlines)`} icon="groups" iconClass="bg-[#0032A0]/10 text-[#0032A0]" />
 </div>
   );
 }
