@@ -129,12 +129,12 @@ export function ManualFlightForm({ onSaved, mode = "itinerario", defaultDate }: 
   const officers = (kb?.crew ?? []).filter(c => c.role === "primer_oficial").map(c => c.name).sort();
   const cabinCrew = (kb?.crew ?? []).filter(c => c.role === "cabina").map(c => c.name).sort();
   const noCabin = model === "C-208";
-  const minutes = kb && origin && destination ? routeMinutes(airline, origin, destination, kb) : null;
+  const minutes = kb && origin && destination ? routeMinutes(airline, origin, destination, kb, model) : null;
 
-  // Llegada automática (salida + duración de la ruta) mientras no se escriba a mano
-  const recalcArrival = (dep: string, ori: string, des: string) => {
+  // Llegada automática (salida + duración de la ruta para ese modelo) mientras no se escriba a mano
+  const recalcArrival = (dep: string, ori: string, des: string, aircraft: string = model) => {
     if (arrivalTouched || !kb) return;
-    setArrival(dep ? estimatedArrival({ airline, origin: ori, destination: des, departureTimeLocal: dep }, kb) : "");
+    setArrival(dep ? estimatedArrival({ airline, origin: ori, destination: des, departureTimeLocal: dep, aircraft }, kb) : "");
   };
 
   const chooseTipo = (t: Tipo) => {
@@ -170,19 +170,20 @@ export function ManualFlightForm({ onSaved, mode = "itinerario", defaultDate }: 
     setDestination(f.destination);
     if (f.usual) setDeparture(f.usual);
     setArrivalTouched(false);
-    if (kb) setArrival(f.usual ? estimatedArrival({ airline, origin: f.origin, destination: f.destination, departureTimeLocal: f.usual }, kb) : "");
+    if (kb) setArrival(f.usual ? estimatedArrival({ airline, origin: f.origin, destination: f.destination, departureTimeLocal: f.usual, aircraft: model || f.code }, kb) : "");
     if (f.code && !model) { setModel(f.code); setPaxMax(String(capacityOf(f.code, kb!) ?? "")); }
   };
 
   const pickAircraft = (a: KnownAircraft) => {
     setRegistration(a.registration);
-    if (a.code) setModel(a.code);
+    if (a.code) { setModel(a.code); recalcArrival(departure, origin, destination, a.code); }
     if (a.paxMax) setPaxMax(String(a.paxMax));
     if (a.code === "C-208") setCabin([]);
   };
 
   const pickModel = (code: string) => {
     setModel(code);
+    recalcArrival(departure, origin, destination, code);
     const cap = kb ? capacityOf(code, kb) : null;
     if (cap) setPaxMax(String(cap));
     if (code === "C-208") setCabin([]);

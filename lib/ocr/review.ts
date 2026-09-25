@@ -29,10 +29,10 @@ const addMinutes = (hhmm: string, minutes: number) => {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 };
 
-// Llegada estimada = salida + duración conocida de la ruta (60 min si no se conoce)
-export function estimatedArrival(f: Pick<ReviewableFlight, 'airline' | 'origin' | 'destination' | 'departureTimeLocal'>, kb: FleetKnowledge) {
+// Llegada estimada = salida + duración de la ruta para ese modelo (60 min si no se conoce)
+export function estimatedArrival(f: Pick<ReviewableFlight, 'airline' | 'origin' | 'destination' | 'departureTimeLocal'> & { aircraft?: string | null }, kb: FleetKnowledge) {
   if (!f.departureTimeLocal) return '';
-  return addMinutes(f.departureTimeLocal, routeMinutes(f.airline, f.origin, f.destination, kb) ?? 60);
+  return addMinutes(f.departureTimeLocal, routeMinutes(f.airline, f.origin, f.destination, kb, f.aircraft) ?? 60);
 }
 
 // Al cambiar la matrícula: si es de la flota, se completan modelo y capacidad

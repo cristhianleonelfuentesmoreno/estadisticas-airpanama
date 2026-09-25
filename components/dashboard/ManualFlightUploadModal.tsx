@@ -34,14 +34,15 @@ export function ManualFlightUploadModal({ isOpen, onClose, onSuccess }: Props) {
     getImportKnowledge().then(setKb).catch(() => {});
   }, [fileData.length, kb]);
 
-  // Edita un vuelo: la matrícula completa modelo y capacidad, la salida o la ruta
+  // Edita un vuelo: la matrícula completa modelo y capacidad, la salida, la ruta o el avión
   // recalculan la llegada, y los avisos se vuelven a calcular con la base
   const updateRow = (i: number, patch: Partial<ReviewFlight>) => {
     setFileData(rows => rows.map((r, j) => {
       if (j !== i) return r;
       let next: ReviewFlight = { ...r, ...patch };
       if (kb && 'aircraftReg' in patch) next = withAircraft(next, kb);
-      const routeOrTime = 'departureTimeLocal' in patch || 'origin' in patch || 'destination' in patch;
+      // El avión también cambia la llegada: cada modelo tarda distinto en la misma ruta
+      const routeOrTime = 'departureTimeLocal' in patch || 'origin' in patch || 'destination' in patch || 'aircraft' in patch || 'aircraftReg' in patch;
       if (kb && routeOrTime && !('arrivalTimeLocal' in patch)) next.arrivalTimeLocal = estimatedArrival(next, kb);
       return { ...next, warnings: kb ? reviewWarnings(next, kb) : r.warnings };
     }));

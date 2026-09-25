@@ -168,7 +168,7 @@ export function parseAirPanamaText(text: string, targetDateStr: string, kb: Flee
 
       const time = flight.departureTimeLocal;
       if (!time) warnings.push('Hora no leída: complétala');
-      const minutes = routeMinutes('Air Panama', flight.origin, flight.destination, kb) ?? 60;
+      const minutes = routeMinutes('Air Panama', flight.origin, flight.destination, kb, code ?? block.aircraft) ?? 60;
       const result: ParsedFlight = {
         ...flight,
         arrivalTimeLocal: time ? addMinutes(time, minutes) : '',

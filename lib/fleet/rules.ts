@@ -8,7 +8,8 @@ export type FleetKnowledge = {
   types: { code: string; name: string; airline: string; paxMax: number; aliases: string[]; verified: boolean }[];
   aircraft: { registration: string; code: string; airline: string; verified: boolean }[];
   crew: { name: string; role: CrewRole; aliases: string[]; active: boolean }[];
-  routes: { airline: string; origin: string; destination: string; minutes: number | null }[];
+  // code = modelo; null = vale para cualquier modelo
+  routes: { airline: string; origin: string; destination: string; code: string | null; minutes: number | null }[];
   scheduled: { airline: string; flightNumber: string; origin: string; destination: string; usualDeparture: string | null; code: string | null }[];
 };
 
@@ -86,8 +87,12 @@ export function applyFleetRules<T extends { aircraft?: string | null; aircraftRe
   };
 }
 
-export function routeMinutes(airline: string, origin: string, destination: string, kb: FleetKnowledge): number | null {
-  return kb.routes.find(r => r.airline === airline && r.origin === origin && r.destination === destination)?.minutes ?? null;
+// Minutos de la ruta para ese modelo (cada avión vuela a distinta velocidad);
+// si el modelo no tiene tiempo propio, se usa el de la ruta para cualquier modelo
+export function routeMinutes(airline: string, origin: string, destination: string, kb: FleetKnowledge, aircraftCode?: string | null): number | null {
+  const same = kb.routes.filter(r => r.airline === airline && r.origin === origin && r.destination === destination);
+  const code = aircraftCode ? resolveAircraftCode(aircraftCode, kb) ?? aircraftCode.toUpperCase() : null;
+  return (code ? same.find(r => r.code === code) : undefined)?.minutes ?? same.find(r => !r.code)?.minutes ?? null;
 }
 
 // ---------------------------------------------------------------------------

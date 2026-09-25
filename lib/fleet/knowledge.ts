@@ -10,7 +10,7 @@ export const loadFleetKnowledge = cache(async (): Promise<FleetKnowledge> => {
     supabase.from("aircraft_types").select("aircraft_code, name, airline, pax_max, aliases, verified"),
     supabase.from("aircraft").select("registration, aircraft_code, airline, verified"),
     supabase.from("crew_members").select("full_name, role, aliases, active").eq("active", true),
-    supabase.from("flight_routes").select("airline, origin, destination, estimated_duration_minutes"),
+    supabase.from("flight_routes").select("airline, origin, destination, aircraft_code, estimated_duration_minutes"),
     supabase.from("scheduled_flights").select("airline, flight_number, origin, destination, usual_departure, aircraft_code").eq("active", true),
   ]);
 
@@ -26,7 +26,7 @@ export const loadFleetKnowledge = cache(async (): Promise<FleetKnowledge> => {
       name: c.full_name, role: c.role as CrewRole, aliases: c.aliases ?? [], active: c.active,
     })),
     routes: (routes.data ?? []).map(r => ({
-      airline: r.airline ?? "", origin: r.origin ?? "", destination: r.destination ?? "",
+      airline: r.airline ?? "", origin: r.origin ?? "", destination: r.destination ?? "", code: r.aircraft_code ?? null,
       minutes: r.estimated_duration_minutes,
     })),
     scheduled: (scheduled.data ?? []).map(s => ({

@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { deleteFleetRow, getFleetAdminData, saveFleetRow, type FleetRow, type FleetTable } from "@/app/actions/fleet";
+import { confirmFleetRows, deleteFleetRow, getFleetAdminData, saveFleetRow, type FleetRow, type FleetTable } from "@/app/actions/fleet";
 import { confirmDialog } from "@/components/ui/dialogs";
 
 // Base de conocimiento de flota y tripulación: la usan el lector de itinerarios,
 // la importación de Excel y el formulario manual para no equivocarse.
 
 type Kind = "text" | "upper" | "int" | "bool" | "list" | "time" | "role" | "aircraftCode";
-type Col = { field: string; label: string; kind: Kind; width?: string; placeholder?: string };
+type Col = { field: string; label: string; kind: Kind; width?: string; placeholder?: string; emptyLabel?: string };
 type TabDef = { id: FleetTable; label: string; icon: string; key: string; review?: string; cols: Col[]; help: string };
 
 const ROLE_LABEL: Record<string, string> = { capitan: "Capitán", primer_oficial: "Primer oficial", cabina: "Cabina" };
@@ -50,11 +50,12 @@ const TABS: TabDef[] = [
   },
   {
     id: "flight_routes", label: "Rutas", icon: "route", key: "id", review: "verified",
-    help: "Minutos de vuelo por ruta: se usan para calcular la hora de llegada.",
+    help: "Minutos de vuelo por ruta y modelo: se usan para calcular la hora de llegada. Cada avión vuela a distinta velocidad; agrega la misma ruta con otro modelo si tarda distinto. \"Todos\" vale para los modelos sin tiempo propio.",
     cols: [
       { field: "airline", label: "Aerolínea", kind: "text", width: "w-32" },
       { field: "origin", label: "Origen", kind: "upper", width: "w-20" },
       { field: "destination", label: "Destino", kind: "upper", width: "w-20" },
+      { field: "aircraft_code", label: "Modelo", kind: "aircraftCode", width: "w-32", emptyLabel: "Todos" },
       { field: "estimated_duration_minutes", label: "Minutos", kind: "int", width: "w-20" },
       { field: "verified", label: "Confirmado", kind: "bool" },
     ],
@@ -83,6 +84,10 @@ export function FleetKnowledgePanel() {
   const [adding, setAdding] = useState(false);
 
   const reload = () => getFleetAdminData().then(setData).catch(() => toast.error("No se pudo cargar la flota"));
+  // Cambio local inmediato (sin volver a pedir las 5 tablas)
+  const patchRow = (table: FleetTable, key: string, keyField: string, patch: FleetRow) =>
+    setData(d => d && { ...d, [table]: d[table].map(r => (String(r[keyField]) === key ? { ...r, ...patch } : r)) });
+  const [confirmingAll, setConfirmingAll] = useState(false);
   useEffect(() => {
     getFleetAdminData().then(setData).catch(() => toast.error("No se pudo cargar la flota"));
   }, []);
@@ -91,6 +96,17 @@ export function FleetKnowledgePanel() {
   const pending = (t: TabDef) => (t.review && data ? data[t.id].filter(r => r[t.review!] === false).length : 0);
   const codes = useMemo(() => (data?.aircraft_types ?? []).map(t => String(t.aircraft_code)), [data]);
   const rows = (data?.[tab] ?? []).filter(r => !onlyReview || !def.review || r[def.review] === false);
+  const toConfirm = def.review && data ? data[tab].filter(r => r[def.review!] === false) : [];
+
+  const confirmAll = async () => {
+    const keys = toConfirm.map(r => String(r[def.key]));
+    setConfirmingAll(true);
+    const res = await confirmFleetRows(def.id, keys);
+    setConfirmingAll(false);
+    if (res.error) return toast.error(res.error);
+    setData(d => d && { ...d, [def.id]: d[def.id].map(r => (keys.includes(String(r[def.key])) ? { ...r, [def.review!]: true } : r)) });
+    toast.success(`${keys.length} confirmado${keys.length === 1 ? "" : "s"}`);
+  };
 
   return (
     <div className="flex flex-col w-full bg-surface-container-lowest rounded-3xl p-6 md:p-8 shadow-sm border border-outline-variant/30 relative overflow-hidden mt-8">
@@ -132,7 +148,19 @@ export function FleetKnowledgePanel() {
         ))}
       </div>
 
-      <p className="font-body-sm text-sm text-on-surface-variant mb-4">{def.help}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <p className="font-body-sm text-sm text-on-surface-variant">{def.help}</p>
+        {toConfirm.length > 0 && (
+          <button
+            onClick={confirmAll}
+            disabled={confirmingAll}
+            className="shrink-0 inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-amber-500 hover:bg-amber-600 text-white font-label-md font-bold text-sm disabled:opacity-60"
+          >
+            <span className="material-symbols-outlined text-[18px]">done_all</span>
+            {confirmingAll ? "Confirmando…" : `Confirmar todos (${toConfirm.length})`}
+          </button>
+        )}
+      </div>
 
       {!data ? (
         <div className="p-8 text-center text-on-surface-variant animate-pulse">Cargando…</div>
@@ -165,7 +193,10 @@ export function FleetKnowledgePanel() {
                 />
               )}
               {rows.map(r => (
-                <EditableRow key={String(r[def.key])} def={def} codes={codes} row={r} onSaved={reload} />
+                <EditableRow
+                  key={String(r[def.key])} def={def} codes={codes} row={r} onSaved={reload}
+                  onPatched={patch => patchRow(def.id, String(r[def.key]), def.key, patch)}
+                />
               ))}
               {rows.length === 0 && !adding && (
                 <tr><td colSpan={def.cols.length + 1} className="p-6 text-center text-on-surface-variant">Nada por revisar aquí.</td></tr>
@@ -178,21 +209,37 @@ export function FleetKnowledgePanel() {
   );
 }
 
-function EditableRow({ def, row, codes, isNew = false, onSaved }: {
-  def: TabDef; row: FleetRow; codes: string[]; isNew?: boolean; onSaved: () => void;
+function EditableRow({ def, row, codes, isNew = false, onSaved, onPatched }: {
+  def: TabDef; row: FleetRow; codes: string[]; isNew?: boolean; onSaved: () => void; onPatched?: (patch: FleetRow) => void;
 }) {
   const [draft, setDraft] = useState<FleetRow>(row);
   const [saving, setSaving] = useState(false);
-  const dirty = isNew || def.cols.some(c => JSON.stringify(draft[c.field] ?? null) !== JSON.stringify(row[c.field] ?? null));
+  const instantReview = (c: Col) => !isNew && c.field === def.review;
+  const dirty = isNew || def.cols.some(c => !instantReview(c) && JSON.stringify(draft[c.field] ?? null) !== JSON.stringify(row[c.field] ?? null));
   const needsReview = !!def.review && row[def.review] === false;
 
   const save = async () => {
     setSaving(true);
-    const res = await saveFleetRow(def.id, isNew ? null : String(row[def.key]), draft);
+    // El campo de confirmar ya se guardó al marcarlo
+    const fields = isNew ? draft : Object.fromEntries(Object.entries(draft).filter(([f]) => f !== def.review));
+    const res = await saveFleetRow(def.id, isNew ? null : String(row[def.key]), fields);
     setSaving(false);
     if (res.error) return toast.error(res.error);
     toast.success(isNew ? "Agregado" : "Guardado");
     onSaved();
+  };
+
+  // "Confirmado" se guarda al marcarlo, sin pulsar Guardar (solo cambia ese campo)
+  const toggleReview = async (checked: boolean) => {
+    const field = def.review!;
+    setDraft(d => ({ ...d, [field]: checked }));
+    onPatched?.({ [field]: checked });
+    const res = await saveFleetRow(def.id, String(row[def.key]), { [field]: checked });
+    if (res.error) {
+      setDraft(d => ({ ...d, [field]: !checked }));
+      onPatched?.({ [field]: !checked });
+      return toast.error(res.error);
+    }
   };
 
   const remove = async () => {
@@ -213,14 +260,19 @@ function EditableRow({ def, row, codes, isNew = false, onSaved }: {
         return (
           <td key={c.field} className="px-3 py-2 align-middle">
             {c.kind === "bool" ? (
-              <input type="checkbox" checked={v === true} onChange={e => set(e.target.checked)} aria-label={c.label} />
+              <input
+                type="checkbox"
+                checked={v === true}
+                onChange={e => (instantReview(c) ? toggleReview(e.target.checked) : set(e.target.checked))}
+                aria-label={c.label}
+              />
             ) : c.kind === "role" ? (
               <select value={String(v ?? "capitan")} onChange={e => set(e.target.value)} className={`${input} ${c.width ?? ""}`}>
                 {Object.entries(ROLE_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
             ) : c.kind === "aircraftCode" ? (
               <select value={String(v ?? "")} onChange={e => set(e.target.value || null)} className={`${input} ${c.width ?? ""}`}>
-                <option value="">—</option>
+                <option value="">{c.emptyLabel ?? "—"}</option>
                 {codes.map(code => <option key={code} value={code}>{code}</option>)}
               </select>
             ) : (

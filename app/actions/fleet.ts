@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
@@ -28,7 +27,7 @@ const TABLES: Record<FleetTable, { key: string; label: string; fields: Record<st
   },
   flight_routes: {
     key: "id", label: "ruta",
-    fields: { airline: "text", origin: "upper", destination: "upper", estimated_duration_minutes: "int", verified: "bool" },
+    fields: { airline: "text", origin: "upper", destination: "upper", aircraft_code: "upper", estimated_duration_minutes: "int", verified: "bool" },
   },
   scheduled_flights: {
     key: "id", label: "vuelo regular",
@@ -93,7 +92,9 @@ export async function getFleetAdminData() {
   };
 }
 
-// key = valor actual de la clave (null para crear uno nuevo)
+// key = valor actual de la clave (null para crear uno nuevo).
+// Sin revalidatePath: el panel recarga sus datos solo; revalidar volvía a generar toda
+// la página de admin (sesión, perfil y lista de usuarios) en cada guardado y lo hacía lento.
 export async function saveFleetRow(table: string, key: string | null, input: FleetRow) {
   const admin = await requireAdmin();
   assertTable(table);
@@ -122,7 +123,26 @@ export async function saveFleetRow(table: string, key: string | null, input: Fle
     descripcion: `${key === null ? "Agregó" : "Editó"} ${def.label} en la base de flota`,
     detalles_extra: { tabla: table, cambios: row },
   });
-  revalidatePath("/dashboard/admin");
+  return { success: true };
+}
+
+// Marca como confirmadas varias filas de una vez (botón "Confirmar todos" del panel)
+export async function confirmFleetRows(table: string, keys: string[]) {
+  const admin = await requireAdmin();
+  assertTable(table);
+  const def = TABLES[table];
+  if (!("verified" in def.fields)) return { error: "Esta tabla no se confirma" };
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > 500) return { error: "Nada que confirmar" };
+  const { error } = await createAdminClient().from(table).update({ verified: true }).in(def.key, keys.map(String));
+  if (error) return { error: error.message };
+  await logAudit({
+    tipo_evento: "edicion",
+    actor: admin,
+    entidad: "flota",
+    nombre_referencia: `${keys.length} ${def.label}(s)`,
+    descripcion: `Confirmó ${keys.length} ${def.label}(s) en la base de flota`,
+    detalles_extra: { tabla: table, claves: keys },
+  });
   return { success: true };
 }
 
@@ -142,6 +162,5 @@ export async function deleteFleetRow(table: string, key: string) {
     descripcion: `Eliminó ${def.label} de la base de flota`,
     detalles_extra: { tabla: table },
   });
-  revalidatePath("/dashboard/admin");
   return { success: true };
 }
