@@ -17,10 +17,16 @@ type Props = {
   decisionsPromise: Promise<{ decisions: FlightDecision[]; fetchedAt: number }>;
 };
 
-// Vuelos de Air Panama en David (DAV), tanto los que llegan como los que salen
-function davStats(flights: FlightData[]) {
-  const dav = flights.filter(f => f.airline === "Air Panama" && (f.origin === "DAV" || f.destination === "DAV"));
-  return { vuelos: dav.length, pasajeros: dav.reduce((acc, f) => acc + (f.paxCount || 0), 0) };
+type Stats = { vuelos: number; pasajeros: number };
+type DavStats = { airpanama: Stats; copa: Stats };
+
+// Vuelos de David (DAV) por aerolínea, tanto los que llegan como los que salen
+function davStats(flights: FlightData[]): DavStats {
+  const of = (airline: string): Stats => {
+    const dav = flights.filter(f => f.airline === airline && (f.origin === "DAV" || f.destination === "DAV"));
+    return { vuelos: dav.length, pasajeros: dav.reduce((acc, f) => acc + (f.paxCount || 0), 0) };
+  };
+  return { airpanama: of("Air Panama"), copa: of("Copa Airlines") };
 }
 
 export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today, flightsPromise, decisionsPromise }: Props) {
@@ -78,7 +84,7 @@ export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today
 </div>
 
 {/*  Executive KPI Grid  */}
-<Suspense fallback={<KpiGrid vuelos={null} pasajeros={null} />}>
+<Suspense fallback={<KpiGrid stats={null} />}>
   <LiveKpis flightsPromise={flightsPromise} today={today} />
 </Suspense>
 
@@ -126,39 +132,34 @@ function LiveKpis({ flightsPromise, today }: { flightsPromise: Props["flightsPro
     return () => clearInterval(interval);
   }, [today]);
 
-  return <KpiGrid vuelos={stats.vuelos} pasajeros={stats.pasajeros} />;
+  return <KpiGrid stats={stats} />;
 }
 
-function KpiGrid({ vuelos, pasajeros }: { vuelos: number | null; pasajeros: number | null }) {
-  const value = (n: number | null) =>
-    n === null ? <span className="inline-block w-10 h-8 rounded-md bg-surface-container animate-pulse align-middle" /> : n.toLocaleString();
+function KpiGrid({ stats }: { stats: DavStats | null }) {
   return (
 <div className="grid grid-cols-1 md:grid-cols-2 gap-space-sm">
-{/*  Vuelos Completados  */}
+<KpiCard title="VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK" value={stats?.airpanama.vuelos ?? null} caption="Día en curso (Air Panama)" icon="flight_land" iconClass="bg-sky-100 text-sky-700" />
+<KpiCard title="PASAJEROS TOTALES" value={stats?.airpanama.pasajeros ?? null} caption="Llegaron y viajaron hoy (Air Panama)" icon="groups" iconClass="bg-indigo-100 text-indigo-700" />
+<KpiCard title="VUELOS COPA AIRLINES" value={stats?.copa.vuelos ?? null} caption="Día en curso (Copa Airlines)" icon="flight_land" iconClass="bg-[#0032A0]/10 text-[#0032A0]" />
+<KpiCard title="PASAJEROS COPA AIRLINES" value={stats?.copa.pasajeros ?? null} caption="Llegaron y viajaron hoy (Copa Airlines)" icon="groups" iconClass="bg-[#0032A0]/10 text-[#0032A0]" />
+</div>
+  );
+}
+
+function KpiCard({ title, value, caption, icon, iconClass }: { title: string; value: number | null; caption: string; icon: string; iconClass: string }) {
+  return (
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-[12px] text-on-surface-variant uppercase font-bold tracking-wide">VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK</span>
-<span className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700">
-<span className="material-symbols-outlined text-[16px]">flight_land</span>
+<span className="font-label-sm text-[12px] text-on-surface-variant uppercase font-bold tracking-wide">{title}</span>
+<span className={`w-7 h-7 rounded-lg flex items-center justify-center ${iconClass}`}>
+<span className="material-symbols-outlined text-[16px]">{icon}</span>
 </span>
 </div>
 <div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{value(vuelos)}</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Día en curso (Air Panama)</span>
-</div>
-</div>
-{/*  Pax en Tránsito  */}
-<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
-<div className="flex items-center justify-between">
-<span className="font-label-sm text-[12px] text-on-surface-variant uppercase font-bold tracking-wide">PASAJEROS TOTALES</span>
-<span className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700">
-<span className="material-symbols-outlined text-[16px]">groups</span>
+<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">
+  {value === null ? <span className="inline-block w-10 h-8 rounded-md bg-surface-container animate-pulse align-middle" /> : value.toLocaleString()}
 </span>
-</div>
-<div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{value(pasajeros)}</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Llegaron y viajaron hoy</span>
-</div>
+<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">{caption}</span>
 </div>
 </div>
   );
