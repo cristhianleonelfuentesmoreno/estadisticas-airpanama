@@ -10,26 +10,41 @@ import { DockButton } from "./DockButton";
 import { TermsModal } from "@/components/legal/TermsModal";
 import { TERMS_VERSION } from "@/lib/terms";
 import { alertDialog } from "@/components/ui/dialogs";
+import { frameFor, frameCss, DEFAULT_BG_ASPECT, type LoginBgSettings } from "@/lib/loginBackground";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface LoginCardProps {
-  settings?: {
+  settings?: LoginBgSettings & {
     loginTitle?: string;
     loginText?: string;
     registerTitle?: string;
     registerText?: string;
-    bgUrl?: string;
-    bgSize?: string;
-    bgPosition?: string;
-    bgSizeMobile?: string;
-    bgPositionMobile?: string;
   };
 }
 
+// Panel de imagen: capa desenfocada (rellena los huecos al alejar) + imagen encuadrada
 const CardBackground = ({ activeView, bgStyle }: { activeView: string, bgStyle: React.CSSProperties }) => (
-  <div className={`card-bg ${activeView === "login" ? "login" : ""}`} style={bgStyle} />
+  <div className={`card-bg ${activeView === "login" ? "login" : ""}`} style={bgStyle}>
+    <div className="card-bg-blur" />
+    <div className="card-bg-img" />
+  </div>
 );
+
+function backgroundVars(settings: LoginCardProps["settings"]) {
+  const aspect = settings?.bgAspect || DEFAULT_BG_ASPECT;
+  const desktop = frameCss(frameFor(settings, "desktop"), aspect);
+  const mobile = frameCss(frameFor(settings, "mobile"), aspect);
+  return {
+    '--bg-image': `url(${loginBackground(settings?.bgUrl)})`,
+    '--bg-size-desktop': desktop.size,
+    '--bg-position-desktop': desktop.position,
+    '--bg-backdrop-desktop': desktop.backdrop ? 'block' : 'none',
+    '--bg-size-mobile': mobile.size,
+    '--bg-position-mobile': mobile.position,
+    '--bg-backdrop-mobile': mobile.backdrop ? 'block' : 'none',
+  } as React.CSSProperties;
+}
 
 // El fondo por defecto se sirve en WebP (19 KB en vez de 570 KB del PNG original)
 const loginBackground = (url?: string) => (!url || url === "/bg-plane.png" ? "/bg-plane.webp" : url);
@@ -396,13 +411,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
       <div className="card">
         <CardBackground 
           activeView={activeView} 
-          bgStyle={{
-            '--bg-image-desktop': `url(${loginBackground(settings?.bgUrl)})`,
-            '--bg-size-desktop': settings?.bgSize || "cover",
-            '--bg-position-desktop': settings?.bgPosition || "center",
-            '--bg-size-mobile': settings?.bgSizeMobile || settings?.bgSize || "cover",
-            '--bg-position-mobile': settings?.bgPositionMobile || settings?.bgPosition || "center"
-          } as React.CSSProperties}
+          bgStyle={backgroundVars(settings)}
         />
         
         <HeroPanel
