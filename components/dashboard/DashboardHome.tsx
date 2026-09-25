@@ -1,10 +1,9 @@
 "use client";
 
-import { Suspense, use, useEffect, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useState } from "react";
 import { FlightDecisionBoard } from "@/components/dashboard/FlightDecisionBoard";
 import { FlightListBoard } from "@/components/dashboard/FlightListBoard";
 import type { FlightData } from "@/app/actions/flights";
-import { fetchUpcomingFlights } from "@/lib/client/api";
 import type { FlightDecision } from "@/app/actions/weather";
 
 type Props = {
@@ -17,14 +16,23 @@ type Props = {
   decisionsPromise: Promise<{ decisions: FlightDecision[]; fetchedAt: number }>;
 };
 
-// Vuelos de David (DAV), tanto los que llegan como los que salen
-function davStats(flights: FlightData[]) {
-  const dav = flights.filter(f => f.origin === "DAV" || f.destination === "DAV");
-  return { vuelos: dav.length, pasajeros: dav.reduce((acc, f) => acc + (f.paxCount || 0), 0) };
+type Stats = { vuelos: number; pasajeros: number };
+type DavStats = { airpanama: Stats; copa: Stats };
+
+// Vuelos de David (DAV) por aerolínea, tanto los que llegan como los que salen
+function davStats(flights: FlightData[]): DavStats {
+  const of = (airline: string): Stats => {
+    const dav = flights.filter(f => f.airline === airline && (f.origin === "DAV" || f.destination === "DAV"));
+    return { vuelos: dav.length, pasajeros: dav.reduce((acc, f) => acc + (f.paxCount || 0), 0) };
+  };
+  return { airpanama: of("Air Panama"), copa: of("Copa Airlines") };
 }
 
 export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today, flightsPromise, decisionsPromise }: Props) {
   const [currentTime, setCurrentTime] = useState("");
+  // Vuelos del día elegido en Próximos Vuelos; las tarjetas cuentan sobre esa misma fecha
+  const [board, setBoard] = useState<{ date: string; flights: FlightData[] } | null>(null);
+  const handleFlightsChange = useCallback((date: string, flights: FlightData[]) => setBoard({ date, flights }), []);
 
   useEffect(() => {
     // Siempre en hora de Panamá, sin importar la zona horaria del dispositivo
@@ -78,8 +86,8 @@ export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today
 </div>
 
 {/*  Executive KPI Grid  */}
-<Suspense fallback={<KpiGrid vuelos={null} pasajeros={null} />}>
-  <LiveKpis flightsPromise={flightsPromise} today={today} />
+<Suspense fallback={<KpiGrid stats={null} date={today} today={today} />}>
+  <LiveKpis flightsPromise={flightsPromise} today={today} board={board} />
 </Suspense>
 
 {/*  Panel de Decisión de Vuelos (TAF)  */}
@@ -92,7 +100,7 @@ export function DashboardHome({ userName, userCargo, avatarUrl, canDelete, today
 {/*  Scheduled Flight Feed  */}
 <div className="pt-space-xs pb-space-lg">
   <Suspense fallback={<FlightListBoard canDelete={canDelete} pending />}>
-    <FlightListFromServer flightsPromise={flightsPromise} today={today} canDelete={canDelete} />
+    <FlightListFromServer flightsPromise={flightsPromise} today={today} canDelete={canDelete} onFlightsChange={handleFlightsChange} />
   </Suspense>
 </div>
 </div>
@@ -107,58 +115,48 @@ function DecisionsFromServer({ decisionsPromise }: { decisionsPromise: Props["de
   return <FlightDecisionBoard initial={initial} />;
 }
 
-function FlightListFromServer({ flightsPromise, today, canDelete }: { flightsPromise: Props["flightsPromise"]; today: string; canDelete: boolean }) {
+function FlightListFromServer({ flightsPromise, today, canDelete, onFlightsChange }: { flightsPromise: Props["flightsPromise"]; today: string; canDelete: boolean; onFlightsChange: (date: string, flights: FlightData[]) => void }) {
   const flights = use(flightsPromise);
-  return <FlightListBoard canDelete={canDelete} initial={{ date: today, flights }} />;
+  return <FlightListBoard canDelete={canDelete} initial={{ date: today, flights }} onFlightsChange={onFlightsChange} />;
 }
 
-// Contadores: llegan con la página y se refrescan cada minuto
-function LiveKpis({ flightsPromise, today }: { flightsPromise: Props["flightsPromise"]; today: string }) {
+// Contadores: llegan con la página y luego siguen la fecha y los datos de Próximos Vuelos
+// (esa lista se refresca cada minuto)
+function LiveKpis({ flightsPromise, today, board }: { flightsPromise: Props["flightsPromise"]; today: string; board: { date: string; flights: FlightData[] } | null }) {
   const initial = use(flightsPromise);
-  const [stats, setStats] = useState(() => davStats(initial));
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchUpcomingFlights(today)
-        .then(flights => setStats(davStats(flights)))
-        .catch(e => console.error("Error fetching metrics:", e));
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [today]);
-
-  return <KpiGrid vuelos={stats.vuelos} pasajeros={stats.pasajeros} />;
+  const date = board?.date ?? today;
+  return <KpiGrid stats={davStats(board?.flights ?? initial)} date={date} today={today} />;
 }
 
-function KpiGrid({ vuelos, pasajeros }: { vuelos: number | null; pasajeros: number | null }) {
-  const value = (n: number | null) =>
-    n === null ? <span className="inline-block w-10 h-8 rounded-md bg-surface-container animate-pulse align-middle" /> : n.toLocaleString();
+function KpiGrid({ stats, date, today }: { stats: DavStats | null; date: string; today: string }) {
+  const isToday = date === today;
+  const [y, m, d] = date.split("-");
+  const day = isToday ? "Día en curso" : `${d}/${m}/${y}`;
+  const moved = isToday ? "Llegaron y viajaron hoy" : `Llegaron y viajaron el ${d}/${m}/${y}`;
   return (
 <div className="grid grid-cols-1 md:grid-cols-2 gap-space-sm">
-{/*  Vuelos Completados  */}
+<KpiCard title="VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK" value={stats?.airpanama.vuelos ?? null} caption={`${day} (Air Panama)`} icon="flight_land" iconClass="bg-sky-100 text-sky-700" />
+<KpiCard title="PASAJEROS TOTALES" value={stats?.airpanama.pasajeros ?? null} caption={`${moved} (Air Panama)`} icon="groups" iconClass="bg-indigo-100 text-indigo-700" />
+<KpiCard title="VUELOS COPA AIRLINES" value={stats?.copa.vuelos ?? null} caption={`${day} (Copa Airlines)`} icon="flight_land" iconClass="bg-[#0032A0]/10 text-[#0032A0]" />
+<KpiCard title="PASAJEROS COPA AIRLINES" value={stats?.copa.pasajeros ?? null} caption={`${moved} (Copa Airlines)`} icon="groups" iconClass="bg-[#0032A0]/10 text-[#0032A0]" />
+</div>
+  );
+}
+
+function KpiCard({ title, value, caption, icon, iconClass }: { title: string; value: number | null; caption: string; icon: string; iconClass: string }) {
+  return (
 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
 <div className="flex items-center justify-between">
-<span className="font-label-sm text-[12px] text-on-surface-variant uppercase font-bold tracking-wide">VUELOS AEROPUERTO INTERNACIONAL ENRIQUE MALEK</span>
-<span className="w-7 h-7 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700">
-<span className="material-symbols-outlined text-[16px]">flight_land</span>
+<span className="font-label-sm text-[12px] text-on-surface-variant uppercase font-bold tracking-wide">{title}</span>
+<span className={`w-7 h-7 rounded-lg flex items-center justify-center ${iconClass}`}>
+<span className="material-symbols-outlined text-[16px]">{icon}</span>
 </span>
 </div>
 <div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{value(vuelos)}</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Día en curso (Air Panama)</span>
-</div>
-</div>
-{/*  Pax en Tránsito  */}
-<div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between border border-surface-container/50">
-<div className="flex items-center justify-between">
-<span className="font-label-sm text-[12px] text-on-surface-variant uppercase font-bold tracking-wide">PASAJEROS TOTALES</span>
-<span className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700">
-<span className="material-symbols-outlined text-[16px]">groups</span>
+<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">
+  {value === null ? <span className="inline-block w-10 h-8 rounded-md bg-surface-container animate-pulse align-middle" /> : value.toLocaleString()}
 </span>
-</div>
-<div className="mt-space-xs">
-<span className="font-display-hero text-headline-lg-mobile font-extrabold text-on-surface leading-none">{value(pasajeros)}</span>
-<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">Llegaron y viajaron hoy</span>
-</div>
+<span className="font-body-sm text-body-sm text-on-surface-variant block mt-1">{caption}</span>
 </div>
 </div>
   );

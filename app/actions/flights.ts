@@ -128,11 +128,9 @@ export async function getUpcomingFlights(targetDate?: string): Promise<FlightDat
     const mins = durationMins % 60;
     const durationStr = hours > 0 ? `${hours}h ${mins.toString().padStart(2, '0')}m` : `${mins} min`;
 
-    const prefix = flight.airline === 'Copa Airlines' ? 'CM-' : '7P-';
-
     const result: FlightData = {
       id: `${flight.num}-${flight.date}-${flight.dep}`,
-      flightNumber: `${prefix}${flight.num}`,
+      flightNumber: canonicalFlightNumber(flight.num, flight.airline), // CM22 → CM-22, 671 → 7P-671
       aircraft: flight.type,
       aircraftReg: flight.reg,
       origin: flight.ori,

@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   // Permite abrir el servidor de desarrollo desde el celular en la red local
   allowedDevOrigins: ['192.168.1.13:3000', '192.168.1.13', 'localhost:3000'],
   serverExternalPackages: ['tesseract.js'],
+  // El OCR corre en un worker_thread que carga su motor (WASM) con require dinámico;
+  // el trazado no lo ve y sin esto el worker se cae en Vercel y la lectura queda colgada
+  outputFileTracingIncludes: Object.fromEntries(['/dashboard', '/dashboard/**/*'].map(route => [route, [
+    './node_modules/tesseract.js/package.json',
+    './node_modules/tesseract.js/src/**/*',
+    './node_modules/{bmp-js,zlibjs,is-url,regenerator-runtime,node-fetch,whatwg-url,tr46,webidl-conversions}/**/*',
+    './node_modules/tesseract.js-core/**/*',
+    './node_modules/wasm-feature-detect/**/*',
+  ]])),
   // Cabeceras de seguridad en todas las respuestas
   async headers() {
     return [{
