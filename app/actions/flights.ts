@@ -224,6 +224,43 @@ async function saveArrivals(flights: FlightData[]) {
   return { success: true, count: flightsToInsert.length };
 }
 
+type ItineraryLeg = { flightNumber: string; airline: string | null; origin: string | null; destination: string | null; departureTimeLocal: string | null; arrivalTimeLocal: string | null };
+
+// "HH:MM" de un instante, siempre en hora de Panamá (el servidor de Vercel corre en UTC)
+const panamaHHMM = (d: Date) =>
+  d.toLocaleTimeString('en-GB', { timeZone: 'America/Panama', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+// Horas de itinerario (salida y llegada) de un vuelo del histórico:
+// 1) las guardadas en el registro (si alguien las editó), 2) las del itinerario cargado ese día
+// (mismo número normalizado y el tramo que toca DAV), 3) estimadas desde hora_itinerario.
+function itineraryTimes(flight: Record<string, unknown>, legs: ItineraryLeg[], tipo: 'llegada' | 'salida', today: string) {
+  if (flight.hora_itinerario_salida && flight.hora_itinerario_llegada) return {};
+  const airline = String(flight.aerolinea ?? '');
+  const numero = canonicalFlightNumber(String(flight.numero_vuelo ?? ''), airline);
+  const leg = legs.find(m =>
+    canonicalFlightNumber(m.flightNumber, m.airline ?? airline) === numero &&
+    (tipo === 'llegada' ? m.destination === 'DAV' : m.origin === 'DAV'));
+  let dep = leg?.departureTimeLocal ?? null;
+  let arr = leg?.arrivalTimeLocal ?? null;
+
+  if (!dep || !arr) {
+    // Vuelos importados del Excel: sin hora de itinerario no hay nada que estimar
+    if (!flight.hora_itinerario) return {};
+    const base = new Date(String(flight.hora_itinerario));
+    if (Number.isNaN(base.getTime())) return {};
+    const minutes = airline.toLowerCase().includes('copa') ? 73 : 60; // Copa DAV-PTY: 1 h 13 min
+    const other = new Date(base.getTime() + (tipo === 'llegada' ? -1 : 1) * minutes * 60000);
+    dep = panamaHHMM(tipo === 'llegada' ? other : base);
+    arr = panamaHHMM(tipo === 'llegada' ? base : other);
+  }
+
+  const pad = (t: string) => (t.length === 4 ? `0${t}` : t);
+  return {
+    hora_itinerario_salida: `${today}T${pad(dep)}:00-05:00`,
+    hora_itinerario_llegada: `${today}T${pad(arr)}:00-05:00`,
+  };
+}
+
 export async function getLlegadasMalek(dateStr?: string) {
   await requireApprovedUser();
   const supabase = await createClient();
@@ -240,7 +277,7 @@ export async function getLlegadasMalek(dateStr?: string) {
       .order('hora_real_llegada', { ascending: false }),
     supabase
       .from('manual_flights_log')
-      .select('flightNumber, departureTimeLocal, arrivalTimeLocal')
+      .select('flightNumber, airline, origin, destination, departureTimeLocal, arrivalTimeLocal')
       .eq('flightDate', today),
     pendingDeletionIds('llegada'),
   ]);
@@ -251,40 +288,11 @@ export async function getLlegadasMalek(dateStr?: string) {
   }
 
 
-  const enhancedData = (data || []).map(flight => {
-    const manual = manualFlights?.find(m => 
-      flight.numero_vuelo === m.flightNumber || 
-      flight.numero_vuelo === `7P-${m.flightNumber}` || 
-      flight.numero_vuelo === `CM-${m.flightNumber}`
-    );
-    let depLocal = manual?.departureTimeLocal;
-    let arrLocal = manual?.arrivalTimeLocal;
-
-    // Vuelos importados del Excel: sin hora de itinerario no hay nada que estimar
-    if ((!depLocal || !arrLocal) && !flight.hora_itinerario) return { ...flight, eliminacion_solicitada: solicitados.has(flight.id) };
-
-    if (!depLocal || !arrLocal) {
-      // Fallback if not found in itinerary
-      const baseDate = new Date(flight.hora_itinerario);
-      const isCopa = flight.aerolinea.toLowerCase().includes('copa');
-      const offsetMins = isCopa ? 65 : 60;
-      
-      const depDate = new Date(baseDate.getTime() - offsetMins * 60000);
-      depLocal = `${depDate.getHours().toString().padStart(2, '0')}:${depDate.getMinutes().toString().padStart(2, '0')}`;
-      arrLocal = `${baseDate.getHours().toString().padStart(2, '0')}:${baseDate.getMinutes().toString().padStart(2, '0')}`;
-    }
-
-    // Ensure they are 5 chars long (e.g. 08:30 instead of 8:30)
-    if (depLocal && depLocal.length === 4) depLocal = `0${depLocal}`;
-    if (arrLocal && arrLocal.length === 4) arrLocal = `0${arrLocal}`;
-
-    return {
-      ...flight,
-      eliminacion_solicitada: solicitados.has(flight.id),
-      hora_itinerario_salida: `${today}T${depLocal}:00-05:00`,
-      hora_itinerario_llegada: `${today}T${arrLocal}:00-05:00`
-    };
-  });
+  const enhancedData = (data || []).map(flight => ({
+    ...flight,
+    ...itineraryTimes(flight, manualFlights ?? [], 'llegada', today),
+    eliminacion_solicitada: solicitados.has(flight.id),
+  }));
 
   return enhancedData;
 }
@@ -453,7 +461,7 @@ export async function getSalidasMalek(dateStr?: string) {
       .order('hora_real_salida', { ascending: false }),
     supabase
       .from('manual_flights_log')
-      .select('flightNumber, departureTimeLocal, arrivalTimeLocal')
+      .select('flightNumber, airline, origin, destination, departureTimeLocal, arrivalTimeLocal')
       .eq('flightDate', today),
     pendingDeletionIds('salida'),
   ]);
@@ -464,40 +472,11 @@ export async function getSalidasMalek(dateStr?: string) {
   }
 
 
-  const enhancedData = (data || []).map(flight => {
-    const manual = manualFlights?.find(m => 
-      flight.numero_vuelo === m.flightNumber || 
-      flight.numero_vuelo === `7P-${m.flightNumber}` || 
-      flight.numero_vuelo === `CM-${m.flightNumber}`
-    );
-    let depLocal = manual?.departureTimeLocal;
-    let arrLocal = manual?.arrivalTimeLocal;
-
-    // Vuelos importados del Excel: sin hora de itinerario no hay nada que estimar
-    if ((!depLocal || !arrLocal) && !flight.hora_itinerario) return { ...flight, eliminacion_solicitada: solicitados.has(flight.id) };
-
-    if (!depLocal || !arrLocal) {
-      // Fallback if not found in itinerary
-      const baseDate = new Date(flight.hora_itinerario);
-      const isCopa = flight.aerolinea.toLowerCase().includes('copa');
-      const offsetMins = isCopa ? 65 : 60;
-      
-      const arrDate = new Date(baseDate.getTime() + offsetMins * 60000);
-      depLocal = `${baseDate.getHours().toString().padStart(2, '0')}:${baseDate.getMinutes().toString().padStart(2, '0')}`;
-      arrLocal = `${arrDate.getHours().toString().padStart(2, '0')}:${arrDate.getMinutes().toString().padStart(2, '0')}`;
-    }
-
-    // Ensure they are 5 chars long (e.g. 08:30 instead of 8:30)
-    if (depLocal && depLocal.length === 4) depLocal = `0${depLocal}`;
-    if (arrLocal && arrLocal.length === 4) arrLocal = `0${arrLocal}`;
-
-    return {
-      ...flight,
-      eliminacion_solicitada: solicitados.has(flight.id),
-      hora_itinerario_salida: `${today}T${depLocal}:00-05:00`,
-      hora_itinerario_llegada: `${today}T${arrLocal}:00-05:00`
-    };
-  });
+  const enhancedData = (data || []).map(flight => ({
+    ...flight,
+    ...itineraryTimes(flight, manualFlights ?? [], 'salida', today),
+    eliminacion_solicitada: solicitados.has(flight.id),
+  }));
 
   return enhancedData;
 }
