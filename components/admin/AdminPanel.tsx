@@ -224,18 +224,21 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
       </section>
 
       {/* ========================================= */}
-      {/* SECCIÓN 1: USUARIOS CONECTADOS             */}
+      {/* SECCIÓN 1: USUARIOS                        */}
       {/* ========================================= */}
       <section className="flex flex-col gap-space-sm mt-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px] text-primary-container">devices</span>
-            <h2 className="font-headline-sm text-headline-sm text-primary font-bold">
-              Dispositivos & Ubicación Activa
-            </h2>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px] text-primary-container">manage_accounts</span>
+              <h2 className="font-headline-sm text-headline-sm text-primary font-bold">Usuarios</h2>
+            </div>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+              Usa el botón Editar para cambiar nombre, cargo, rol o acceso.
+            </p>
           </div>
-          <span className="px-2.5 py-0.5 rounded-full bg-primary-container text-on-primary font-label-sm text-label-sm font-bold">
-            {users.length} Registros
+          <span className="px-2.5 py-0.5 rounded-full bg-primary-container text-on-primary font-label-sm text-label-sm font-bold whitespace-nowrap">
+            {users.length} {users.length === 1 ? 'cuenta' : 'cuentas'}
           </span>
         </div>
 
@@ -249,7 +252,7 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
                   }`}>
                     {user.nombre ? user.nombre.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex flex-col min-w-0 pr-8">
+                  <div className="flex flex-col min-w-0">
                     <span className="font-label-md text-label-md text-primary font-bold truncate">
                       {user.nombre || "Sin Nombre"}
                     </span>
@@ -280,20 +283,22 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
                   <span className="material-symbols-outlined text-[16px] text-secondary-container">badge</span>
                   <span>{user.cargo || 'Sin asignar'}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-3">
                   <span className="font-body-sm text-body-sm text-outline">
                     {new Date(user.created_at).toLocaleDateString('es-PA')}
                   </span>
+                  {/* Siempre visible (también en celular): así nadie tiene que adivinar dónde se edita */}
+                  {canEdit(user) && (
+                    <button
+                      className="inline-flex items-center gap-1 px-3 h-9 rounded-lg border border-outline-variant/40 bg-surface-container text-primary font-label-md text-label-md font-bold hover:bg-surface-container-high transition-colors"
+                      onClick={(e) => { e.stopPropagation(); openEditModal(user); }}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">edit</span>
+                      Editar
+                    </button>
+                  )}
                 </div>
               </div>
-              
-              {/* Edit Icon Overlay on Hover */}
-              {canEdit(user) && <button 
-                className="absolute top-1/2 -translate-y-1/2 right-4 w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface opacity-0 md:group-hover:opacity-100 transition-opacity"
-                onClick={(e) => { e.stopPropagation(); openEditModal(user); }}
-              >
-                <span className="material-symbols-outlined text-[18px]">edit</span>
-              </button>}
             </article>
           ))}
         </div>
