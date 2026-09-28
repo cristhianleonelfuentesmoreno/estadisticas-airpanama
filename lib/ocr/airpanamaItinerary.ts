@@ -40,7 +40,8 @@ function normalizeOcrText(text: string): string {
     .replace(/\bFK?-?[5S][O0]\b/gi, 'F-50')        // F50, F-5O, FK50, FKs0 → F-50
     .replace(/\bC-?2[O0]8\b/g, 'C-208')           // C208, C-2O8 → C-208
     .replace(/\bHP\s*-?\s*(\d{3,4})\b/gi, 'HP-$1') // HP 1997, Hp1997 → HP-1997
-    .replace(/\b([A-Z0]{3})\s*-\s*([A-Z0]{3})\b/g, (_, a: string, b: string) =>
+    // El guion de la ruta a veces sale como punto o coma: PAC.DAV, DAV.-PAC → PAC-DAV
+    .replace(/\b([A-Z0]{3})\s*[-.,]+\s*([A-Z0]{3})\b/g, (_, a: string, b: string) =>
       `${a.replace(/0/g, 'O')}-${b.replace(/0/g, 'O')}`);
 }
 
