@@ -102,7 +102,7 @@ export function FleetKnowledgePanel() {
     const keys = toConfirm.map(r => String(r[def.key]));
     const ok = await confirmDialog({
       title: `¿Confirmar ${keys.length} ${def.label.toLowerCase()} por revisar?`,
-      message: "Confírmalos solo si ya revisaste que los datos son correctos. Si otro administrador debe verificarlos, cancela.",
+      message: "Confírmalos solo si ya revisaste que los datos son correctos. Si otra persona debe verificarlos, cancela.",
       confirmText: "Sí, confirmar todos",
     });
     if (!ok) return;

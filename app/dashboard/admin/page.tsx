@@ -39,7 +39,7 @@ export default async function AdminPage() {
           <p className="font-body-lg text-body-lg text-on-surface-variant mt-2 max-w-3xl">
             {role === 'administrador'
               ? 'Gestiona accesos, roles y configuración; revisa solicitudes y la bitácora de todo el personal.'
-              : 'Acepta usuarios nuevos, resuelve solicitudes de eliminación y revisa la bitácora de cada turno.'}
+              : 'Acepta usuarios nuevos, resuelve solicitudes de eliminación, mantiene la base de flota y revisa la bitácora de cada turno.'}
           </p>
         </div>
         <div className="flex-shrink-0 flex flex-wrap items-center gap-3">

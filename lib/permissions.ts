@@ -28,11 +28,12 @@ export const can = {
   viewDevices: staff,
   // Aceptar o rechazar usuarios, editar su nombre y cargo, enviar enlace de contraseña
   manageUsers: staff,
+  // Base de conocimiento (flota, tripulación, rutas, vuelos regulares)
+  manageFleet: staff,
   // Solo el administrador
   manageRoles: admin,
   deleteAccounts: admin,
   manageSettings: admin,
-  manageFleet: admin,
   viewMonitoring: admin,
 }
 

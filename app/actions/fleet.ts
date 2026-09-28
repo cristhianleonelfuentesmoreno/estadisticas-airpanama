@@ -1,11 +1,11 @@
 "use server";
 
-import { requireAdmin } from "@/lib/auth";
+import { requireSupervisor } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import { normalizeRegistration } from "@/lib/fleet/rules";
 
-// Edición de la base de conocimiento desde el panel de admin.
+// Edición de la base de conocimiento desde el panel (supervisores y administradores).
 // Cada tabla declara su clave y los campos editables: todo lo demás se descarta.
 
 export type FleetTable = "aircraft_types" | "aircraft" | "crew_members" | "flight_routes" | "scheduled_flights";
@@ -74,7 +74,7 @@ function assertTable(table: string): asserts table is FleetTable {
 }
 
 export async function getFleetAdminData() {
-  await requireAdmin();
+  await requireSupervisor();
   const db = createAdminClient();
   const [types, aircraft, crew, routes, scheduled] = await Promise.all([
     db.from("aircraft_types").select("*").order("airline").order("aircraft_code"),
@@ -96,7 +96,7 @@ export async function getFleetAdminData() {
 // Sin revalidatePath: el panel recarga sus datos solo; revalidar volvía a generar toda
 // la página de admin (sesión, perfil y lista de usuarios) en cada guardado y lo hacía lento.
 export async function saveFleetRow(table: string, key: string | null, input: FleetRow) {
-  const admin = await requireAdmin();
+  const actor = await requireSupervisor();
   assertTable(table);
   const def = TABLES[table];
   const db = createAdminClient();
@@ -118,7 +118,7 @@ export async function saveFleetRow(table: string, key: string | null, input: Fle
 
   await logAudit({
     tipo_evento: "edicion",
-    actor: admin,
+    actor,
     entidad: "flota",
     nombre_referencia: String(row[def.key === "id" ? Object.keys(def.fields)[0] : def.key] ?? key ?? ""),
     descripcion: `${key === null ? "Agregó" : "Editó"} ${def.label} en la base de flota`,
@@ -129,7 +129,7 @@ export async function saveFleetRow(table: string, key: string | null, input: Fle
 
 // Marca como confirmadas varias filas de una vez (botón "Confirmar todos" del panel)
 export async function confirmFleetRows(table: string, keys: string[]) {
-  const admin = await requireAdmin();
+  const actor = await requireSupervisor();
   assertTable(table);
   const def = TABLES[table];
   if (!("verified" in def.fields)) return { error: "Esta tabla no se confirma" };
@@ -138,7 +138,7 @@ export async function confirmFleetRows(table: string, keys: string[]) {
   if (error) return { error: error.message };
   await logAudit({
     tipo_evento: "edicion",
-    actor: admin,
+    actor,
     entidad: "flota",
     nombre_referencia: `${keys.length} ${def.label}(s)`,
     descripcion: `Confirmó ${keys.length} ${def.label}(s) en la base de flota`,
@@ -148,7 +148,7 @@ export async function confirmFleetRows(table: string, keys: string[]) {
 }
 
 export async function deleteFleetRow(table: string, key: string) {
-  const admin = await requireAdmin();
+  const actor = await requireSupervisor();
   assertTable(table);
   const def = TABLES[table];
   const { error } = await createAdminClient().from(table).delete().eq(def.key, key);
@@ -157,7 +157,7 @@ export async function deleteFleetRow(table: string, key: string) {
   }
   await logAudit({
     tipo_evento: "eliminacion",
-    actor: admin,
+    actor,
     entidad: "flota",
     nombre_referencia: key,
     descripcion: `Eliminó ${def.label} de la base de flota`,
