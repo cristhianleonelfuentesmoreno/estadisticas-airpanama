@@ -199,85 +199,26 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
         <SettingsWidget />
       )}
 
-      {/* ========================================= */}
-      {/* TARJETAS DE RESUMEN Y MONITOREO           */}
-      {/* ========================================= */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-        {/* Card 1: Gestión de Usuarios */}
-        <div className="flex flex-col bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-lg bg-tertiary-fixed flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-label-md text-label-md text-primary font-bold">Gestión de Usuarios</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant">{users.length} en plantilla total</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-surface-container-high font-label-sm text-label-sm text-primary font-bold">
-              {activos} activos
-            </span>
+      {/* Resumen del personal: cuentas reales, sin datos de ejemplo */}
+      <section className="flex flex-col bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-lg bg-tertiary-fixed flex items-center justify-center text-primary">
+            <span className="material-symbols-outlined text-[20px]">group</span>
           </div>
-          <div className="grid grid-cols-2 gap-2 mt-space-md bg-surface-container-low p-2.5 rounded-lg">
-            <div className="flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Supervisores</span>
-              <span className="font-headline-sm text-headline-sm font-bold text-primary">{supervisores}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Pendientes</span>
-              <span className="font-headline-sm text-headline-sm font-bold text-secondary-container">{pendientes}</span>
-            </div>
-          </div>
+          <span className="font-label-md text-label-md text-primary font-bold">Personal</span>
         </div>
-
-        {/* Card 2: Monitoreo Activo */}
-        <div className="flex flex-col bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary-container">
-                <span className="material-symbols-outlined text-[20px]">dns</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-label-md text-label-md text-primary font-bold">Monitoreo Activo</span>
-                <span className="font-label-sm text-label-sm text-emerald-700 font-semibold">Salud 99.8% • En Línea</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed">
-              <span className="material-symbols-outlined text-[14px] text-secondary-container">security</span>
-              <span className="font-label-sm text-label-sm font-bold">Sin caídas 72h</span>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-space-md">
+          <div className="flex flex-col bg-surface-container-low p-3 rounded-lg">
+            <span className="font-headline-sm text-headline-sm font-bold text-primary">{activos}</span>
+            <span className="font-body-sm text-body-sm text-on-surface-variant">pueden entrar a la aplicación</span>
           </div>
-          <div className="grid grid-cols-2 gap-2 my-space-md bg-surface-container-low p-2.5 rounded-lg">
-            <div className="flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Incidentes Críticos</span>
-              <div className="flex items-center gap-1.5">
-                <span className="font-headline-sm text-headline-sm font-bold text-primary">0</span>
-                <span className="font-label-sm text-label-sm text-emerald-600 font-bold">Limpio</span>
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Latencia Nodo PAC</span>
-              <div className="flex items-center gap-1.5">
-                <span className="font-headline-sm text-headline-sm font-bold text-primary">42ms</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant">Óptima</span>
-              </div>
-            </div>
-            <div className="flex flex-col pt-1">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Base Datos Ops</span>
-              <span className="font-label-md text-label-md font-semibold text-primary">Sync OK</span>
-            </div>
-            <div className="flex flex-col pt-1">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">Cifrado Sesiones</span>
-              <span className="font-label-md text-label-md font-semibold text-primary">AES-256</span>
-            </div>
+          <div className="flex flex-col bg-surface-container-low p-3 rounded-lg">
+            <span className="font-headline-sm text-headline-sm font-bold text-primary">{supervisores}</span>
+            <span className="font-body-sm text-body-sm text-on-surface-variant">son supervisores o administradores</span>
           </div>
-          <div className="flex items-center justify-between mt-auto pt-1">
-            <span className="font-body-sm text-body-sm text-on-surface-variant">Gateway Meteorológico PAC</span>
-            <span className="font-label-sm text-label-sm text-secondary-container font-bold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-secondary-container"></span>
-              1 aviso leve
-            </span>
+          <div className="flex flex-col bg-surface-container-low p-3 rounded-lg">
+            <span className={`font-headline-sm text-headline-sm font-bold ${pendientes > 0 ? 'text-amber-600' : 'text-primary'}`}>{pendientes}</span>
+            <span className="font-body-sm text-body-sm text-on-surface-variant">esperan que aceptes su acceso</span>
           </div>
         </div>
       </section>
