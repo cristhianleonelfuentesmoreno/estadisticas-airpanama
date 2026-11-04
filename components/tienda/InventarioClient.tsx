@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 import { AlertTriangle, MessageCircle, ScanBarcode, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, textoPedido } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, precioParaGanar, textoPedido } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
 
-export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-precio' | 'sin-codigo'
+export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-costo' | 'sin-precio' | 'sin-codigo'
 
 export default function InventarioClient({
   tiendaId, tiendaNombre, productos: iniciales, filtroInicial = 'todos',
@@ -32,9 +32,9 @@ export default function InventarioClient({
 
   const resumen = useMemo(() => ({
     total: productos.length,
-    valor: productos.reduce((s, p) => s + Math.max(p.stock, 0) * (p.costo ?? 0), 0),
     venta: productos.reduce((s, p) => s + Math.max(p.stock, 0) * (p.precio_venta ?? 0), 0),
     porAgotarse: productos.filter(porAgotarse).length,
+    sinCosto: productos.filter(p => p.costo === null).length,
   }), [productos])
 
   const lista = useMemo(() => {
@@ -44,6 +44,7 @@ export default function InventarioClient({
       if (filtro === 'sin-contar' && p.contado) return false
       if (filtro === 'sin-precio' && p.precio_venta !== null) return false
       if (filtro === 'sin-codigo' && p.codigo_barras) return false
+      if (filtro === 'sin-costo' && p.costo !== null) return false
       return !f || p.nombre.toLowerCase().includes(f) || (p.categoria ?? '').toLowerCase().includes(f) || p.codigo_barras === f
     })
   }, [productos, busqueda, filtro])
@@ -68,7 +69,9 @@ export default function InventarioClient({
         <button onClick={() => setFiltro('por-agotarse')} className="text-left">
           <Tarjeta titulo="Por agotarse" valor={String(resumen.porAgotarse)} alerta={resumen.porAgotarse > 0} nota={resumen.porAgotarse > 0 ? 'Toca para ver la lista' : undefined} />
         </button>
-        <Tarjeta titulo="Inventario a costo" valor={dinero(resumen.valor)} nota="solo productos con costo" />
+        <button onClick={() => setFiltro('sin-costo')} className="text-left">
+          <Tarjeta titulo="Sin costo" valor={String(resumen.sinCosto)} alerta={resumen.sinCosto > 0} nota={resumen.sinCosto > 0 ? 'No se sabe cuánto ganas en ellos' : 'Todos tienen costo'} />
+        </button>
         <Tarjeta titulo="Inventario a precio de venta" valor={dinero(resumen.venta)} />
       </div>
 
@@ -83,7 +86,7 @@ export default function InventarioClient({
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {([['todos', 'Todos'], ['por-agotarse', 'Por agotarse'], ['sin-contar', 'Sin contar'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
+        {([['todos', 'Todos'], ['por-agotarse', 'Por agotarse'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
           <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold ${filtro === f ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-sm'}`}>
             {nombre}
           </button>
@@ -113,6 +116,9 @@ export default function InventarioClient({
               <div className="text-right">
                 <p className={`font-bold ${!p.contado ? 'text-slate-400' : p.stock <= 0 ? 'text-red-600' : porAgotarse(p) ? 'text-amber-600' : 'text-slate-800'}`}>{p.contado ? fmtCantidad(p.stock, p.vende_por) : 'sin contar'}</p>
                 <p className="text-xs text-slate-500">{dinero(p.precio_venta)}{p.vende_por === 'libra' ? '/lb' : ''}</p>
+                {gananciaPorUnidad(p.precio_venta, p.costo) === null
+                  ? <p className="text-[11px] font-semibold text-amber-600">sin costo</p>
+                  : <p className={`text-[11px] font-semibold ${(gananciaPorUnidad(p.precio_venta, p.costo) ?? 0) <= 0 ? 'text-red-600' : 'text-emerald-700'}`}>ganas {dinero(gananciaPorUnidad(p.precio_venta, p.costo))}</p>}
               </div>
             </button>
           </li>
@@ -171,17 +177,25 @@ function FichaProducto({
 }) {
   const [nombre, setNombre] = useState(producto.nombre)
   const [precio, setPrecio] = useState(producto.precio_venta?.toString() ?? '')
+  const [costo, setCosto] = useState(producto.costo !== null ? String(Number(producto.costo.toFixed(4))) : '')
   const [codigo, setCodigo] = useState(producto.codigo_barras ?? '')
   const [minimo, setMinimo] = useState(producto.stock_minimo?.toString() ?? '')
   const [escaneando, setEscaneando] = useState(false)
   const [guardando, startGuardar] = useTransition()
   const precioNum = precio.trim() === '' ? null : Number(precio)
-  const ganancia = margen(precioNum, producto.costo)
+  const costoNum = costo.trim() === '' ? null : Number(costo)
+  const costoValido = costoNum !== null && Number.isFinite(costoNum) && costoNum >= 0 ? costoNum : null
+  const ganancia = margen(precioNum, costoValido)
+  const ganas = gananciaPorUnidad(precioNum, costoValido)
 
   function guardar(e: React.FormEvent) {
     e.preventDefault()
     if (precioNum !== null && (!Number.isFinite(precioNum) || precioNum < 0)) {
       toast.error('El precio no es válido')
+      return
+    }
+    if (costoNum !== null && costoValido === null) {
+      toast.error('El costo no es válido')
       return
     }
     const minimoNum = minimo.trim() === '' ? null : Number(minimo)
@@ -190,13 +204,13 @@ function FichaProducto({
       return
     }
     startGuardar(async () => {
-      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, codigo_barras: codigo || null, stock_minimo: minimoNum })
+      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum })
       if (!r.ok) {
         toast.error(r.error)
         return
       }
       toast.success('Guardado')
-      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum })
+      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, costo: costoValido, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum })
     })
   }
 
@@ -214,14 +228,30 @@ function FichaProducto({
 
         <div className="grid grid-cols-3 gap-2 text-center">
           <Dato titulo="En tienda" valor={producto.contado ? fmtCantidad(producto.stock, producto.vende_por) : 'Sin contar'} alerta={producto.contado && producto.stock <= 0} />
-          <Dato titulo="Costo" valor={dinero(producto.costo)} />
-          <Dato titulo="Ganancia" valor={ganancia === null ? '—' : `${ganancia}%`} alerta={ganancia !== null && ganancia < 15} />
+          <Dato titulo="Te cuesta" valor={dinero(costoValido)} />
+          <Dato titulo="Lo vendes a" valor={dinero(precioNum)} />
         </div>
-        {producto.costo === null && (
-          <p className="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
-            <AlertTriangle className="h-4 w-4 shrink-0" /> Sin costo todavía: se llena solo al registrar una factura de este producto.
-          </p>
-        )}
+
+        <div className={`rounded-2xl p-4 text-center ${ganas === null ? 'bg-amber-50 text-amber-800' : ganas <= 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'}`}>
+          {ganas === null ? (
+            <p className="flex items-center justify-center gap-2 text-sm font-semibold">
+              <AlertTriangle className="h-4 w-4 shrink-0" /> Escribe cuánto te cuesta para saber cuánto ganas.
+            </p>
+          ) : ganas <= 0 ? (
+            <p className="text-lg font-black">¡Pierdes {dinero(-ganas)} en cada {producto.vende_por === 'libra' ? 'libra' : 'unidad'}!</p>
+          ) : (
+            <>
+              <p className="text-2xl font-black">Ganas {dinero(ganas)}</p>
+              <p className="text-sm">por {producto.vende_por === 'libra' ? 'libra' : 'unidad'} · {ganancia}% de lo que cobras</p>
+            </>
+          )}
+        </div>
+
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+          Me cuesta (por {producto.vende_por === 'libra' ? 'libra' : 'unidad'})
+          <input value={costo} onChange={e => setCosto(e.target.value)} inputMode="decimal" placeholder="Lo que pagaste al proveedor por cada una" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
+          <span className="text-xs text-slate-400">También se actualiza solo cuando registras una factura de este producto.</span>
+        </label>
 
         <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
           Nombre
@@ -231,6 +261,16 @@ function FichaProducto({
           {producto.vende_por === 'libra' ? 'Precio por libra' : 'Precio de venta'}
           <input value={precio} onChange={e => setPrecio(e.target.value)} inputMode="decimal" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
         </label>
+        {costoValido !== null && costoValido > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-slate-500">Poner precio para ganar:</span>
+            {[20, 30, 40].map(pct => (
+              <button key={pct} type="button" onClick={() => setPrecio(precioParaGanar(costoValido, pct).toFixed(2))} className="rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800">
+                {pct}% · {dinero(precioParaGanar(costoValido, pct))}
+              </button>
+            ))}
+          </div>
+        )}
         <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
           Avísame cuando queden
           <input value={minimo} onChange={e => setMinimo(e.target.value)} inputMode="decimal" placeholder={`${MINIMO_POR_DEFECTO} (si lo dejas vacío)`} className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />

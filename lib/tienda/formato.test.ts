@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cambioPorcentual, cantidad, dinero, inicioDeHoyPanama, margen, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
+import { cambioPorcentual, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
 
 test("redondea la plata a centavos sin errores de coma flotante", () => {
   assert.equal(redondear2(0.1 + 0.2), 0.3);
@@ -66,4 +66,16 @@ test("compara contra el período anterior solo si hubo ventas", () => {
   assert.equal(cambioPorcentual(112, 100), 12);
   assert.equal(cambioPorcentual(95, 100), -5);
   assert.equal(cambioPorcentual(50, 0), null);
+});
+
+test("lo que gana la tienda por unidad", () => {
+  assert.equal(gananciaPorUnidad(0.35, 0.21), 0.14);
+  assert.equal(gananciaPorUnidad(0.35, null), null);
+});
+
+test("precio para ganar un porcentaje, redondeado a 5 centavos hacia arriba", () => {
+  assert.equal(precioParaGanar(0.21, 40), 0.35); // Marshmallow de Feduro
+  assert.equal(precioParaGanar(0.7, 25), 0.95);
+  assert.equal(precioParaGanar(0.81, 20), 1.05); // Big Cola 1L
+  assert.equal((margen(precioParaGanar(0.7, 25), 0.7) ?? 0) >= 25, true);
 });
