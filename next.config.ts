@@ -26,8 +26,8 @@ const nextConfig: NextConfig = {
         { key: 'X-Content-Type-Options', value: 'nosniff' },
         // Al salir a otro sitio no se envía la dirección completa de la página
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-        // Solo la app puede pedir ubicación; cámara y micrófono desactivados
-        { key: 'Permissions-Policy', value: 'geolocation=(self), camera=(), microphone=(), payment=()' },
+        // Solo la app puede pedir ubicación y cámara (escáner de códigos); micrófono desactivado
+        { key: 'Permissions-Policy', value: 'geolocation=(self), camera=(self), microphone=(), payment=()' },
         // Siempre por HTTPS
         { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
       ],
