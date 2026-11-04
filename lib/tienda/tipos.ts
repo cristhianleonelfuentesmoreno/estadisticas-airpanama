@@ -84,3 +84,24 @@ export type CierreDia = {
   ganancia: number
   creado_en: string
 }
+
+export type ProductoVendido = { nombre: string; vende_por: VendePor; cantidad: number; importe: number; ganancia: number | null }
+
+export type Estadisticas = {
+  total: number
+  ventas: number
+  ganancia: number
+  ventas_sin_costo: number
+  total_anterior: number
+  por_dia: { dia: string; total: number }[]
+  metodos: Partial<Record<MetodoPago, number>>
+  mas_vendidos: ProductoVendido[]
+  mas_ganancia: ProductoVendido[]
+  quietos: { nombre: string; vende_por: VendePor; cantidad: number; valor: number }[]
+  quietos_cantidad: number
+  quietos_valor: number
+  perdidas: number
+  primera_venta: string | null
+  // Días desde la primera venta con ValisVentas (para no llamar "quieto" a todo al empezar)
+  dias_vendiendo: number
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cantidad, dinero, inicioDeHoyPanama, margen, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, redondear2, textoPedido } from "@/lib/tienda/formato";
+import { cambioPorcentual, cantidad, dinero, inicioDeHoyPanama, margen, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
 
 test("redondea la plata a centavos sin errores de coma flotante", () => {
   assert.equal(redondear2(0.1 + 0.2), 0.3);
@@ -53,4 +53,17 @@ test("arma la lista de pedido con lo que más falta primero", () => {
     { nombre: "Papa", stock: 0, stock_minimo: 5, vende_por: "libra", contado: true },
   ], "Mini Super");
   assert.equal(texto, "Pedido para Mini Super:\n• Papa (no hay)\n• Coca-Cola 2L (quedan 2)");
+});
+
+test("los períodos usan el día de Panamá", () => {
+  const ahora = new Date("2026-11-05T03:00:00Z"); // 4 nov, 10 p. m. en Panamá
+  assert.deepEqual(rangoDe("hoy", ahora), { desde: "2026-11-04", hasta: "2026-11-04" });
+  assert.deepEqual(rangoDe("semana", ahora), { desde: "2026-10-29", hasta: "2026-11-04" });
+  assert.deepEqual(rangoDe("mes", ahora), { desde: "2026-11-01", hasta: "2026-11-04" });
+});
+
+test("compara contra el período anterior solo si hubo ventas", () => {
+  assert.equal(cambioPorcentual(112, 100), 12);
+  assert.equal(cambioPorcentual(95, 100), -5);
+  assert.equal(cambioPorcentual(50, 0), null);
 });

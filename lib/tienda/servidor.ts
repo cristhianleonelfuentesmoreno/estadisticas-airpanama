@@ -3,7 +3,7 @@ import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getApprovedUserOrNull } from '@/lib/auth'
 import { inicioDeHoyPanama } from '@/lib/tienda/formato'
-import type { CierreDia, Producto, ResumenDia, Tienda, VentaDelDia } from '@/lib/tienda/tipos'
+import type { CierreDia, Estadisticas, Producto, ProductoVendido, ResumenDia, Tienda, VentaDelDia } from '@/lib/tienda/tipos'
 
 // Lecturas de la tienda con el cliente del usuario: la base (RLS) solo devuelve
 // lo de los negocios donde es miembro.
@@ -106,5 +106,34 @@ export async function getCierreHoy(tienda: Tienda, fecha: string): Promise<Cierr
     fecha: data.fecha, creado_en: data.creado_en, efectivo_esperado: Number(data.efectivo_esperado),
     efectivo_contado: Number(data.efectivo_contado), diferencia: Number(data.diferencia),
     total_ventas: Number(data.total_ventas), ganancia: Number(data.ganancia),
+  }
+}
+
+type NumeroJson = number | string | null
+
+function aNumeros<T extends Record<string, unknown>>(fila: T, claves: (keyof T)[]): T {
+  const copia = { ...fila }
+  for (const k of claves) copia[k] = (fila[k] === null ? null : Number(fila[k] as NumeroJson)) as T[keyof T]
+  return copia
+}
+
+export async function getEstadisticas(tienda: Tienda, desde: string, hasta: string): Promise<Estadisticas> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('estadisticas', { p_tienda: tienda.id, p_desde: desde, p_hasta: hasta })
+  if (error || !data) throw new Error('No se pudieron leer las estadísticas')
+  const r = data as Record<string, unknown>
+  const n = (k: string) => Number((r[k] as NumeroJson) ?? 0)
+  const lista = <T extends Record<string, unknown>>(k: string, claves: (keyof T)[]) =>
+    ((r[k] as T[] | null) ?? []).map(f => aNumeros(f, claves))
+  return {
+    total: n('total'), ventas: n('ventas'), ganancia: n('ganancia'), ventas_sin_costo: n('ventas_sin_costo'),
+    total_anterior: n('total_anterior'), perdidas: n('perdidas'), quietos_cantidad: n('quietos_cantidad'), quietos_valor: n('quietos_valor'),
+    por_dia: lista<{ dia: string; total: number }>('por_dia', ['total']),
+    metodos: Object.fromEntries(Object.entries((r.metodos as Record<string, NumeroJson>) ?? {}).map(([m, v]) => [m, Number(v)])),
+    mas_vendidos: lista<ProductoVendido>('mas_vendidos', ['cantidad', 'importe', 'ganancia']),
+    mas_ganancia: lista<ProductoVendido>('mas_ganancia', ['cantidad', 'importe', 'ganancia']),
+    quietos: lista<Estadisticas['quietos'][number]>('quietos', ['cantidad', 'valor']),
+    primera_venta: (r.primera_venta as string | null) ?? null,
+    dias_vendiendo: r.primera_venta ? (Date.now() - new Date(r.primera_venta as string).getTime()) / 86_400_000 : 0,
   }
 }

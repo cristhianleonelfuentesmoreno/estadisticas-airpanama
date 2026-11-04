@@ -2,19 +2,20 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Boxes, FileText, ShoppingCart } from 'lucide-react'
+import { BarChart3, Boxes, FileText, ShoppingCart } from 'lucide-react'
 
 const SECCIONES = [
   { ruta: 'caja', nombre: 'Caja', Icono: ShoppingCart },
   { ruta: 'inventario', nombre: 'Inventario', Icono: Boxes },
   { ruta: 'facturas', nombre: 'Mercancía', Icono: FileText },
+  { ruta: 'negocio', nombre: 'Mi negocio', Icono: BarChart3 },
 ] as const
 
 export default function NavTienda({ slug }: { slug: string }) {
   const ruta = usePathname()
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
-      <ul className="mx-auto grid max-w-3xl grid-cols-3">
+      <ul className="mx-auto grid max-w-3xl grid-cols-4">
         {SECCIONES.map(({ ruta: r, nombre, Icono }) => {
           const href = `/t/${slug}/${r}`
           const activa = ruta.startsWith(href)
