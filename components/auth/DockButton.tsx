@@ -184,7 +184,7 @@ export function DockButton({ label, loadingLabel, ready, loading, active, locked
         onAnimationEnd={() => setShaking(false)}
       >
         <span className="cta__icon material-symbols-outlined" aria-hidden="true">
-          {locked ? "flight" : "flight_takeoff"}
+          {locked ? "lock" : "shopping_cart_checkout"}
         </span>
         {loading ? loadingLabel : label}
       </button>

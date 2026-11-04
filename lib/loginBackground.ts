@@ -25,8 +25,8 @@ export type LoginBgSettings = {
 
 export const BG_ZOOM_MIN = 0.3;
 export const BG_ZOOM_MAX = 3;
-// Imagen por defecto (/bg-plane.webp, 1024×539)
-export const DEFAULT_BG_ASPECT = 1024 / 539;
+// Imagen por defecto (/bg-tienda.webp, 1600×900)
+export const DEFAULT_BG_ASPECT = 1600 / 900;
 // Tamaño del panel de imagen: mitad de la tarjeta en computadora, encabezado de 220 px en celular
 export const BG_PANEL = { desktop: { w: 542, h: 484 }, mobile: { w: 390, h: 220 } } as const;
 

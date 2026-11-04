@@ -24,7 +24,7 @@
   overflow: hidden;
   /* El encuadre (lib/loginBackground.ts) usa cqw/cqh de este panel */
   container-type: size;
-  background: #0a2540;
+  background: #047857;
 }
 
 .card-bg-img,
@@ -32,7 +32,7 @@
   position: absolute;
   inset: 0;
   background-repeat: no-repeat;
-  background-image: var(--bg-image, url("/bg-plane.webp"));
+  background-image: var(--bg-image, url("/bg-tienda.webp"));
 }
 
 .card-bg-img {
@@ -198,7 +198,7 @@
   height: 16px;
   padding: 0;
   flex-shrink: 0;
-  accent-color: #0a2540;
+  accent-color: #047857;
   cursor: pointer;
 }
 .terms-link {
@@ -293,8 +293,8 @@
    DOCK: botón que espera en su "gate"
 ========================================= */
 .dock {
-  --dock-navy: #0a2540;   /* primary-container */
-  --dock-red: #bb001d;    /* secondary (rojo Air Panama) */
+  --dock-navy: #047857;   /* verde ValisVentas (primary-container) */
+  --dock-red: #10b981;    /* acento esmeralda de ValisVentas */
   position: relative;
   width: 100%;
   display: flex;
@@ -353,7 +353,7 @@
   height: 7px;
   border-radius: 50%;
   background: var(--dock-red);
-  box-shadow: 0 0 0 0 rgba(187, 0, 29, 0.5);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
   animation: dock-beacon 1.4s ease-out infinite;
 }
 
@@ -381,16 +381,16 @@
   background: #212625;
   opacity: 0.88;
   cursor: not-allowed;
-  box-shadow: 0 8px 18px rgba(10, 37, 64, 0.18);
+  box-shadow: 0 8px 18px rgba(4, 120, 87, 0.18);
 }
 
 .dock.is-ready button.cta:not(:disabled) {
-  box-shadow: 0 0 0 0 rgba(10, 37, 64, 0);
+  box-shadow: 0 0 0 0 rgba(4, 120, 87, 0);
 }
 
 .dock.is-ready button.cta:not(:disabled):hover {
   background: var(--dock-navy);
-  box-shadow: 0 8px 20px rgba(10, 37, 64, 0.25);
+  box-shadow: 0 8px 20px rgba(4, 120, 87, 0.25);
 }
 
 .cta__icon {
@@ -415,8 +415,8 @@
 }
 
 @keyframes dock-beacon {
-  0%   { box-shadow: 0 0 0 0 rgba(187, 0, 29, 0.5); }
-  100% { box-shadow: 0 0 0 8px rgba(187, 0, 29, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  100% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
 }
 
 @keyframes dock-takeoff {

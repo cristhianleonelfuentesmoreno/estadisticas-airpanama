@@ -6,7 +6,7 @@ import { updateAppSettings, getAppSettings } from "@/app/actions/admin";
 import { BackgroundFramer } from "./BackgroundFramer";
 import { DEFAULT_BG_ASPECT, frameFor, type BgDevice, type BgFrame } from "@/lib/loginBackground";
 
-const DEFAULT_BG = "/bg-plane.webp";
+const DEFAULT_BG = "/bg-tienda.webp";
 const CENTERED: BgFrame = { zoom: 1, x: 50, y: 50 };
 
 export function SettingsWidget() {
@@ -45,11 +45,11 @@ export function SettingsWidget() {
       const s = await getAppSettings();
       if (s) {
         setLoginTitle(s.loginTitle ?? "¡Hola!");
-        setLoginText(s.loginText ?? "Ingresa tus datos personales y empieza el viaje con nosotros.");
-        setRegisterTitle(s.registerTitle ?? "¡Bienvenido de vuelta!");
+        setLoginText(s.loginText ?? "Crea tu cuenta y lleva la caja y el inventario de tu tienda desde el celular.");
+        setRegisterTitle(s.registerTitle ?? "¡Bienvenido a ValisVentas!");
         setRegisterText(s.registerText ?? "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información.");
         setFrames({ desktop: frameFor(s, "desktop"), mobile: frameFor(s, "mobile") });
-        setBgUrlPreview(!s.bgUrl || s.bgUrl === "/bg-plane.png" ? DEFAULT_BG : s.bgUrl);
+        setBgUrlPreview(!s.bgUrl || s.bgUrl.startsWith("/bg-plane") ? DEFAULT_BG : s.bgUrl);
       }
     } catch (e) {
       console.error(e);
@@ -122,8 +122,8 @@ export function SettingsWidget() {
           <span className="material-symbols-outlined text-3xl">wallpaper</span>
         </div>
         <div>
-          <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Personalizar Pantalla de Inicio</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-1">Cambia la imagen de fondo y los textos de bienvenida.</p>
+          <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Página de inicio de sesión</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-1">Cambia la foto de fondo y los textos de bienvenida que ven todos al entrar.</p>
         </div>
         <div className="ml-auto w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
           <span className="material-symbols-outlined">edit</span>
@@ -135,7 +135,7 @@ export function SettingsWidget() {
           <div className="bg-surface-container-lowest w-full max-w-2xl rounded-3xl shadow-2xl border border-outline-variant/20 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
             <div className="p-6 bg-primary-container text-on-primary flex justify-between items-center shrink-0">
               <div>
-                <h2 className="font-headline-sm font-bold">Personalización de Inicio</h2>
+                <h2 className="font-headline-sm font-bold">Página de inicio de sesión</h2>
                 <p className="font-body-sm opacity-80 mt-1">Ajusta el diseño de la pantalla de login</p>
               </div>
               <button onClick={() => setIsOpen(false)} className="w-10 h-10 rounded-full hover:bg-black/10 flex items-center justify-center transition-colors">

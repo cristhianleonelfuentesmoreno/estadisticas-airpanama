@@ -47,7 +47,8 @@ function backgroundVars(settings: LoginCardProps["settings"]) {
 }
 
 // El fondo por defecto se sirve en WebP (19 KB en vez de 570 KB del PNG original)
-const loginBackground = (url?: string) => (!url || url === "/bg-plane.png" ? "/bg-plane.webp" : url);
+// Sin imagen propia (o con la del avión de antes) se usa el fondo verde de ValisVentas
+const loginBackground = (url?: string) => (!url || url.startsWith("/bg-plane") ? "/bg-tienda.webp" : url);
 
 const GoogleButton = ({ text, onClick, loading }: { text: string, onClick: () => void, loading: boolean }) => {
   return (
@@ -417,7 +418,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         <HeroPanel
           type="register"
           activeView={activeView}
-          title={settings?.registerTitle ?? "¡Bienvenido de vuelta!"}
+          title={settings?.registerTitle ?? "¡Bienvenido a ValisVentas!"}
           text={settings?.registerText ?? "Para mantenerte conectado con nosotros, por favor inicia sesión con tu información."}
           buttonText="INICIAR SESIÓN"
           onToggle={toggleView}
@@ -468,7 +469,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
           type="login"
           activeView={activeView}
           title={settings?.loginTitle ?? "¡Hola!"}
-          text={settings?.loginText ?? "Ingresa tus datos personales y empieza el viaje con nosotros."}
+          text={settings?.loginText ?? "Crea tu cuenta y lleva la caja y el inventario de tu tienda desde el celular."}
           buttonText="REGISTRARSE"
           onToggle={toggleView}
         />

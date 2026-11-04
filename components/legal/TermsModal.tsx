@@ -19,7 +19,7 @@ export function TermsModal({ open, onClose, onAccept }: { open: boolean; onClose
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#0A192F]/70 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-emerald-950/70 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -29,7 +29,7 @@ export function TermsModal({ open, onClose, onAccept }: { open: boolean; onClose
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-slate-100">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-red-600">AirPanama · Estación Enrique Malek</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">ValisVentas · Valis Digital</p>
             <h2 id="terms-title" className="text-xl font-bold text-slate-900 mt-1">Términos de uso y política de privacidad</h2>
             <p className="text-[12px] text-slate-500 mt-0.5">Versión {TERMS_VERSION} · {TERMS_DATE}</p>
           </div>
@@ -42,7 +42,7 @@ export function TermsModal({ open, onClose, onAccept }: { open: boolean; onClose
           <div className="flex gap-3 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100">
             <span className="material-symbols-outlined text-emerald-600">verified_user</span>
             <p className="text-[13px] text-emerald-900 leading-relaxed">
-              <strong>En resumen:</strong> tus datos se usan solo dentro de esta plataforma, para su seguridad y la auditoría de la operación. No se venden ni se comparten con fines comerciales, no hay cookies de seguimiento y la plataforma no está conectada a inteligencia artificial.
+              <strong>En resumen:</strong> los datos de tu tienda y de tu cuenta se usan solo dentro de esta plataforma, para que funcione, para su seguridad y para la auditoría. No se venden ni se comparten con fines comerciales y no hay cookies de seguimiento.
             </p>
           </div>
           {TERMS.map(section => (
