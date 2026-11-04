@@ -106,6 +106,7 @@ export async function crearDueno(
   negocioId: string, datos: { nombre: string; usuario: string; contrasena: string }, rol: 'dueno' | 'contador' = 'dueno',
 ): Promise<Resultado<{ usuario: string; contrasena: string | null; yaExistia: boolean }>> {
   const actor = await requireAdmin()
+  if (rol !== 'dueno' && rol !== 'contador') return { ok: false, error: 'Rol no válido' }
   const quien = rol === 'contador' ? 'contador' : 'dueño'
   const nombre = limpio(datos.nombre, 80)
   const email = correoDeUsuario(datos.usuario ?? '')
@@ -220,9 +221,12 @@ export async function listarRegistrados(): Promise<Registrado[]> {
     .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
 }
 
-// La persona ya tiene cuenta (se registró sola): queda aprobada y como dueña, con su propia contraseña
-export async function agregarRegistrado(negocioId: string, usuarioId: string): Promise<Resultado<{ nombre: string; usuario: string }>> {
+// La persona ya tiene cuenta (se registró sola): queda aprobada como dueña o contador, con su propia contraseña
+export async function agregarRegistrado(
+  negocioId: string, usuarioId: string, rol: 'dueno' | 'contador' = 'dueno',
+): Promise<Resultado<{ nombre: string; usuario: string }>> {
   const actor = await requireAdmin()
+  if (rol !== 'dueno' && rol !== 'contador') return { ok: false, error: 'Rol no válido' }
   const admin = createAdminClient()
   const [{ data: negocio }, { data: p }] = await Promise.all([
     admin.from('negocios').select('id, nombre').eq('id', negocioId).single(),
@@ -233,13 +237,13 @@ export async function agregarRegistrado(negocioId: string, usuarioId: string): P
   if (p.role !== 'usuario') return { ok: false, error: 'Esa cuenta es del equipo Valis, no de un dueño' }
 
   await admin.from('perfiles').update({ status: 'aprobado' }).eq('id', usuarioId)
-  const { error } = await admin.from('miembros').upsert({ negocio_id: negocioId, usuario_id: usuarioId, rol: 'dueno' }, { onConflict: 'negocio_id,usuario_id' })
+  const { error } = await admin.from('miembros').upsert({ negocio_id: negocioId, usuario_id: usuarioId, rol }, { onConflict: 'negocio_id,usuario_id' })
   if (error) return { ok: false, error: 'No se pudo agregar a la tienda' }
 
   const usuario = usuarioVisible(p.email as string)
   await logAudit({
     tipo_evento: 'edicion', actor, entidad: 'usuario', entidad_id: usuarioId,
-    nombre_referencia: usuario, descripcion: `Aprobó a ${(p.nombre as string | null) ?? usuario} y lo agregó como dueño de ${negocio.nombre}`,
+    nombre_referencia: usuario, descripcion: `Aprobó a ${(p.nombre as string | null) ?? usuario} y lo agregó como ${rol === 'contador' ? 'contador' : 'dueño'} de ${negocio.nombre}`,
   })
   revalidatePath('/admin')
   return { ok: true, data: { nombre: (p.nombre as string | null) ?? usuario, usuario } }

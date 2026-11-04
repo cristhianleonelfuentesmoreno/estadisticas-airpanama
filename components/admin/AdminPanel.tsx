@@ -16,6 +16,7 @@ export interface User {
   nombre: string | null;
   cargo: string | null;
   created_at: string;
+  contador?: boolean;
 }
 
 export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers: User[]; role: Role; currentUserId: string }) {
@@ -241,7 +242,7 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
                       {user.nombre || "Sin Nombre"}
                     </span>
                     <span className="font-body-sm text-body-sm text-on-surface-variant truncate flex items-center gap-1">
-                      {usuarioVisible(user.email)} <span className="opacity-50">•</span> <span>{ROLE_LABEL[user.role]}</span>
+                      {usuarioVisible(user.email)} <span className="opacity-50">•</span> <span>{user.contador && user.role === 'usuario' ? 'Contador · solo reportes' : ROLE_LABEL[user.role]}</span>
                     </span>
                   </div>
                 </div>
