@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { Settings } from 'lucide-react'
@@ -21,6 +22,7 @@ export default async function TiendaLayout({ children, params }: LayoutProps<'/t
   return (
     <div className="min-h-dvh bg-slate-50 pb-24">
       <header className="sticky top-0 z-30 flex items-center gap-2 bg-emerald-700 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow">
+        <Image src="/icono-app.png" alt="" width={40} height={40} priority className="h-10 w-10 shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-widest text-emerald-200">ValisVentas</p>
           <h1 className="truncate text-lg font-bold">{tienda.nombre}</h1>
