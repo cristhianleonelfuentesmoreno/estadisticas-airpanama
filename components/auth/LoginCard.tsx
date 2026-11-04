@@ -13,6 +13,7 @@ import { TERMS_VERSION } from "@/lib/terms";
 import { alertDialog } from "@/components/ui/dialogs";
 import { frameFor, frameCss, DEFAULT_BG_ASPECT, type LoginBgSettings } from "@/lib/loginBackground";
 import { correoDeUsuario } from "@/lib/cuenta";
+import { Boxes, Camera, ScanBarcode, TrendingUp } from "lucide-react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -88,10 +89,23 @@ type HeroPanelProps = {
   onToggle: () => void;
 };
 
+// Lo que la tienda gana con ValisVentas, en palabras de tienda
+const BENEFICIOS = [
+  { Icono: ScanBarcode, texto: "Cobra con la cámara del celular" },
+  { Icono: Boxes, texto: "El inventario se descuenta solo" },
+  { Icono: Camera, texto: "Facturas del proveedor con una foto" },
+  { Icono: TrendingUp, texto: "Sabes cuánto ganas cada día" },
+];
+
 const HeroPanel = ({ type, activeView, title, text, buttonText, onToggle }: HeroPanelProps) => (
   <div className={`hero ${type} ${activeView === type ? "active" : ""}`}>
     <h2 style={{ fontSize: '2rem', margin: '0 0 10px 0' }}>{title}</h2>
     {text && <p>{text}</p>}
+    <ul className="beneficios">
+      {BENEFICIOS.map(({ Icono, texto }) => (
+        <li key={texto}><span><Icono size={16} strokeWidth={2.4} /></span>{texto}</li>
+      ))}
+    </ul>
     <button type="button" onClick={onToggle} style={{ marginTop: '20px' }}>
       {buttonText}
     </button>
@@ -415,7 +429,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
   };
 
   return (
-    <div className="card-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f0f2f5' }}>
+    <div className="card-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
       <div className="card">
         <CardBackground 
           activeView={activeView} 

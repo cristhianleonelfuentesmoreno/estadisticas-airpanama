@@ -36,14 +36,14 @@ export default async function AdminPage({ searchParams }: PageProps<'/admin'>) {
   const pendientes = usuarios.filter(u => u.status === 'pendiente').length
 
   return (
-    <div className="flex flex-col gap-5">
-      <nav className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
+    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start lg:gap-8">
+      <nav className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 lg:sticky lg:top-24 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
         {visibles.map(({ id, nombre, Icono }) => (
           <Link
             key={id}
             href={`/admin?seccion=${id}`}
             className={`flex shrink-0 items-center gap-2 rounded-2xl px-4 py-3 font-bold ${
-              id === seccion ? 'bg-emerald-700 text-white shadow' : 'bg-white text-slate-600 shadow-sm'
+              id === seccion ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/30' : 'bg-white text-slate-600 shadow-sm hover:bg-emerald-50 lg:bg-transparent lg:shadow-none'
             }`}
           >
             <Icono className="h-5 w-5" />
@@ -55,6 +55,7 @@ export default async function AdminPage({ searchParams }: PageProps<'/admin'>) {
         ))}
       </nav>
 
+      <div key={seccion} className="pagina flex min-w-0 flex-col gap-5">
       {seccion === 'tiendas' && <TiendasPanel tiendas={await listarTiendas()} registrados={await listarRegistrados()} />}
 
       {seccion === 'personas' && <AdminPanel initialUsers={usuarios} role={profile.role} currentUserId={profile.id} />}
@@ -82,6 +83,7 @@ export default async function AdminPage({ searchParams }: PageProps<'/admin'>) {
           <VelocidadPanel />
         </div>
       )}
+      </div>
     </div>
   )
 }

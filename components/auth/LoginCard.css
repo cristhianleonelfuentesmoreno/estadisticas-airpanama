@@ -528,3 +528,53 @@
     z-index: 10;
   }
 }
+
+/* Fondo de la página: verde de ValisVentas con dos luces suaves */
+.card-container {
+  background:
+    radial-gradient(60rem 40rem at 10% 0%, rgb(163 230 53 / 0.18), transparent 60%),
+    radial-gradient(50rem 40rem at 100% 100%, rgb(16 185 129 / 0.25), transparent 60%),
+    linear-gradient(160deg, #064e3b, #022c22);
+}
+.card { box-shadow: 0 30px 80px rgb(2 44 34 / 0.55); }
+
+/* Lo que gana la tienda, junto al título */
+.hero .beneficios {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.hero .beneficios li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  opacity: 0;
+  animation: beneficio 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.hero .beneficios li:nth-child(2) { animation-delay: 0.08s; }
+.hero .beneficios li:nth-child(3) { animation-delay: 0.16s; }
+.hero .beneficios li:nth-child(4) { animation-delay: 0.24s; }
+.hero .beneficios span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #bef264;
+  color: #022c22;
+  flex-shrink: 0;
+}
+@keyframes beneficio { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .hero .beneficios li { animation: none; opacity: 1; }
+}
+@media (max-width: 768px) {
+  .hero .beneficios { display: none; }
+}
