@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ScanBarcode, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { registrarEntrada } from '@/app/actions/tienda'
-import { dinero, margen, redondear2 } from '@/lib/tienda/formato'
+import { dinero, margen, normalizarCodigo, redondear2 } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
-import Escaner from '@/components/tienda/Escaner'
+import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
 
@@ -41,6 +41,7 @@ export default function FacturaNueva({
   const [desconocido, setDesconocido] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [guardando, startGuardar] = useTransition()
+  useEffect(precargarEscaner, [])
 
   const resultados = useMemo(() => {
     const f = busqueda.trim().toLowerCase()
@@ -57,11 +58,12 @@ export default function FacturaNueva({
 
   const alEscanear = useCallback((codigo: string) => {
     setEscaneando(false)
-    const p = productos.find(x => x.codigo_barras === codigo)
+    const c = normalizarCodigo(codigo)
+    const p = productos.find(x => x.codigo_barras && normalizarCodigo(x.codigo_barras) === c)
     if (p) {
       agregar(p)
       toast.success(p.nombre, { duration: 1200 })
-    } else setDesconocido(codigo)
+    } else setDesconocido(c)
   }, [productos, agregar])
 
   function cambiar(i: number, campo: 'paquetes' | 'porPaquete' | 'costoPaquete', valor: string) {

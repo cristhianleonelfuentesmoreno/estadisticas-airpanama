@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Banknote, CreditCard, Minus, Plus, ScanBarcode, Scale, Search, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { registrarVenta } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, redondear2 } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, normalizarCodigo, redondear2 } from '@/lib/tienda/formato'
 import type { MetodoPago, Producto } from '@/lib/tienda/tipos'
-import Escaner from '@/components/tienda/Escaner'
+import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
 
@@ -39,9 +39,10 @@ export default function CajaClient({
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [recibido, setRecibido] = useState('')
   const [cobrando, startCobro] = useTransition()
+  useEffect(precargarEscaner, [])
 
   const porCodigo = useMemo(
-    () => new Map(productos.filter(p => p.codigo_barras).map(p => [p.codigo_barras as string, p])),
+    () => new Map(productos.filter(p => p.codigo_barras).map(p => [normalizarCodigo(p.codigo_barras as string), p])),
     [productos],
   )
   const porLibra = useMemo(() => productos.filter(p => p.vende_por === 'libra'), [productos])
@@ -76,9 +77,10 @@ export default function CajaClient({
 
   const alEscanear = useCallback((codigo: string) => {
     setEscaneando(false)
-    const p = porCodigo.get(codigo)
+    const c = normalizarCodigo(codigo)
+    const p = porCodigo.get(c)
     if (p) elegir(p)
-    else setDesconocido(codigo)
+    else setDesconocido(c)
   }, [porCodigo, elegir])
 
   function confirmarPeso(e: React.FormEvent) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cantidad, dinero, inicioDeHoyPanama, margen, redondear2 } from "@/lib/tienda/formato";
+import { cantidad, dinero, inicioDeHoyPanama, margen, normalizarCodigo, redondear2 } from "@/lib/tienda/formato";
 
 test("redondea la plata a centavos sin errores de coma flotante", () => {
   assert.equal(redondear2(0.1 + 0.2), 0.3);
@@ -27,4 +27,10 @@ test("calcula la ganancia sobre el precio de venta", () => {
 test("el día empieza a medianoche de Panamá aunque en UTC ya sea mañana", () => {
   // 3 nov 2026, 9:30 p. m. en Panamá = 4 nov 02:30 UTC
   assert.equal(inicioDeHoyPanama(new Date("2026-11-04T02:30:00Z")), "2026-11-03T00:00:00-05:00");
+});
+
+test("un UPC leído con 13 dígitos es el mismo producto que con 12", () => {
+  assert.equal(normalizarCodigo("0041789002915"), "041789002915"); // Maruchan
+  assert.equal(normalizarCodigo("041789002915"), "041789002915");
+  assert.equal(normalizarCodigo("7451011301106"), "7451011301106"); // EAN-13 de Panamá no cambia
 });
