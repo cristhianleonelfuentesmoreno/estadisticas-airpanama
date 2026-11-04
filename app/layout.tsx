@@ -19,7 +19,12 @@ export const metadata: Metadata = {
   applicationName: "ValisVentas",
   // Instalada en el iPhone desde Safari: nombre, ícono y pantalla completa
   appleWebApp: { capable: true, title: "ValisVentas", statusBarStyle: "default" },
-  icons: { apple: "/apple-icon.png" },
+  // El "?v=2" obliga a los navegadores que guardaron el ícono viejo a pedir el nuevo
+  icons: {
+    icon: [{ url: "/icon.png?v=2", type: "image/png", sizes: "256x256" }],
+    shortcut: "/favicon.ico?v=2",
+    apple: "/apple-icon.png?v=2",
+  },
   // Herramienta interna: que los buscadores no la muestren (ver también app/robots.ts)
   robots: { index: false, follow: false, googleBot: { index: false, follow: false } },
   // Vista previa al compartir el enlace (WhatsApp, correo…); imagen en app/opengraph-image.png
