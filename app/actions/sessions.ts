@@ -150,25 +150,32 @@ export async function cerrarSesion(sessionId: string) {
 // un evento fijo y limita el tamaño del texto recibido.
 export async function logFailedLogin(email: string) {
   const ref = typeof email === 'string' ? email.trim().slice(0, 254) : '';
-  // Es pública (se llama antes de iniciar sesión): con un tope por IP nadie puede llenar
-  // la bitácora (que no se puede limpiar) repitiendo este pedido
   const h = await headers();
   const ip = (h.get('x-forwarded-for') || h.get('x-real-ip') || '').split(',')[0].trim();
-  if (ip) {
-    const since = new Date(Date.now() - 10 * 60_000).toISOString();
-    const { count } = await createAdminClient()
-      .from('registros_auditoria')
-      .select('id', { count: 'exact', head: true })
-      .eq('tipo_evento', 'acceso_fallido')
-      .eq('ip', ip)
-      .gte('creado_en', since);
-    if ((count ?? 0) >= 20) return;
+  try {
+    const result = new UAParser(h.get('user-agent') || '').getResult();
+    const dispositivoTipo = result.device.type || (result.os.name === 'iOS' || result.os.name === 'Android' ? 'Móvil' : 'PC');
+    const dispositivoModelo = result.device.model || result.device.vendor || result.browser.name || 'Desconocido';
+    const dispositivo = `${dispositivoTipo} ${dispositivoModelo} ${result.os.name || ''}`.trim();
+    const city = h.get('x-vercel-ip-city') || '';
+    const country = h.get('x-vercel-ip-country') || '';
+    const region = h.get('x-vercel-ip-country-region') || '';
+    let ubicacion = 'Ubicación Desconocida';
+    if (city && country) {
+      try { ubicacion = `${decodeURIComponent(city)} (${decodeURIComponent(region || country)})`; } catch {}
+    }
+
+    // La base cuenta e inserta bajo el mismo bloqueo para respetar el tope por IP.
+    await createAdminClient().rpc('registrar_acceso_fallido', {
+      p_ip: ip || null,
+      p_nombre_referencia: ref || 'Intento Anónimo',
+      p_ubicacion: ubicacion,
+      p_dispositivo: dispositivo,
+    });
+  } catch (error) {
+    // Un fallo de auditoría no debe interrumpir el acceso.
+    console.error("Error al registrar auditoría:", error);
   }
-  await logAudit({
-    tipo_evento: 'acceso_fallido',
-    nombre_referencia: ref || 'Intento Anónimo',
-    descripcion: 'Credenciales inválidas o acceso bloqueado por política de firewall.',
-  });
 }
 
 export interface Sesion {
