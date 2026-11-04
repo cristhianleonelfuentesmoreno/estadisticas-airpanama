@@ -7,7 +7,7 @@ import { Boxes, FileText, ShoppingCart } from 'lucide-react'
 const SECCIONES = [
   { ruta: 'caja', nombre: 'Caja', Icono: ShoppingCart },
   { ruta: 'inventario', nombre: 'Inventario', Icono: Boxes },
-  { ruta: 'facturas', nombre: 'Facturas', Icono: FileText },
+  { ruta: 'facturas', nombre: 'Mercancía', Icono: FileText },
 ] as const
 
 export default function NavTienda({ slug }: { slug: string }) {

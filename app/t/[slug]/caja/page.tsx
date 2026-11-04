@@ -12,12 +12,12 @@ export default async function CajaPage({ params }: PageProps<'/t/[slug]/caja'>) 
   const supabase = await createClient()
   const [productos, { data: ventasHoy }] = await Promise.all([
     getProductos(tienda),
-    supabase.from('ventas').select('total').eq('tienda_id', tienda.id).gte('creado_en', inicioDeHoyPanama()),
+    supabase.from('ventas').select('total').eq('tienda_id', tienda.id).is('anulada_en', null).gte('creado_en', inicioDeHoyPanama()),
   ])
   const resumen = {
     cantidad: ventasHoy?.length ?? 0,
     total: (ventasHoy ?? []).reduce((s, v) => s + Number(v.total), 0),
   }
 
-  return <CajaClient tiendaId={tienda.id} productos={productos} ventasHoy={resumen} />
+  return <CajaClient tiendaId={tienda.id} slug={slug} productos={productos} ventasHoy={resumen} />
 }

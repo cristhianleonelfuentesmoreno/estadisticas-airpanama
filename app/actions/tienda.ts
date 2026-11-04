@@ -5,7 +5,7 @@ import { requireApprovedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getMisTiendas } from '@/lib/tienda/servidor'
 import type {
-  LineaEntrada, LineaVenta, MetodoPago, Resultado, SugerenciaProducto, Tienda, VendePor,
+  LineaEntrada, LineaVenta, MetodoPago, MotivoAjuste, Resultado, SugerenciaProducto, Tienda, VendePor,
 } from '@/lib/tienda/tipos'
 
 // Cada acción es un endpoint público: primero el usuario, después la tienda.
@@ -193,4 +193,45 @@ export async function registrarEntrada(
   if (error) return { ok: false, error: 'No se pudo registrar la factura' }
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: { id: data as string } }
+}
+
+// ---------- Anular, mercancía sin factura y cierre del día ----------
+
+export async function anularVenta(tiendaId: string, ventaId: string, motivo: string): Promise<Resultado> {
+  const tienda = await tiendaDelUsuario(tiendaId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('anular_venta', { p_venta: ventaId, p_motivo: texto(motivo, 200) ?? '' })
+  if (error) return { ok: false, error: error.message.includes('ya estaba anulada') ? 'Esta venta ya estaba anulada' : 'No se pudo anular la venta' }
+  revalidatePath(`/t/${tienda.slug}`, 'layout')
+  return { ok: true, data: null }
+}
+
+const MOTIVOS: MotivoAjuste[] = ['regalia', 'compra_sin_factura', 'danado', 'consumo', 'conteo']
+
+export async function registrarAjuste(
+  tiendaId: string, productoId: string, motivo: MotivoAjuste, cantidad: number, costo: number | null, nota: string,
+): Promise<Resultado<{ cambio: number }>> {
+  const tienda = await tiendaDelUsuario(tiendaId)
+  if (!MOTIVOS.includes(motivo)) return { ok: false, error: 'Motivo inválido' }
+  const cant = numeroValido(cantidad)
+  if (cant === null || (motivo !== 'conteo' && cant === 0)) return { ok: false, error: 'Escribe una cantidad válida' }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('registrar_ajuste', {
+    p_tienda: tienda.id, p_producto: productoId, p_motivo: motivo, p_cantidad: cant,
+    p_costo: costo === null ? null : numeroValido(costo), p_nota: texto(nota, 200) ?? '',
+  })
+  if (error) return { ok: false, error: 'No se pudo guardar' }
+  revalidatePath(`/t/${tienda.slug}`, 'layout')
+  return { ok: true, data: { cambio: Number(data) } }
+}
+
+export async function cerrarCaja(tiendaId: string, efectivoContado: number, nota: string): Promise<Resultado> {
+  const tienda = await tiendaDelUsuario(tiendaId)
+  const contado = numeroValido(efectivoContado)
+  if (contado === null) return { ok: false, error: 'Escribe cuánto efectivo contaste' }
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('cerrar_caja', { p_tienda: tienda.id, p_efectivo_contado: contado, p_nota: texto(nota, 300) ?? '' })
+  if (error) return { ok: false, error: 'No se pudo cerrar la caja' }
+  revalidatePath(`/t/${tienda.slug}`, 'layout')
+  return { ok: true, data: null }
 }
