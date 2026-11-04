@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireApprovedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getMisTiendas } from '@/lib/tienda/servidor'
 import { emparejar, type Coincidencia } from '@/lib/tienda/emparejar'
 import { FacturaIaError, leerFactura, type FacturaLeida, type LineaLeida } from '@/lib/tienda/factura-ia'
@@ -240,36 +241,58 @@ export async function cerrarCaja(tiendaId: string, efectivoContado: number, nota
   return { ok: true, data: null }
 }
 
-// ---------- Leer una factura con foto (Gemini) ----------
+// ---------- Leer una factura con foto (Claude) ----------
 
-const LECTURAS_POR_DIA = 30
-const MIME_IMAGEN = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const MIME_IMAGEN = ['image/jpeg', 'image/png', 'image/webp'] as const
+type MimeImagen = (typeof MIME_IMAGEN)[number]
 
 export type LineaFacturaFoto = LineaLeida & { coincidencia: Coincidencia }
+
+// La clave vive cifrada en la bóveda de Supabase (la pone el administrador en /admin);
+// si no hay, se usa ANTHROPIC_API_KEY del servidor
+async function claveYModelo(): Promise<{ clave: string | null; modelo: string }> {
+  const admin = createAdminClient()
+  const [{ data: clave }, { data: config }] = await Promise.all([
+    admin.rpc('clave_ia'),
+    admin.from('config_ia').select('modelo').eq('id', 1).single(),
+  ])
+  return { clave: (clave as string | null) ?? process.env.ANTHROPIC_API_KEY ?? null, modelo: config?.modelo ?? 'claude-haiku-5-5' }
+}
 
 export async function leerFacturaConFoto(
   tiendaId: string, imagenBase64: string, mime: string,
 ): Promise<Resultado<{ proveedor: string | null; numero_factura: string | null; lineas: LineaFacturaFoto[]; quedan: number }>> {
   const tienda = await tiendaDelUsuario(tiendaId)
-  if (!MIME_IMAGEN.has(mime)) return { ok: false, error: 'La foto debe ser JPG, PNG o WEBP' }
+  const tipo = MIME_IMAGEN.find(m => m === mime)
+  if (!tipo) return { ok: false, error: 'La foto debe ser JPG, PNG o WEBP' }
   if (typeof imagenBase64 !== 'string' || imagenBase64.length > 7_000_000) return { ok: false, error: 'La foto es muy grande' }
-  if (!process.env.GEMINI_API_KEY) return { ok: false, error: 'La lectura con foto todavía no está activada' }
+
+  const { clave, modelo } = await claveYModelo()
+  if (!clave) return { ok: false, error: 'La lectura con foto todavía no está activada. Pídele al administrador que la active.' }
 
   const supabase = await createClient()
-  const { data: quedan, error: errCupo } = await supabase.rpc('usar_ia', { p_tienda: tienda.id, p_limite: LECTURAS_POR_DIA })
-  if (errCupo) return { ok: false, error: 'No se pudo leer la factura' }
-  if ((quedan as number) < 0) return { ok: false, error: `Ya se leyeron ${LECTURAS_POR_DIA} facturas hoy. Mañana se puede de nuevo, o regístrala a mano.` }
+  const { data: reserva, error: errCupo } = await supabase.rpc('reservar_ia', { p_tienda: tienda.id })
+  if (errCupo || !reserva) return { ok: false, error: 'No se pudo leer la factura' }
+  const { quedan, limite, uso_id: usoId } = reserva as { quedan: number; limite: number; uso_id?: number }
+  if (quedan < 0 || !usoId) return { ok: false, error: `Ya se leyeron ${limite} facturas hoy. Mañana se puede de nuevo, o regístrala a mano.` }
 
-  let leida: FacturaLeida
+  // El consumo se anota con el cliente admin: la tienda no puede escribir en usos_ia
+  const anotar = (datos: Record<string, string | number | boolean | null>) =>
+    createAdminClient().from('usos_ia').update(datos).eq('id', usoId).then(() => undefined)
+
+  let factura: FacturaLeida
   try {
-    leida = await leerFactura(imagenBase64, mime)
+    const r = await leerFactura(clave, modelo, imagenBase64, tipo satisfies MimeImagen)
+    factura = r.factura
+    await anotar({ ...r.consumo, ok: true, lineas: factura.lineas.length })
   } catch (e) {
-    const motivo = e instanceof FacturaIaError ? e.motivo : 'ilegible'
+    const err = e instanceof FacturaIaError ? e : new FacturaIaError('ilegible')
+    await anotar({ ok: false, error: err.motivo, modelo, ...(err.consumo ?? {}) })
     return {
       ok: false,
-      error: motivo === 'ocupado'
+      error: err.motivo === 'ocupado'
         ? 'El servicio de lectura está muy ocupado. Prueba otra vez en un minuto.'
-        : motivo === 'sin-clave' ? 'La lectura con foto todavía no está activada'
+        : err.motivo === 'clave-invalida' ? 'La lectura con foto no está disponible ahora. Avísale al administrador.'
           : 'No pude leer la factura. Toma la foto de frente, con buena luz y que se vea completa.',
     }
   }
@@ -279,6 +302,6 @@ export async function leerFacturaConFoto(
     .select('id, nombre, codigo_barras')
     .eq('negocio_id', tienda.negocio_id)
     .eq('activo', true)
-  const lineas = leida.lineas.map(l => ({ ...l, coincidencia: emparejar(l, productos ?? []) }))
-  return { ok: true, data: { proveedor: leida.proveedor, numero_factura: leida.numero_factura, lineas, quedan: quedan as number } }
+  const lineas = factura.lineas.map(l => ({ ...l, coincidencia: emparejar(l, productos ?? []) }))
+  return { ok: true, data: { proveedor: factura.proveedor, numero_factura: factura.numero_factura, lineas, quedan } }
 }

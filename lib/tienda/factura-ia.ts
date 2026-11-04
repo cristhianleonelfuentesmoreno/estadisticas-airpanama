@@ -1,6 +1,9 @@
 import 'server-only'
+import Anthropic from '@anthropic-ai/sdk'
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
+import { z } from 'zod'
 
-// Lee la foto de una factura de proveedor con Gemini y devuelve sus líneas.
+// Lee la foto de una factura de proveedor con Claude y devuelve sus líneas y lo que costó leerla.
 // La persona siempre revisa el resultado antes de guardar: esto solo llena el formulario.
 
 export type LineaLeida = {
@@ -13,9 +16,18 @@ export type LineaLeida = {
 
 export type FacturaLeida = { proveedor: string | null; numero_factura: string | null; lineas: LineaLeida[] }
 
-// En orden: si uno está saturado (Google responde 503/429) se prueba el siguiente
-const MODELOS = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest']
-const ESPERA_MS = [0, 2500]
+export type Consumo = { modelo: string; tokens_entrada: number; tokens_salida: number; costo_usd: number; duracion_ms: number }
+
+// Dólares por millón de tokens (precios de la API de Anthropic, prompts de hasta 100K tokens)
+export const PRECIOS: Record<string, { entrada: number; salida: number }> = {
+  'claude-haiku-5-5': { entrada: 0.1, salida: 0.5 },
+}
+
+export function costoDe(modelo: string, entrada: number, salida: number): number {
+  const p = PRECIOS[modelo]
+  if (!p) return 0
+  return (entrada * p.entrada + salida * p.salida) / 1_000_000
+}
 
 const INSTRUCCIONES = [
   'Eres el asistente de una abarrotería de Panamá. Lee esta factura o nota de un proveedor y devuelve SOLO los productos que llegaron.',
@@ -28,55 +40,41 @@ const INSTRUCCIONES = [
   '- costo_por_paquete: lo que costó esa misma cantidad DESPUÉS de descuentos y SUMANDO el ITBMS si la línea lo cobra. Si solo ves el total de la línea, divídelo entre paquetes.',
   '- codigo_barras: solo si en la línea aparece un código EAN/UPC de 8 a 14 dígitos. No pongas códigos internos cortos del proveedor.',
   '- Ignora líneas de bonificación con valor 0, envases, cajillas, totales y notas escritas a mano al margen.',
+  '- proveedor: el nombre comercial de quien vende (no el cliente). numero_factura: el número de la factura si aparece.',
   '- No inventes: si algo no se lee, deja el mejor valor que veas.',
 ].join('\n')
 
-const ESQUEMA = {
-  type: 'OBJECT',
-  properties: {
-    proveedor: { type: 'STRING', nullable: true },
-    numero_factura: { type: 'STRING', nullable: true },
-    lineas: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          descripcion: { type: 'STRING' },
-          codigo_barras: { type: 'STRING', nullable: true },
-          paquetes: { type: 'NUMBER' },
-          unidades_por_paquete: { type: 'NUMBER' },
-          costo_por_paquete: { type: 'NUMBER' },
-        },
-        required: ['descripcion', 'paquetes', 'unidades_por_paquete', 'costo_por_paquete'],
-      },
-    },
-  },
-  required: ['lineas'],
-}
+const Esquema = z.object({
+  proveedor: z.string().nullable(),
+  numero_factura: z.string().nullable(),
+  lineas: z.array(z.object({
+    descripcion: z.string(),
+    codigo_barras: z.string().nullable(),
+    paquetes: z.number(),
+    unidades_por_paquete: z.number(),
+    costo_por_paquete: z.number(),
+  })),
+})
 
 export class FacturaIaError extends Error {
-  constructor(public motivo: 'sin-clave' | 'ocupado' | 'ilegible') {
+  constructor(public motivo: 'sin-clave' | 'clave-invalida' | 'ocupado' | 'ilegible', public consumo: Consumo | null = null) {
     super(motivo)
   }
 }
 
-function numero(v: unknown, minimo: number): number | null {
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) && n >= minimo ? n : null
-}
+type TipoImagen = 'image/jpeg' | 'image/png' | 'image/webp'
 
-function limpiar(crudo: unknown): FacturaLeida {
-  const d = (crudo ?? {}) as Record<string, unknown>
-  const texto = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
-  const lineas = (Array.isArray(d.lineas) ? d.lineas : [])
-    .map((l: Record<string, unknown>) => {
-      const codigo = texto(l.codigo_barras, 20)?.replace(/\D/g, '') ?? ''
+function limpiar(d: z.infer<typeof Esquema>): FacturaLeida {
+  const texto = (v: string | null, max: number) => (v && v.trim() ? v.trim().slice(0, max) : null)
+  const lineas = d.lineas
+    .map(l => {
+      const codigo = (l.codigo_barras ?? '').replace(/\D/g, '')
       return {
         descripcion: texto(l.descripcion, 120) ?? '',
         codigo_barras: /^\d{8,14}$/.test(codigo) ? codigo : null,
-        paquetes: numero(l.paquetes, 0) ?? 0,
-        unidades_por_paquete: Math.max(1, Math.round(numero(l.unidades_por_paquete, 1) ?? 1)),
-        costo_por_paquete: numero(l.costo_por_paquete, 0) ?? 0,
+        paquetes: Number.isFinite(l.paquetes) && l.paquetes > 0 ? l.paquetes : 0,
+        unidades_por_paquete: Number.isFinite(l.unidades_por_paquete) ? Math.max(1, Math.round(l.unidades_por_paquete)) : 1,
+        costo_por_paquete: Number.isFinite(l.costo_por_paquete) && l.costo_por_paquete >= 0 ? l.costo_por_paquete : 0,
       }
     })
     .filter(l => l.descripcion && l.paquetes > 0)
@@ -84,44 +82,50 @@ function limpiar(crudo: unknown): FacturaLeida {
   return { proveedor: texto(d.proveedor, 80), numero_factura: texto(d.numero_factura, 40), lineas }
 }
 
-export async function leerFactura(imagenBase64: string, mime: string): Promise<FacturaLeida> {
-  const clave = process.env.GEMINI_API_KEY
-  if (!clave) throw new FacturaIaError('sin-clave')
-
-  const cuerpo = JSON.stringify({
-    contents: [{ parts: [{ text: INSTRUCCIONES }, { inline_data: { mime_type: mime, data: imagenBase64 } }] }],
-    generationConfig: { responseMimeType: 'application/json', responseSchema: ESQUEMA, temperature: 0 },
-  })
-
-  for (const modelo of MODELOS) {
-    for (const espera of ESPERA_MS) {
-      if (espera) await new Promise(r => setTimeout(r, espera))
-      let r: Response
-      try {
-        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave },
-          body: cuerpo,
-          signal: AbortSignal.timeout(60_000),
-          cache: 'no-store',
-        })
-      } catch {
-        continue
-      }
-      if (r.status === 503 || r.status === 429 || r.status >= 500) continue
-      if (r.status === 404) break
-      if (!r.ok) throw new FacturaIaError('ilegible')
-      const d = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-      const texto = d.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? ''
-      try {
-        const leida = limpiar(JSON.parse(texto))
-        if (!leida.lineas.length) throw new FacturaIaError('ilegible')
-        return leida
-      } catch (e) {
-        if (e instanceof FacturaIaError) throw e
-        throw new FacturaIaError('ilegible')
-      }
+export async function leerFactura(
+  clave: string, modelo: string, imagenBase64: string, mime: TipoImagen,
+): Promise<{ factura: FacturaLeida; consumo: Consumo }> {
+  const cliente = new Anthropic({ apiKey: clave, maxRetries: 2, timeout: 90_000 })
+  const inicio = Date.now()
+  let respuesta
+  try {
+    respuesta = await cliente.messages.parse({
+      model: modelo,
+      max_tokens: 16000,
+      output_config: { effort: 'medium', format: zodOutputFormat(Esquema) },
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mime, data: imagenBase64 } },
+          { type: 'text', text: INSTRUCCIONES },
+        ],
+      }],
+    })
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new FacturaIaError('clave-invalida')
+    if (e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError) {
+      throw new FacturaIaError('ocupado')
     }
+    throw new FacturaIaError('ilegible')
   }
-  throw new FacturaIaError('ocupado')
+
+  const entrada = respuesta.usage.input_tokens + (respuesta.usage.cache_read_input_tokens ?? 0) + (respuesta.usage.cache_creation_input_tokens ?? 0)
+  const salida = respuesta.usage.output_tokens
+  const consumo: Consumo = {
+    modelo, tokens_entrada: entrada, tokens_salida: salida, costo_usd: costoDe(modelo, entrada, salida), duracion_ms: Date.now() - inicio,
+  }
+  if (respuesta.stop_reason === 'refusal' || !respuesta.parsed_output) throw new FacturaIaError('ilegible', consumo)
+  const factura = limpiar(respuesta.parsed_output)
+  if (!factura.lineas.length) throw new FacturaIaError('ilegible', consumo)
+  return { factura, consumo }
+}
+
+// Comprueba una clave nueva antes de guardarla (no gasta tokens)
+export async function claveValida(clave: string): Promise<boolean> {
+  try {
+    await new Anthropic({ apiKey: clave, maxRetries: 1, timeout: 15_000 }).models.list({ limit: 1 })
+    return true
+  } catch {
+    return false
+  }
 }

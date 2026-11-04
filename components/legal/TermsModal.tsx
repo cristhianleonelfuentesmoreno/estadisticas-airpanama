@@ -42,7 +42,7 @@ export function TermsModal({ open, onClose, onAccept }: { open: boolean; onClose
           <div className="flex gap-3 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100">
             <span className="material-symbols-outlined text-emerald-600">verified_user</span>
             <p className="text-[13px] text-emerald-900 leading-relaxed">
-              <strong>En resumen:</strong> los datos de tu tienda y de tu cuenta se usan solo dentro de esta plataforma, para que funcione, para su seguridad y para la auditoría. No se venden ni se comparten con fines comerciales y no hay cookies de seguimiento.
+              <strong>En resumen:</strong> los datos de tu tienda y de tu cuenta se usan solo dentro de esta plataforma, para que funcione, para su seguridad y para la auditoría. No se venden ni se comparten con fines comerciales y no hay cookies de seguimiento. Las fotos de facturas se leen con inteligencia artificial y no se guardan.
             </p>
           </div>
           {TERMS.map(section => (

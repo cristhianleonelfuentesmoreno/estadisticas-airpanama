@@ -2,12 +2,17 @@ import { ExternalLink } from 'lucide-react'
 import { fetchAllUsers } from '@/app/actions/admin'
 import { getSessionProfile } from '@/lib/auth'
 import { AdminPanel, type User } from '@/components/admin/AdminPanel'
+import { IaPanel } from '@/components/admin/IaPanel'
+import { obtenerConfigIa } from '@/app/actions/ia'
 
 export default async function AdminPage() {
   // El layout ya verificó la sesión y el rol
   const profile = await getSessionProfile()
   if (!profile) return null
-  const { users } = await fetchAllUsers()
+  const [{ users }, configIa] = await Promise.all([
+    fetchAllUsers(),
+    profile.role === 'administrador' ? obtenerConfigIa() : Promise.resolve(null),
+  ])
 
   return (
     <div className="flex flex-col gap-5">
@@ -26,6 +31,7 @@ export default async function AdminPage() {
           <ExternalLink className="h-4 w-4" /> Ver la página de login
         </a>
       </div>
+      {configIa && <IaPanel config={configIa} />}
       <AdminPanel initialUsers={(users as User[] | undefined) ?? []} role={profile.role} currentUserId={profile.id} />
     </div>
   )
