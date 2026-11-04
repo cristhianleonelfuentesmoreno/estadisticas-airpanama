@@ -115,6 +115,8 @@ export async function crearProducto(tiendaId: string, datos: ProductoNuevo): Pro
 export type CambiosProducto = {
   nombre?: string
   precio_venta?: number | null
+  // Lo que le cuesta cada unidad a la tienda (también lo actualizan las facturas)
+  costo?: number | null
   stock_minimo?: number | null
   codigo_barras?: string | null
   imagen_url?: string | null
@@ -131,6 +133,7 @@ export async function actualizarProducto(
     fila.nombre = nombre
   }
   if (cambios.precio_venta !== undefined) fila.precio_venta = numeroValido(cambios.precio_venta)
+  if (cambios.costo !== undefined) fila.costo = numeroValido(cambios.costo)
   if (cambios.stock_minimo !== undefined) fila.stock_minimo = numeroValido(cambios.stock_minimo)
   if (cambios.codigo_barras !== undefined) {
     const codigo = texto(cambios.codigo_barras, 32)

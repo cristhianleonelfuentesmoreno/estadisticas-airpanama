@@ -82,3 +82,17 @@ export function cambioPorcentual(actual: number, anterior: number): number | nul
   if (anterior <= 0) return null
   return Math.round(((actual - anterior) / anterior) * 100)
 }
+
+// ---------- Lo que gana la tienda en cada producto ----------
+
+export function gananciaPorUnidad(precio: number | null, costo: number | null): number | null {
+  if (precio === null || costo === null) return null
+  return redondear2(precio - costo)
+}
+
+// Precio para ganar cierto porcentaje del precio de venta, redondeado hacia arriba a 5 centavos
+// (costo $0.21 y ganar 40% -> $0.35, como lo calculan en la tienda sobre la factura)
+export function precioParaGanar(costo: number, porcentaje: number): number {
+  const exacto = costo / (1 - porcentaje / 100)
+  return redondear2(Math.ceil(redondear2(exacto) * 20 - 1e-9) / 20)
+}
