@@ -53,13 +53,16 @@ export async function fetchAllUsers() {
   const actor = await staffOrNull();
   if (!actor) return { error: "No autorizado" };
 
-  const { data, error } = await createAdminClient()
-    .from("perfiles")
-    .select("id, email, role, status, nombre, cargo, created_at")
-    .order("created_at", { ascending: false });
+  const admin = createAdminClient();
+  const [{ data, error }, { data: contadores }] = await Promise.all([
+    admin.from("perfiles").select("id, email, role, status, nombre, cargo, created_at").order("created_at", { ascending: false }),
+    admin.from("miembros").select("usuario_id").eq("rol", "contador"),
+  ]);
 
   if (error) return { error: error.message };
-  return { users: data };
+  // Los contadores son cuentas "usuario" como los dueños: se marcan para que la lista no los llame dueños
+  const esContador = new Set((contadores ?? []).map(c => c.usuario_id as string));
+  return { users: data.map(u => ({ ...u, contador: esContador.has(u.id as string) })) };
 }
 
 const STATUS_LABEL = { aprobado: 'Aprobado', pendiente: 'Pendiente', rechazado: 'Rechazado' } as const;

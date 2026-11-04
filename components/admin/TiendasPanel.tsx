@@ -136,8 +136,8 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
       </ul>
 
       {creando && <NuevaTienda onCerrar={() => setCreando(false)} onListo={listo} />}
-      {contadorEn && <AgregarContador tienda={contadorEn} onCerrar={() => setContadorEn(null)} onListo={listo} />}
-      {agregandoEn && <AgregarDueno tienda={agregandoEn} registrados={registrados} onCerrar={() => setAgregandoEn(null)} onListo={listo} />}
+      {contadorEn && <AgregarPersona tienda={contadorEn} registrados={registrados} rolInicial="contador" onCerrar={() => setContadorEn(null)} onListo={listo} />}
+      {agregandoEn && <AgregarPersona tienda={agregandoEn} registrados={registrados} rolInicial="dueno" onCerrar={() => setAgregandoEn(null)} onListo={listo} />}
       {nuevaClave && <NuevaContrasena persona={nuevaClave} onCerrar={() => setNuevaClave(null)} onListo={listo} />}
       {datos && <DatosParaEntrar datos={datos} onCerrar={() => setDatos(null)} />}
     </section>
@@ -255,14 +255,23 @@ const ESTADO_REGISTRO = {
 const fechaCorta = (iso: string) =>
   iso ? new Intl.DateTimeFormat('es-PA', { timeZone: 'America/Panama', day: 'numeric', month: 'short' }).format(new Date(iso)) : ''
 
-function AgregarDueno({
-  tienda, registrados, onCerrar, onListo,
+const ROLES = {
+  dueno: { nombre: 'Dueño', explicacion: 'Usa toda la app de su tienda: caja, inventario, mercancía y Mi negocio.' },
+  contador: { nombre: 'Contador', explicacion: 'Solo ve y descarga los reportes del mes en Excel. No vende ni cambia nada. El dueño no ve esta cuenta.' },
+} as const
+type Rol = keyof typeof ROLES
+
+function AgregarPersona({
+  tienda, registrados, rolInicial, onCerrar, onListo,
 }: {
   tienda: TiendaAdmin
   registrados: Registrado[]
+  rolInicial: Rol
   onCerrar: () => void
   onListo: (d: Datos) => void
 }) {
+  const [rol, setRol] = useState<Rol>(rolInicial)
+  const quien = rol === 'contador' ? 'contador' : 'dueño'
   const [modo, setModo] = useState<'nueva' | 'registrado'>(registrados.some(r => r.estado === 'pendiente') ? 'registrado' : 'nueva')
   const [agregando, startAgregar] = useTransition()
   const [nombre, setNombre] = useState('')
@@ -273,22 +282,38 @@ function AgregarDueno({
   function guardar(e: React.FormEvent) {
     e.preventDefault()
     start(async () => {
-      const r = await crearDueno(tienda.negocio_id, { nombre, usuario, contrasena })
+      const r = await crearDueno(tienda.negocio_id, { nombre, usuario, contrasena }, rol)
       if (!r.ok) return void toast.error(r.error)
-      onListo({ nombre, usuario: r.data.usuario, contrasena: r.data.contrasena, tienda: tienda.nombre, yaExistia: r.data.yaExistia })
+      onListo({ nombre, usuario: r.data.usuario, contrasena: r.data.contrasena, tienda: tienda.nombre, yaExistia: r.data.yaExistia, contador: rol === 'contador' })
     })
   }
 
   function elegir(r: Registrado) {
     startAgregar(async () => {
-      const res = await agregarRegistrado(tienda.negocio_id, r.usuario_id)
+      const res = await agregarRegistrado(tienda.negocio_id, r.usuario_id, rol)
       if (!res.ok) return void toast.error(res.error)
-      onListo({ nombre: res.data.nombre, usuario: res.data.usuario, contrasena: null, tienda: tienda.nombre, yaExistia: true })
+      onListo({ nombre: res.data.nombre, usuario: res.data.usuario, contrasena: null, tienda: tienda.nombre, yaExistia: true, contador: rol === 'contador' })
     })
   }
 
   return (
-    <Ventana titulo={`Agregar dueño a ${tienda.nombre}`} onCerrar={onCerrar}>
+    <Ventana titulo={`Agregar a ${tienda.nombre}`} onCerrar={onCerrar}>
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-bold text-slate-800">¿Qué va a hacer en la tienda?</p>
+        <div className="grid grid-cols-2 gap-2">
+          {(Object.keys(ROLES) as Rol[]).map(r => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRol(r)}
+              className={`flex items-center justify-center gap-1.5 rounded-2xl py-3 font-bold ring-2 ${rol === r ? (r === 'contador' ? 'bg-sky-50 text-sky-800 ring-sky-500' : 'bg-emerald-50 text-emerald-800 ring-emerald-500') : 'bg-white text-slate-500 ring-slate-200'}`}
+            >
+              {r === 'contador' ? <Calculator className="h-5 w-5" /> : <Store className="h-5 w-5" />} {ROLES[r].nombre}
+            </button>
+          ))}
+        </div>
+        <p className={`rounded-2xl p-3 text-sm ${rol === 'contador' ? 'bg-sky-50 text-sky-900' : 'bg-emerald-50 text-emerald-900'}`}>{ROLES[rol].explicacion}</p>
+      </div>
       <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
         <button onClick={() => setModo('nueva')} className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${modo === 'nueva' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}>
           <UserPlus className="h-4 w-4" /> Crear cuenta nueva
@@ -301,9 +326,9 @@ function AgregarDueno({
 
       {modo === 'nueva' ? (
         <form onSubmit={guardar} className="flex flex-col gap-3">
-          <CamposDueno nombre={nombre} setNombre={setNombre} usuario={usuario} setUsuario={setUsuario} contrasena={contrasena} setContrasena={setContrasena} />
-          <button disabled={pendiente} className="mt-1 rounded-2xl bg-emerald-600 py-3.5 font-bold text-white disabled:opacity-50">
-            {pendiente ? 'Creando…' : 'Crear su cuenta'}
+          <CamposDueno quien={quien} nombre={nombre} setNombre={setNombre} usuario={usuario} setUsuario={setUsuario} contrasena={contrasena} setContrasena={setContrasena} />
+          <button disabled={pendiente} className={`mt-1 rounded-2xl py-3.5 font-bold text-white disabled:opacity-50 ${rol === 'contador' ? 'bg-sky-600' : 'bg-emerald-600'}`}>
+            {pendiente ? 'Creando…' : `Crear su cuenta de ${quien}`}
           </button>
         </form>
       ) : registrados.length === 0 ? (
@@ -312,7 +337,7 @@ function AgregarDueno({
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-slate-600">Toca a la persona: queda aprobada y como dueña de {tienda.nombre}. Entra con la contraseña que ella misma eligió.</p>
+          <p className="text-sm text-slate-600">Toca a la persona: queda aprobada como <b>{quien}</b> de {tienda.nombre}. Entra con la contraseña que ella misma eligió.</p>
           <ul className="flex flex-col gap-2">
             {registrados.map(r => (
               <li key={r.usuario_id}>
@@ -332,37 +357,6 @@ function AgregarDueno({
           </ul>
         </div>
       )}
-    </Ventana>
-  )
-}
-
-// El contador entra solo a "Reportes para el contador": no ve la caja, el inventario ni nada más
-function AgregarContador({ tienda, onCerrar, onListo }: { tienda: TiendaAdmin; onCerrar: () => void; onListo: (d: Datos) => void }) {
-  const [nombre, setNombre] = useState('')
-  const [usuario, setUsuario] = useState('')
-  const [contrasena, setContrasena] = useState(contrasenaNueva)
-  const [pendiente, start] = useTransition()
-
-  function guardar(e: React.FormEvent) {
-    e.preventDefault()
-    start(async () => {
-      const r = await crearDueno(tienda.negocio_id, { nombre, usuario, contrasena }, 'contador')
-      if (!r.ok) return void toast.error(r.error)
-      onListo({ nombre, usuario: r.data.usuario, contrasena: r.data.contrasena, tienda: tienda.nombre, yaExistia: r.data.yaExistia, contador: true })
-    })
-  }
-
-  return (
-    <Ventana titulo={`Agregar contador a ${tienda.nombre}`} onCerrar={onCerrar}>
-      <p className="rounded-2xl bg-sky-50 p-3 text-sm text-sky-900">
-        Solo podrá ver y descargar los reportes del mes en Excel. No puede vender, cambiar precios ni ver la caja. El dueño no ve esta cuenta.
-      </p>
-      <form onSubmit={guardar} className="flex flex-col gap-3">
-        <CamposDueno quien="contador" nombre={nombre} setNombre={setNombre} usuario={usuario} setUsuario={setUsuario} contrasena={contrasena} setContrasena={setContrasena} />
-        <button disabled={pendiente} className="mt-1 rounded-2xl bg-sky-600 py-3.5 font-bold text-white disabled:opacity-50">
-          {pendiente ? 'Creando…' : 'Crear cuenta de contador'}
-        </button>
-      </form>
     </Ventana>
   )
 }
