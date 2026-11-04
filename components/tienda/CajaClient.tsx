@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Banknote, Check, CreditCard, ListChecks, Lock, Minus, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2 } from 'lucide-react'
+import { Banknote, Check, ClipboardList, CreditCard, ListChecks, Lock, Minus, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { registrarVenta } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, normalizarCodigo, porAgotarse, redondear2 } from '@/lib/tienda/formato'
@@ -133,7 +133,7 @@ export default function CajaClient({
       })
       const quedanPocos = actualizados.filter(p => lineas.some(l => l.producto.id === p.id) && porAgotarse(p))
       if (quedanPocos.length) {
-        toast.warning(`Te quedan pocos: ${quedanPocos.slice(0, 3).map(p => `${p.nombre} (${p.stock <= 0 ? 'no hay' : fmtCantidad(p.stock, p.vende_por)})`).join(', ')}${quedanPocos.length > 3 ? ` y ${quedanPocos.length - 3} más` : ''}`, { duration: 6000 })
+        toast.info(`Para tu próximo pedido: ${quedanPocos.slice(0, 3).map(p => `${p.nombre} (${p.stock <= 0 ? 'no hay' : fmtCantidad(p.stock, p.vende_por)})`).join(', ')}${quedanPocos.length > 3 ? ` y ${quedanPocos.length - 3} más` : ''}`, { duration: 6000 })
       }
       setProductos(actualizados)
       avisados.current.clear()
@@ -150,10 +150,13 @@ export default function CajaClient({
     <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-6">
       <div className="flex flex-col gap-4">
       {porAgotarseCantidad > 0 && (
-        <Link href={`/t/${slug}/inventario?filtro=por-agotarse`} className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          {porAgotarseCantidad === 1 ? '1 producto está por agotarse' : `${porAgotarseCantidad} productos están por agotarse`}
-          <span className="ml-auto underline">Ver</span>
+        <Link href={`/t/${slug}/inventario?filtro=por-agotarse`} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lime-200 text-emerald-900"><ClipboardList className="h-5 w-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-slate-800">Tu lista de pedido está lista</span>
+            <span className="block text-xs text-slate-500">{porAgotarseCantidad === 1 ? '1 producto para reponer' : `${porAgotarseCantidad} productos para reponer`} · la mandas por WhatsApp</span>
+          </span>
+          <span className="shrink-0 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">Ver</span>
         </Link>
       )}
       <div className="rounded-2xl bg-white p-3 shadow-sm">

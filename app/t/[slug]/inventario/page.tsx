@@ -11,5 +11,5 @@ export default async function InventarioPage({ params, searchParams }: PageProps
   if (!tienda) notFound()
   const productos = await getProductos(tienda)
   const inicial = FILTROS.find(f => f === filtro) ?? 'todos'
-  return <InventarioClient tiendaId={tienda.id} tiendaNombre={tienda.nombre} productos={productos} filtroInicial={inicial} />
+  return <InventarioClient tiendaId={tienda.id} tiendaNombre={tienda.nombre} slug={slug} productos={productos} filtroInicial={inicial} />
 }
