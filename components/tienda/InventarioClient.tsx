@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, CircleDollarSign, MessageCircle, Package, ScanBarcode, Search, Wallet, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, CircleDollarSign, ClipboardList, FileSpreadsheet, MessageCircle, Package, ScanBarcode, Search, Wallet, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, precioParaGanar, textoPedido } from '@/lib/tienda/formato'
@@ -14,10 +14,11 @@ import FotoProducto from '@/components/tienda/FotoProducto'
 export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-costo' | 'sin-precio' | 'sin-codigo'
 
 export default function InventarioClient({
-  tiendaId, tiendaNombre, productos: iniciales, filtroInicial = 'todos',
+  tiendaId, tiendaNombre, slug, productos: iniciales, filtroInicial = 'todos',
 }: {
   tiendaId: string
   tiendaNombre: string
+  slug: string
   productos: Producto[]
   filtroInicial?: Filtro
 }) {
@@ -69,10 +70,10 @@ export default function InventarioClient({
           <Tarjeta titulo="Productos" valor={String(resumen.total)} Icono={Package} tono="emerald" activa={filtro === 'todos'} />
         </button>
         <button onClick={() => setFiltro('por-agotarse')} className="text-left">
-          <Tarjeta titulo="Por agotarse" valor={String(resumen.porAgotarse)} Icono={AlertTriangle} tono={resumen.porAgotarse > 0 ? 'red' : 'emerald'} activa={filtro === 'por-agotarse'} nota={resumen.porAgotarse > 0 ? 'Toca para ver la lista' : undefined} />
+          <Tarjeta titulo="Para pedir" valor={String(resumen.porAgotarse)} Icono={ClipboardList} tono={resumen.porAgotarse > 0 ? 'lime' : 'emerald'} activa={filtro === 'por-agotarse'} nota={resumen.porAgotarse > 0 ? 'Tu lista de pedido' : 'Tienes de todo'} />
         </button>
         <button onClick={() => setFiltro('sin-costo')} className="text-left">
-          <Tarjeta titulo="Sin costo" valor={String(resumen.sinCosto)} Icono={CircleDollarSign} tono={resumen.sinCosto > 0 ? 'amber' : 'emerald'} activa={filtro === 'sin-costo'} nota={resumen.sinCosto > 0 ? 'No se sabe cuánto ganas en ellos' : 'Todos tienen costo'} />
+          <Tarjeta titulo="Sin costo" valor={String(resumen.sinCosto)} Icono={CircleDollarSign} tono={resumen.sinCosto > 0 ? 'amber' : 'emerald'} activa={filtro === 'sin-costo'} nota={resumen.sinCosto > 0 ? 'Escríbelo y ve cuánto ganas' : 'Ya sabes cuánto ganas en todo'} />
         </button>
         <Tarjeta titulo="Tu mercancía vale" valor={dinero(resumen.venta)} Icono={Wallet} tono="lime" nota="a precio de venta" />
       </div>
@@ -88,12 +89,16 @@ export default function InventarioClient({
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {([['todos', 'Todos'], ['por-agotarse', 'Por agotarse'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
+        {([['todos', 'Todos'], ['por-agotarse', 'Para pedir'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
           <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${filtro === f ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25' : 'bg-white text-slate-600 shadow-sm hover:bg-emerald-50'}`}>
             {nombre}
           </button>
         ))}
       </div>
+
+      <a href={`/t/${slug}/inventario/excel`} download className="flex items-center justify-center gap-2 self-end rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
+        <FileSpreadsheet className="h-5 w-5" /> Descargar todo en Excel
+      </a>
 
       {filtro === 'por-agotarse' && lista.length > 0 && (
         <a

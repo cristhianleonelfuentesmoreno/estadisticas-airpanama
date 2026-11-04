@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, Banknote, CreditCard, PackageX, Smartphone, Sparkles, TrendingDown, TrendingUp } from 'lucide-react'
+import { AlertTriangle, Banknote, CreditCard, Download, FileSpreadsheet, PackageX, Smartphone, Sparkles, TrendingDown, TrendingUp } from 'lucide-react'
 import { getEstadisticas, getTienda } from '@/lib/tienda/servidor'
 import { cambioPorcentual, cantidad as fmtCantidad, dinero, rangoDe, type Periodo } from '@/lib/tienda/formato'
 import type { ProductoVendido } from '@/lib/tienda/tipos'
@@ -137,6 +137,23 @@ export default async function NegocioPage({ params, searchParams }: PageProps<'/
       )}
 
       <section className="rounded-3xl bg-white p-5 shadow-sm lg:col-span-2">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><FileSpreadsheet className="h-6 w-6" /></span>
+          <div>
+            <p className="font-bold text-slate-800">Para tu contador</p>
+            <p className="text-sm text-slate-500">Un Excel con las ventas de cada día, el ITBMS, las compras con factura, lo dañado y lo anulado. Descárgalo y mándaselo.</p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {ultimosMeses().map(m => (
+            <a key={m.id} href={`/t/${slug}/negocio/contador?mes=${m.id}`} download className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-600/25">
+              <Download className="h-4 w-4" /> {m.nombre}
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-3xl bg-white p-5 shadow-sm lg:col-span-2">
         <p className="flex items-center gap-2 font-bold text-slate-800"><PackageX className="h-5 w-5 text-amber-600" /> Lo que no se mueve</p>
         {e.dias_vendiendo < DIAS_PARA_QUIETOS ? (
           <p className="mt-2 text-sm text-slate-500">
@@ -162,6 +179,23 @@ export default async function NegocioPage({ params, searchParams }: PageProps<'/
       </section>
     </div>
   )
+}
+
+// Los últimos 3 meses en hora de Panamá: "2026-11", "2026-10", "2026-09"
+function ultimosMeses(): { id: string; nombre: string }[] {
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Panama' }).format(new Date())
+  let anio = Number(hoy.slice(0, 4))
+  let mes = Number(hoy.slice(5, 7))
+  const meses = []
+  for (let i = 0; i < 3; i++) {
+    const id = `${anio}-${String(mes).padStart(2, '0')}`
+    const nombre = new Intl.DateTimeFormat('es-PA', { month: 'long', timeZone: 'UTC' }).format(new Date(`${id}-15T12:00:00Z`))
+    const mayuscula = nombre.charAt(0).toUpperCase() + nombre.slice(1)
+    meses.push({ id, nombre: i === 0 ? `${mayuscula} (va en curso)` : mayuscula })
+    mes -= 1
+    if (mes === 0) { mes = 12; anio -= 1 }
+  }
+  return meses
 }
 
 function ListaProductos({ titulo, vacio, productos, mostrar }: { titulo: string; vacio: string; productos: ProductoVendido[]; mostrar: 'importe' | 'ganancia' }) {
