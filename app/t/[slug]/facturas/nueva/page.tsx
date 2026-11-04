@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getProductos, getTienda } from '@/lib/tienda/servidor'
+import { getProductos, getTiendaParaOperar } from '@/lib/tienda/servidor'
 import FacturaNueva from '@/components/tienda/FacturaNueva'
 
 export default async function NuevaFacturaPage({ params }: PageProps<'/t/[slug]/facturas/nueva'>) {
   const { slug } = await params
-  const tienda = await getTienda(slug)
+  const tienda = await getTiendaParaOperar(slug)
   if (!tienda) notFound()
 
   const supabase = await createClient()

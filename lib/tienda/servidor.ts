@@ -1,9 +1,10 @@
 import 'server-only'
 import { cache } from 'react'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getApprovedUserOrNull } from '@/lib/auth'
 import { inicioDeHoyPanama } from '@/lib/tienda/formato'
-import type { CierreDia, Estadisticas, Producto, ProductoVendido, ResumenDia, Tienda, VentaDelDia } from '@/lib/tienda/tipos'
+import type { CierreDia, Estadisticas, Producto, ProductoVendido, ResumenDia, RolTienda, Tienda, VentaDelDia } from '@/lib/tienda/tipos'
 
 // Lecturas de la tienda con el cliente del usuario: la base (RLS) solo devuelve
 // lo de los negocios donde es miembro.
@@ -12,14 +13,25 @@ export const getMisTiendas = cache(async (): Promise<Tienda[]> => {
   const user = await getApprovedUserOrNull()
   if (!user) return []
   const supabase = await createClient()
-  const { data } = await supabase.from('tiendas').select('id, negocio_id, nombre, slug').order('nombre')
-  return data ?? []
+  const [{ data: tiendas }, { data: miembros }] = await Promise.all([
+    supabase.from('tiendas').select('id, negocio_id, nombre, slug').order('nombre'),
+    supabase.from('miembros').select('negocio_id, rol').eq('usuario_id', user.id),
+  ])
+  const rol = new Map((miembros ?? []).map(m => [m.negocio_id as string, m.rol as RolTienda]))
+  return (tiendas ?? []).flatMap(t => (rol.has(t.negocio_id) ? [{ ...t, rol: rol.get(t.negocio_id)! }] : []))
 })
 
 export const getTienda = cache(async (slug: string): Promise<Tienda | null> => {
   const tiendas = await getMisTiendas()
   return tiendas.find(t => t.slug === slug) ?? null
 })
+
+// Para las pantallas de trabajo (caja, inventario, mercancía, mi negocio): el contador va a sus reportes
+export async function getTiendaParaOperar(slug: string): Promise<Tienda | null> {
+  const tienda = await getTienda(slug)
+  if (tienda?.rol === 'contador') redirect(`/t/${slug}/contador`)
+  return tienda
+}
 
 type FilaProducto = Omit<Producto, 'stock' | 'precio_venta' | 'costo' | 'itbms' | 'stock_minimo'> & {
   precio_venta: number | string | null

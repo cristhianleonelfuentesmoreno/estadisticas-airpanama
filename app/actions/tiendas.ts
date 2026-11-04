@@ -14,7 +14,7 @@ export type PersonaTienda = {
   usuario_id: string
   nombre: string | null
   email: string
-  rol: 'dueno' | 'cajero'
+  rol: 'dueno' | 'cajero' | 'contador'
   estado: 'activo' | 'invitado' | 'bloqueado'
 }
 
@@ -99,16 +99,18 @@ export async function crearTienda(datos: { negocio: string; tienda: string }): P
   return { ok: true, data: { id: tie.id, negocio_id: neg.id } }
 }
 
-// Crea la cuenta del dueño en el momento, sin correos: el administrador le pasa el usuario y la contraseña
-// (WhatsApp o papel). Si la persona ya tenía cuenta, solo se agrega a la tienda y conserva su contraseña.
+// Crea la cuenta del dueño (o del contador) en el momento, sin correos: el administrador le pasa el usuario
+// y la contraseña (WhatsApp o papel). Si la persona ya tenía cuenta, solo se agrega a la tienda y conserva su contraseña.
+// El contador solo ve y descarga los reportes del mes; la base no le deja vender ni cambiar nada.
 export async function crearDueno(
-  negocioId: string, datos: { nombre: string; usuario: string; contrasena: string },
+  negocioId: string, datos: { nombre: string; usuario: string; contrasena: string }, rol: 'dueno' | 'contador' = 'dueno',
 ): Promise<Resultado<{ usuario: string; contrasena: string | null; yaExistia: boolean }>> {
   const actor = await requireAdmin()
+  const quien = rol === 'contador' ? 'contador' : 'dueño'
   const nombre = limpio(datos.nombre, 80)
   const email = correoDeUsuario(datos.usuario ?? '')
   const contrasena = typeof datos.contrasena === 'string' ? datos.contrasena.trim() : ''
-  if (!nombre) return { ok: false, error: 'Escribe el nombre del dueño' }
+  if (!nombre) return { ok: false, error: `Escribe el nombre del ${quien}` }
   if (!email) return { ok: false, error: 'El usuario debe tener al menos 3 letras o números (o ser un correo)' }
 
   const admin = createAdminClient()
@@ -130,24 +132,30 @@ export async function crearDueno(
     usuarioId = data.user.id
   }
 
+  // A quien ya es dueño de esta tienda no se le baja a contador
+  if (rol === 'contador') {
+    const { data: ya } = await admin.from('miembros').select('rol').eq('negocio_id', negocioId).eq('usuario_id', usuarioId).maybeSingle()
+    if (ya && ya.rol !== 'contador') return { ok: false, error: 'Esa persona ya es dueña de esta tienda' }
+  }
+
   // Aprobado y como dueño de negocio (sin panel). A una cuenta del equipo Valis no se le cambia el rol.
   const cambios: Record<string, string> = { status: 'aprobado' }
   if (!existente?.nombre) cambios.nombre = nombre
   if (!yaExistia) cambios.role = 'usuario'
   await admin.from('perfiles').update(cambios).eq('id', usuarioId)
 
-  const { error: eMiembro } = await admin.from('miembros').upsert({ negocio_id: negocioId, usuario_id: usuarioId, rol: 'dueno' }, { onConflict: 'negocio_id,usuario_id' })
+  const { error: eMiembro } = await admin.from('miembros').upsert({ negocio_id: negocioId, usuario_id: usuarioId, rol }, { onConflict: 'negocio_id,usuario_id' })
   if (eMiembro) return { ok: false, error: 'No se pudo agregar a la tienda' }
 
   await logAudit({
     tipo_evento: yaExistia ? 'edicion' : 'creacion', actor, entidad: 'usuario', entidad_id: usuarioId,
-    nombre_referencia: usuarioVisible(email), descripcion: `${yaExistia ? 'Agregó' : 'Creó la cuenta de'} ${nombre} como dueño de ${negocio.nombre}`,
+    nombre_referencia: usuarioVisible(email), descripcion: `${yaExistia ? 'Agregó' : 'Creó la cuenta de'} ${nombre} como ${quien} de ${negocio.nombre}`,
   })
   revalidatePath('/admin')
   return { ok: true, data: { usuario: usuarioVisible(email), contrasena: yaExistia ? null : contrasena, yaExistia } }
 }
 
-// Para cuando el dueño olvida su contraseña: el administrador le pone una nueva. Solo a dueños de negocio.
+// Para cuando el dueño (o el contador) olvida su contraseña: el administrador le pone una nueva. Nunca a cuentas del equipo Valis.
 export async function cambiarContrasenaDueno(usuarioId: string, contrasena: string): Promise<Resultado<{ usuario: string }>> {
   const actor = await requireAdmin()
   const nueva = typeof contrasena === 'string' ? contrasena.trim() : ''

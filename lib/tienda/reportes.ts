@@ -117,3 +117,23 @@ export function sumarDias(dias: DiaContador[]): Omit<DiaContador, 'fecha'> {
   }
   return t
 }
+
+// Los últimos meses en hora de Panamá, del actual hacia atrás: [{ id: "2026-11", nombre: "Noviembre (va en curso)" }, ...]
+export function ultimosMeses(cuantos: number, ahora = new Date()): { id: string; nombre: string }[] {
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Panama' }).format(ahora)
+  let anio = Number(hoy.slice(0, 4))
+  let mes = Number(hoy.slice(5, 7))
+  const meses = []
+  for (let i = 0; i < cuantos; i++) {
+    const id = `${anio}-${String(mes).padStart(2, '0')}`
+    const nombre = new Intl.DateTimeFormat('es-PA', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${id}-15T12:00:00Z`))
+    const bonito = nombre.charAt(0).toUpperCase() + nombre.slice(1)
+    meses.push({ id, nombre: i === 0 ? `${bonito} (va en curso)` : bonito })
+    mes -= 1
+    if (mes === 0) {
+      mes = 12
+      anio -= 1
+    }
+  }
+  return meses
+}

@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getProductos, getTienda } from '@/lib/tienda/servidor'
+import { getProductos, getTiendaParaOperar } from '@/lib/tienda/servidor'
 import { inicioDeHoyPanama } from '@/lib/tienda/formato'
 import CajaClient from '@/components/tienda/CajaClient'
 import PrimerosPasos, { type Paso } from '@/components/tienda/PrimerosPasos'
 
 export default async function CajaPage({ params }: PageProps<'/t/[slug]/caja'>) {
   const { slug } = await params
-  const tienda = await getTienda(slug)
+  const tienda = await getTiendaParaOperar(slug)
   if (!tienda) notFound()
 
   const supabase = await createClient()
