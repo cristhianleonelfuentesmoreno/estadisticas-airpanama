@@ -29,3 +29,9 @@ export function inicioDeHoyPanama(ahora = new Date()): string {
 export function fechaCorta(iso: string): string {
   return new Intl.DateTimeFormat('es-PA', { timeZone: 'America/Panama', day: 'numeric', month: 'short' }).format(new Date(iso))
 }
+
+// Un UPC-A (12 dígitos) se lee a veces como EAN-13 con un 0 adelante: los dos son el mismo producto
+export function normalizarCodigo(codigo: string): string {
+  const c = codigo.trim()
+  return /^0\d{12}$/.test(c) ? c.slice(1) : c
+}

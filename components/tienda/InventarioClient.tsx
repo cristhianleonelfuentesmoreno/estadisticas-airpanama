@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, ScanBarcode, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, margen } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, margen, normalizarCodigo } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
-import Escaner from '@/components/tienda/Escaner'
+import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
 
@@ -21,6 +21,7 @@ export default function InventarioClient({ tiendaId, productos: iniciales }: { t
   const [escaneando, setEscaneando] = useState(false)
   const [desconocido, setDesconocido] = useState<string | null>(null)
   const [abierto, setAbierto] = useState<Producto | null>(null)
+  useEffect(precargarEscaner, [])
 
   const resumen = useMemo(() => ({
     total: productos.length,
@@ -41,9 +42,10 @@ export default function InventarioClient({ tiendaId, productos: iniciales }: { t
 
   const alEscanear = useCallback((codigo: string) => {
     setEscaneando(false)
-    const p = productos.find(x => x.codigo_barras === codigo)
+    const c = normalizarCodigo(codigo)
+    const p = productos.find(x => x.codigo_barras && normalizarCodigo(x.codigo_barras) === c)
     if (p) setAbierto(p)
-    else setDesconocido(codigo)
+    else setDesconocido(c)
   }, [productos])
 
   function reemplazar(p: Producto) {
@@ -217,7 +219,7 @@ function FichaProducto({
         </button>
       </form>
       {escaneando && (
-        <Escaner titulo="Escanea el código de este producto" onCodigo={c => { setCodigo(c); setEscaneando(false) }} onCerrar={() => setEscaneando(false)} />
+        <Escaner titulo="Escanea el código de este producto" onCodigo={c => { setCodigo(normalizarCodigo(c)); setEscaneando(false) }} onCerrar={() => setEscaneando(false)} />
       )}
     </div>
   )
