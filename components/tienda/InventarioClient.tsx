@@ -1,0 +1,233 @@
+'use client'
+
+import { useCallback, useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { AlertTriangle, ScanBarcode, Search, X } from 'lucide-react'
+import { toast } from 'sonner'
+import { actualizarProducto } from '@/app/actions/tienda'
+import { cantidad as fmtCantidad, dinero, margen } from '@/lib/tienda/formato'
+import type { Producto } from '@/lib/tienda/tipos'
+import Escaner from '@/components/tienda/Escaner'
+import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
+import FotoProducto from '@/components/tienda/FotoProducto'
+
+type Filtro = 'todos' | 'agotados' | 'sin-precio' | 'sin-codigo'
+
+export default function InventarioClient({ tiendaId, productos: iniciales }: { tiendaId: string; productos: Producto[] }) {
+  const router = useRouter()
+  const [productos, setProductos] = useState(iniciales)
+  const [busqueda, setBusqueda] = useState('')
+  const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [escaneando, setEscaneando] = useState(false)
+  const [desconocido, setDesconocido] = useState<string | null>(null)
+  const [abierto, setAbierto] = useState<Producto | null>(null)
+
+  const resumen = useMemo(() => ({
+    total: productos.length,
+    valor: productos.reduce((s, p) => s + Math.max(p.stock, 0) * (p.costo ?? 0), 0),
+    venta: productos.reduce((s, p) => s + Math.max(p.stock, 0) * (p.precio_venta ?? 0), 0),
+    agotados: productos.filter(p => p.stock <= 0).length,
+  }), [productos])
+
+  const lista = useMemo(() => {
+    const f = busqueda.trim().toLowerCase()
+    return productos.filter(p => {
+      if (filtro === 'agotados' && p.stock > 0) return false
+      if (filtro === 'sin-precio' && p.precio_venta !== null) return false
+      if (filtro === 'sin-codigo' && p.codigo_barras) return false
+      return !f || p.nombre.toLowerCase().includes(f) || (p.categoria ?? '').toLowerCase().includes(f) || p.codigo_barras === f
+    })
+  }, [productos, busqueda, filtro])
+
+  const alEscanear = useCallback((codigo: string) => {
+    setEscaneando(false)
+    const p = productos.find(x => x.codigo_barras === codigo)
+    if (p) setAbierto(p)
+    else setDesconocido(codigo)
+  }, [productos])
+
+  function reemplazar(p: Producto) {
+    setProductos(ps => ps.some(x => x.id === p.id) ? ps.map(x => (x.id === p.id ? p : x)) : [...ps, p])
+    router.refresh()
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-2">
+        <Tarjeta titulo="Productos" valor={String(resumen.total)} />
+        <Tarjeta titulo="Agotados" valor={String(resumen.agotados)} alerta={resumen.agotados > 0} />
+        <Tarjeta titulo="Inventario a costo" valor={dinero(resumen.valor)} nota="solo productos con costo" />
+        <Tarjeta titulo="Inventario a precio de venta" valor={dinero(resumen.venta)} />
+      </div>
+
+      <div className="flex gap-2">
+        <div className="flex flex-1 items-center gap-2 rounded-2xl bg-white px-4 shadow-sm">
+          <Search className="h-5 w-5 text-slate-400" />
+          <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar producto o categoría" className="w-full bg-transparent py-3.5 focus:outline-none" />
+        </div>
+        <button onClick={() => setEscaneando(true)} aria-label="Escanear" className="rounded-2xl bg-emerald-600 px-4 text-white shadow">
+          <ScanBarcode className="h-6 w-6" />
+        </button>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {([['todos', 'Todos'], ['agotados', 'Agotados'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
+          <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold ${filtro === f ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-sm'}`}>
+            {nombre}
+          </button>
+        ))}
+      </div>
+
+      <ul className="divide-y divide-slate-100 rounded-3xl bg-white shadow-sm">
+        {lista.map(p => (
+          <li key={p.id}>
+            <button onClick={() => setAbierto(p)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+              <FotoProducto producto={p} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-slate-800">{p.nombre}</p>
+                <p className="truncate text-xs text-slate-500">{p.categoria ?? 'Sin categoría'}{p.codigo_barras ? ` · ${p.codigo_barras}` : ''}</p>
+              </div>
+              <div className="text-right">
+                <p className={`font-bold ${p.stock <= 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmtCantidad(p.stock, p.vende_por)}</p>
+                <p className="text-xs text-slate-500">{dinero(p.precio_venta)}{p.vende_por === 'libra' ? '/lb' : ''}</p>
+              </div>
+            </button>
+          </li>
+        ))}
+        {!lista.length && <li className="px-4 py-10 text-center text-slate-500">No hay productos con ese filtro.</li>}
+      </ul>
+
+      {escaneando && <Escaner titulo="Escanea para buscar" onCodigo={alEscanear} onCerrar={() => setEscaneando(false)} />}
+
+      {desconocido && (
+        <ProductoDesconocido
+          tiendaId={tiendaId}
+          codigo={desconocido}
+          productos={productos}
+          onCerrar={() => setDesconocido(null)}
+          onListo={p => {
+            reemplazar(p)
+            setDesconocido(null)
+            setAbierto(p)
+          }}
+        />
+      )}
+
+      {abierto && (
+        <FichaProducto
+          tiendaId={tiendaId}
+          producto={abierto}
+          onCerrar={() => setAbierto(null)}
+          onGuardado={p => {
+            reemplazar(p)
+            setAbierto(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function Tarjeta({ titulo, valor, nota, alerta }: { titulo: string; valor: string; nota?: string; alerta?: boolean }) {
+  return (
+    <div className="rounded-2xl bg-white p-3 shadow-sm">
+      <p className="text-xs text-slate-500">{titulo}</p>
+      <p className={`text-xl font-black ${alerta ? 'text-red-600' : 'text-slate-900'}`}>{valor}</p>
+      {nota && <p className="text-[11px] text-slate-400">{nota}</p>}
+    </div>
+  )
+}
+
+function FichaProducto({
+  tiendaId, producto, onCerrar, onGuardado,
+}: {
+  tiendaId: string
+  producto: Producto
+  onCerrar: () => void
+  onGuardado: (p: Producto) => void
+}) {
+  const [nombre, setNombre] = useState(producto.nombre)
+  const [precio, setPrecio] = useState(producto.precio_venta?.toString() ?? '')
+  const [codigo, setCodigo] = useState(producto.codigo_barras ?? '')
+  const [escaneando, setEscaneando] = useState(false)
+  const [guardando, startGuardar] = useTransition()
+  const precioNum = precio.trim() === '' ? null : Number(precio)
+  const ganancia = margen(precioNum, producto.costo)
+
+  function guardar(e: React.FormEvent) {
+    e.preventDefault()
+    if (precioNum !== null && (!Number.isFinite(precioNum) || precioNum < 0)) {
+      toast.error('El precio no es válido')
+      return
+    }
+    startGuardar(async () => {
+      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, codigo_barras: codigo || null })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success('Guardado')
+      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, codigo_barras: codigo.trim() || null })
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center">
+      <form onSubmit={guardar} className="flex max-h-[92dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-t-3xl bg-white p-5 sm:rounded-3xl">
+        <div className="flex items-start gap-3">
+          <FotoProducto producto={producto} tamano="h-16 w-16" />
+          <div className="min-w-0 flex-1">
+            <p className="text-lg font-bold leading-tight">{producto.nombre}</p>
+            <p className="text-sm text-slate-500">{producto.categoria}{producto.marca ? ` · ${producto.marca}` : ''}{producto.presentacion ? ` · ${producto.presentacion}` : ''}</p>
+          </div>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="rounded-full bg-slate-100 p-2"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <Dato titulo="En tienda" valor={fmtCantidad(producto.stock, producto.vende_por)} alerta={producto.stock <= 0} />
+          <Dato titulo="Costo" valor={dinero(producto.costo)} />
+          <Dato titulo="Ganancia" valor={ganancia === null ? '—' : `${ganancia}%`} alerta={ganancia !== null && ganancia < 15} />
+        </div>
+        {producto.costo === null && (
+          <p className="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+            <AlertTriangle className="h-4 w-4 shrink-0" /> Sin costo todavía: se llena solo al registrar una factura de este producto.
+          </p>
+        )}
+
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+          Nombre
+          <input value={nombre} onChange={e => setNombre(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+          {producto.vende_por === 'libra' ? 'Precio por libra' : 'Precio de venta'}
+          <input value={precio} onChange={e => setPrecio(e.target.value)} inputMode="decimal" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+          Código de barras
+          <div className="flex gap-2">
+            <input value={codigo} onChange={e => setCodigo(e.target.value)} inputMode="numeric" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 font-mono text-base" />
+            <button type="button" onClick={() => setEscaneando(true)} aria-label="Escanear código" className="rounded-xl bg-emerald-600 px-3 text-white">
+              <ScanBarcode className="h-5 w-5" />
+            </button>
+          </div>
+        </label>
+
+        <button disabled={guardando} className="rounded-2xl bg-emerald-600 py-3.5 text-base font-bold text-white disabled:opacity-50">
+          {guardando ? 'Guardando…' : 'Guardar'}
+        </button>
+      </form>
+      {escaneando && (
+        <Escaner titulo="Escanea el código de este producto" onCodigo={c => { setCodigo(c); setEscaneando(false) }} onCerrar={() => setEscaneando(false)} />
+      )}
+    </div>
+  )
+}
+
+function Dato({ titulo, valor, alerta }: { titulo: string; valor: string; alerta?: boolean }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-2">
+      <p className="text-[11px] text-slate-500">{titulo}</p>
+      <p className={`font-bold ${alerta ? 'text-red-600' : 'text-slate-900'}`}>{valor}</p>
+    </div>
+  )
+}

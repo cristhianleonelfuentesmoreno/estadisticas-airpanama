@@ -401,7 +401,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         // Credenciales correctas y estatus 'aprobado'.
         // Recarga completa a propósito: el layout del servidor debe leer las cookies de sesión nuevas.
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.href = "/dashboard?login=success";
+        window.location.href = "/";
       }
     }
   };
