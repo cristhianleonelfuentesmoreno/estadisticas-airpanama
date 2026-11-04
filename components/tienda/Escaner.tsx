@@ -18,6 +18,23 @@ export function precargarEscaner() {
   void import('@zxing/library')
 }
 
+// Pitido corto al leer (en iPhone no hay vibración)
+let audio: AudioContext | null = null
+function pitido() {
+  try {
+    audio ??= new AudioContext()
+    const osc = audio.createOscillator()
+    const vol = audio.createGain()
+    osc.frequency.value = 1800
+    vol.gain.value = 0.08
+    osc.connect(vol).connect(audio.destination)
+    osc.start()
+    osc.stop(audio.currentTime + 0.08)
+  } catch {
+    // sin audio: queda la vibración o el aviso en pantalla
+  }
+}
+
 function detectorNativo(): ClaseDetector | null {
   const clase = (globalThis as { BarcodeDetector?: ClaseDetector }).BarcodeDetector
   return typeof clase === 'function' ? clase : null
@@ -29,18 +46,26 @@ const CAMARA: MediaStreamConstraints = {
 }
 
 // Lee códigos de barras con la cámara trasera del celular.
+// continuo: la cámara sigue abierta y avisa cada código nuevo (caja); si no, se cierra al primero.
 // Siempre deja escribir el código a mano (o con un lector USB/Bluetooth, que "escribe" y da Enter).
 export default function Escaner({
   titulo = 'Escanea el código',
+  continuo = false,
+  pie,
   onCodigo,
   onCerrar,
 }: {
   titulo?: string
+  continuo?: boolean
+  pie?: React.ReactNode
   onCodigo: (codigo: string) => void
   onCerrar: () => void
 }) {
   const video = useRef<HTMLVideoElement>(null)
   const yaLeyo = useRef(false)
+  const esContinuo = useRef(continuo)
+  // Último código leído: en modo continuo evita sumar dos veces el mismo producto por un solo paso
+  const ultimo = useRef<{ codigo: string; t: number } | null>(null)
   // El callback más reciente, sin reiniciar la cámara cada vez que el padre se vuelve a dibujar
   const alLeer = useRef(onCodigo)
   useEffect(() => {
@@ -55,7 +80,18 @@ export default function Escaner({
 
     function leido(codigo: string) {
       if (yaLeyo.current || cancelado) return
+      if (esContinuo.current) {
+        const ahora = Date.now()
+        const previo = ultimo.current
+        if (previo && ((previo.codigo === codigo && ahora - previo.t < 1500) || ahora - previo.t < 600)) return
+        ultimo.current = { codigo, t: ahora }
+        pitido()
+        navigator.vibrate?.(60)
+        alLeer.current(codigo)
+        return
+      }
       yaLeyo.current = true
+      pitido()
       navigator.vibrate?.(80)
       detener?.()
       alLeer.current(codigo)
@@ -76,7 +112,7 @@ export default function Escaner({
         if (cancelado || yaLeyo.current) return
         try {
           const [primero] = await detector.detect(elemento)
-          if (primero?.rawValue) return leido(primero.rawValue)
+          if (primero?.rawValue) leido(primero.rawValue)
         } catch {
           // cuadro sin imagen todavía: se intenta en el siguiente
         }
@@ -123,7 +159,10 @@ export default function Escaner({
   function enviarManual(e: React.FormEvent) {
     e.preventDefault()
     const codigo = manual.trim()
-    if (codigo.length >= 4) onCodigo(codigo)
+    if (codigo.length >= 4) {
+      onCodigo(codigo)
+      setManual('')
+    }
   }
 
   return (
@@ -147,6 +186,8 @@ export default function Escaner({
           <p className="absolute inset-x-4 top-4 rounded-xl bg-red-600/90 p-3 text-sm text-white">{error}</p>
         )}
       </div>
+
+      {pie}
 
       <form onSubmit={enviarManual} className="flex gap-2 bg-black p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex flex-1 items-center gap-2 rounded-xl bg-white/10 px-3">

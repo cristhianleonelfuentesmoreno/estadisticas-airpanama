@@ -32,6 +32,7 @@ export default function CajaClient({
   const [productos, setProductos] = useState(iniciales)
   const [lineas, setLineas] = useState<Linea[]>([])
   const [escaneando, setEscaneando] = useState(false)
+  const [ultimo, setUltimo] = useState<Producto | null>(null)
   const [desconocido, setDesconocido] = useState<string | null>(null)
   const [pesando, setPesando] = useState<Producto | null>(null)
   const [peso, setPeso] = useState('')
@@ -76,12 +77,20 @@ export default function CajaClient({
   }, [agregar])
 
   const alEscanear = useCallback((codigo: string) => {
-    setEscaneando(false)
     const c = normalizarCodigo(codigo)
     const p = porCodigo.get(c)
-    if (p) elegir(p)
-    else setDesconocido(c)
-  }, [porCodigo, elegir])
+    // La cámara sigue abierta y va sumando; solo se cierra si hace falta preguntar algo
+    if (!p) {
+      setEscaneando(false)
+      setDesconocido(c)
+    } else if (p.vende_por === 'libra') {
+      setEscaneando(false)
+      elegir(p)
+    } else {
+      agregar(p)
+      setUltimo(p)
+    }
+  }, [porCodigo, elegir, agregar])
 
   function confirmarPeso(e: React.FormEvent) {
     e.preventDefault()
@@ -125,7 +134,7 @@ export default function CajaClient({
       </div>
 
       <button
-        onClick={() => setEscaneando(true)}
+        onClick={() => { setUltimo(null); setEscaneando(true) }}
         className="flex items-center justify-center gap-3 rounded-3xl bg-emerald-600 py-5 text-xl font-bold text-white shadow-lg active:scale-[0.98]"
       >
         <ScanBarcode className="h-8 w-8" /> Escanear producto
@@ -272,7 +281,29 @@ export default function CajaClient({
         </section>
       )}
 
-      {escaneando && <Escaner onCodigo={alEscanear} onCerrar={() => setEscaneando(false)} />}
+      {escaneando && (
+        <Escaner
+          continuo
+          titulo="Pasa los productos frente a la cámara"
+          onCodigo={alEscanear}
+          onCerrar={() => setEscaneando(false)}
+          pie={
+            <div className="flex items-center justify-between gap-3 bg-slate-900 px-4 py-3 text-white">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-white/70">
+                  {ultimo ? `✓ ${ultimo.nombre} · ${dinero(ultimo.precio_venta)}` : 'Esperando el primer producto…'}
+                </p>
+                <p className="text-2xl font-black">
+                  {dinero(total)} <span className="text-sm font-semibold text-white/60">· {lineas.reduce((n, l) => n + (l.producto.vende_por === 'unidad' ? l.cantidad : 1), 0)} productos</span>
+                </p>
+              </div>
+              <button onClick={() => setEscaneando(false)} className="shrink-0 rounded-2xl bg-emerald-500 px-5 py-3 text-base font-bold">
+                Cobrar
+              </button>
+            </div>
+          }
+        />
+      )}
 
       {desconocido && (
         <ProductoDesconocido
