@@ -1,4 +1,4 @@
-import { getProductos, getTienda } from '@/lib/tienda/servidor'
+import { getProductos, getTiendaParaOperar } from '@/lib/tienda/servidor'
 import { agregarResumen, agregarTabla, nombreArchivo, nuevoLibro, respuestaExcel, type Columna } from '@/lib/tienda/excel'
 import { filaInventario, leFalta } from '@/lib/tienda/reportes'
 import { redondear2 } from '@/lib/tienda/formato'
@@ -22,7 +22,7 @@ const COLUMNAS: Columna[] = [
 // Todo el inventario en Excel: lo que hay, cuánto vale y qué le falta a cada producto
 export async function GET(_req: Request, { params }: RouteContext<'/t/[slug]/inventario/excel'>) {
   const { slug } = await params
-  const tienda = await getTienda(slug)
+  const tienda = await getTiendaParaOperar(slug)
   if (!tienda) return new Response('No encontrado', { status: 404 })
 
   const productos = await getProductos(tienda)

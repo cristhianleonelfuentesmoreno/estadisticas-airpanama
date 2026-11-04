@@ -10,6 +10,6 @@ export default async function Home() {
 
   // Quien es de una tienda entra directo a su caja; el equipo Valis sin tienda, al panel
   const [tienda] = await getMisTiendas();
-  if (tienda) redirect(`/t/${tienda.slug}/caja`);
+  if (tienda) redirect(`/t/${tienda.slug}/${tienda.rol === 'contador' ? 'contador' : 'caja'}`);
   redirect(can.accessPanel(profile.role) ? '/admin' : '/sin-tienda');
 }

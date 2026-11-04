@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { filaInventario, itbmsIncluido, leFalta, rangoMes, sumarDias, ventasPorDia, type VentaMes } from "@/lib/tienda/reportes";
+import { filaInventario, itbmsIncluido, leFalta, rangoMes, sumarDias, ultimosMeses, ventasPorDia, type VentaMes } from "@/lib/tienda/reportes";
 import type { Producto } from "@/lib/tienda/tipos";
 
 const base: Producto = {
@@ -52,4 +52,11 @@ test("agrupa las ventas por día de Panamá, separa ITBMS y no cuenta las anulad
   assert.equal(dias.length, 1);
   assert.deepEqual(dias[0], { fecha: "2026-11-01", ventas: 2, efectivo: 3.57, yappy: 2, tarjeta: 0, total: 5.57, gravado: 1.07, itbms: 0.07, exento: 4.5 });
   assert.equal(sumarDias(dias).total, 5.57);
+});
+
+test("los últimos meses cruzan el año y usan la hora de Panamá", () => {
+  // 1 de enero 3:00 a. m. UTC = 31 de diciembre en Panamá
+  const meses = ultimosMeses(3, new Date("2027-01-01T03:00:00Z"));
+  assert.deepEqual(meses.map(m => m.id), ["2026-12", "2026-11", "2026-10"]);
+  assert.match(meses[0].nombre, /^Diciembre.*2026 \(va en curso\)$/);
 });

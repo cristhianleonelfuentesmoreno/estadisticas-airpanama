@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Copy, KeyRound, MessageCircle, Package, Plus, RefreshCw, Store, UserCheck, UserPlus, Users, X } from 'lucide-react'
+import { Calculator, Copy, KeyRound, MessageCircle, Package, Plus, RefreshCw, Store, UserCheck, UserPlus, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { confirmDialog } from '@/components/ui/dialogs'
 import {
@@ -27,13 +27,14 @@ function contrasenaNueva(): string {
   return `${PALABRAS[n[0] % PALABRAS.length].replace('ñ', 'n')}${String(1000 + (n[1] % 9000))}`
 }
 
-type Datos = { nombre: string; usuario: string; contrasena: string | null; tienda: string; yaExistia: boolean }
+type Datos = { nombre: string; usuario: string; contrasena: string | null; tienda: string; yaExistia: boolean; contador?: boolean }
 
 export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[]; registrados: Registrado[] }) {
   const router = useRouter()
   const [creando, setCreando] = useState(false)
   const [agregandoEn, setAgregandoEn] = useState<TiendaAdmin | null>(null)
-  const [nuevaClave, setNuevaClave] = useState<{ id: string; nombre: string; tienda: string } | null>(null)
+  const [contadorEn, setContadorEn] = useState<TiendaAdmin | null>(null)
+  const [nuevaClave, setNuevaClave] = useState<{ id: string; nombre: string; tienda: string; contador: boolean } | null>(null)
   const [datos, setDatos] = useState<Datos | null>(null)
 
   async function quitar(t: TiendaAdmin, usuarioId: string, quien: string) {
@@ -53,6 +54,7 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
   function listo(d: Datos) {
     setCreando(false)
     setAgregandoEn(null)
+    setContadorEn(null)
     setNuevaClave(null)
     setDatos(d)
     router.refresh()
@@ -65,7 +67,7 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
         <div className="grid grid-cols-3 gap-3">
           {([
             ['Tiendas', tiendas.length, Store],
-            ['Dueños', tiendas.reduce((n, t) => n + t.personas.length, 0), Users],
+            ['Dueños', tiendas.reduce((n, t) => n + t.personas.filter(p => p.rol !== 'contador').length, 0), Users],
             ['Productos', tiendas.reduce((n, t) => n + t.productos, 0), Package],
           ] as const).map(([nombre, valor, Icono]) => (
             <div key={nombre}>
@@ -95,24 +97,30 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
                   <p className="text-sm text-slate-500">{t.productos} productos</p>
                 </div>
               </div>
-              <button onClick={() => setAgregandoEn(t)} className="flex items-center gap-1.5 rounded-2xl bg-emerald-50 px-4 py-2.5 font-bold text-emerald-800">
-                <UserPlus className="h-5 w-5" /> Agregar dueño
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setAgregandoEn(t)} className="flex items-center gap-1.5 rounded-2xl bg-emerald-50 px-4 py-2.5 font-bold text-emerald-800">
+                  <UserPlus className="h-5 w-5" /> Agregar dueño
+                </button>
+                <button onClick={() => setContadorEn(t)} className="flex items-center gap-1.5 rounded-2xl bg-sky-50 px-4 py-2.5 font-bold text-sky-800">
+                  <Calculator className="h-5 w-5" /> Agregar contador
+                </button>
+              </div>
             </div>
             <ul className="mt-4 flex flex-col gap-2">
               {t.personas.length === 0 && <li className="rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">Sin dueño todavía: toca “Agregar dueño”.</li>}
               {t.personas.map(p => (
                 <li key={p.usuario_id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-slate-50 px-4 py-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-700 font-bold text-white">{(p.nombre || p.email).slice(0, 1).toUpperCase()}</span>
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold text-white ${p.rol === 'contador' ? 'bg-sky-600' : 'bg-emerald-700'}`}>{(p.nombre || p.email).slice(0, 1).toUpperCase()}</span>
                   <div className="min-w-0 flex-1 basis-40">
                     <p className="flex flex-wrap items-center gap-2 font-semibold text-slate-800">
                       {p.nombre || usuarioVisible(p.email)}
+                      {p.rol === 'contador' && <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-800">Contador · solo reportes</span>}
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${ESTADO[p.estado].clase}`}>{ESTADO[p.estado].texto}</span>
                     </p>
                     <p className="break-all text-sm text-slate-500">Usuario: <b className="font-mono">{usuarioVisible(p.email)}</b></p>
                   </div>
                   <button
-                    onClick={() => setNuevaClave({ id: p.usuario_id, nombre: p.nombre || p.email, tienda: t.nombre })}
+                    onClick={() => setNuevaClave({ id: p.usuario_id, nombre: p.nombre || p.email, tienda: t.nombre, contador: p.rol === 'contador' })}
                     className="flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
                   >
                     <KeyRound className="h-4 w-4" /> Nueva contraseña
@@ -128,6 +136,7 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
       </ul>
 
       {creando && <NuevaTienda onCerrar={() => setCreando(false)} onListo={listo} />}
+      {contadorEn && <AgregarContador tienda={contadorEn} onCerrar={() => setContadorEn(null)} onListo={listo} />}
       {agregandoEn && <AgregarDueno tienda={agregandoEn} registrados={registrados} onCerrar={() => setAgregandoEn(null)} onListo={listo} />}
       {nuevaClave && <NuevaContrasena persona={nuevaClave} onCerrar={() => setNuevaClave(null)} onListo={listo} />}
       {datos && <DatosParaEntrar datos={datos} onCerrar={() => setDatos(null)} />}
@@ -151,8 +160,9 @@ function Ventana({ titulo, onCerrar, children }: { titulo: string; onCerrar: () 
 
 // Nombre, usuario (sale del nombre) y contraseña (ya generada). Reutilizado en "Nueva tienda" y "Agregar dueño".
 function CamposDueno({
-  nombre, setNombre, usuario, setUsuario, contrasena, setContrasena,
+  nombre, setNombre, usuario, setUsuario, contrasena, setContrasena, quien = 'dueño',
 }: {
+  quien?: string
   nombre: string; setNombre: (v: string) => void
   usuario: string; setUsuario: (v: string) => void
   contrasena: string; setContrasena: (v: string) => void
@@ -161,7 +171,7 @@ function CamposDueno({
   return (
     <>
       <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
-        Nombre del dueño
+        Nombre del {quien}
         <input
           value={nombre}
           onChange={e => { setNombre(e.target.value); if (!usuarioTocado) setUsuario(limpiarUsuario(e.target.value.split(' ')[0] ?? '')) }}
@@ -326,10 +336,41 @@ function AgregarDueno({
   )
 }
 
+// El contador entra solo a "Reportes para el contador": no ve la caja, el inventario ni nada más
+function AgregarContador({ tienda, onCerrar, onListo }: { tienda: TiendaAdmin; onCerrar: () => void; onListo: (d: Datos) => void }) {
+  const [nombre, setNombre] = useState('')
+  const [usuario, setUsuario] = useState('')
+  const [contrasena, setContrasena] = useState(contrasenaNueva)
+  const [pendiente, start] = useTransition()
+
+  function guardar(e: React.FormEvent) {
+    e.preventDefault()
+    start(async () => {
+      const r = await crearDueno(tienda.negocio_id, { nombre, usuario, contrasena }, 'contador')
+      if (!r.ok) return void toast.error(r.error)
+      onListo({ nombre, usuario: r.data.usuario, contrasena: r.data.contrasena, tienda: tienda.nombre, yaExistia: r.data.yaExistia, contador: true })
+    })
+  }
+
+  return (
+    <Ventana titulo={`Agregar contador a ${tienda.nombre}`} onCerrar={onCerrar}>
+      <p className="rounded-2xl bg-sky-50 p-3 text-sm text-sky-900">
+        Solo podrá ver y descargar los reportes del mes en Excel. No puede vender, cambiar precios ni ver la caja. El dueño no ve esta cuenta.
+      </p>
+      <form onSubmit={guardar} className="flex flex-col gap-3">
+        <CamposDueno quien="contador" nombre={nombre} setNombre={setNombre} usuario={usuario} setUsuario={setUsuario} contrasena={contrasena} setContrasena={setContrasena} />
+        <button disabled={pendiente} className="mt-1 rounded-2xl bg-sky-600 py-3.5 font-bold text-white disabled:opacity-50">
+          {pendiente ? 'Creando…' : 'Crear cuenta de contador'}
+        </button>
+      </form>
+    </Ventana>
+  )
+}
+
 function NuevaContrasena({
   persona, onCerrar, onListo,
 }: {
-  persona: { id: string; nombre: string; tienda: string }
+  persona: { id: string; nombre: string; tienda: string; contador: boolean }
   onCerrar: () => void
   onListo: (d: Datos) => void
 }) {
@@ -341,7 +382,7 @@ function NuevaContrasena({
     start(async () => {
       const r = await cambiarContrasenaDueno(persona.id, contrasena)
       if (!r.ok) return void toast.error(r.error)
-      onListo({ nombre: persona.nombre, usuario: r.data.usuario, contrasena, tienda: persona.tienda, yaExistia: false })
+      onListo({ nombre: persona.nombre, usuario: r.data.usuario, contrasena, tienda: persona.tienda, yaExistia: false, contador: persona.contador })
     })
   }
 
@@ -366,7 +407,9 @@ function NuevaContrasena({
 function DatosParaEntrar({ datos, onCerrar }: { datos: Datos; onCerrar: () => void }) {
   const direccion = typeof window !== 'undefined' ? window.location.origin : ''
   const texto = [
-    `Hola ${datos.nombre.split(' ')[0]}, ya tienes ValisVentas para ${datos.tienda}.`,
+    datos.contador
+      ? `Hola ${datos.nombre.split(' ')[0]}, ya puedes descargar los reportes del mes de ${datos.tienda} en ValisVentas.`
+      : `Hola ${datos.nombre.split(' ')[0]}, ya tienes ValisVentas para ${datos.tienda}.`,
     `Entra aquí: ${direccion}`,
     `Usuario: ${datos.usuario}`,
     ...(datos.contrasena ? [`Contraseña: ${datos.contrasena}`] : ['Contraseña: la misma que ya usas']),

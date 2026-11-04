@@ -10,7 +10,7 @@ type FilaVenta = {
 }
 
 // Reporte del mes para el contador: ventas por día con ITBMS, compras con factura, anuladas y pérdidas
-export async function GET(req: Request, { params }: RouteContext<'/t/[slug]/negocio/contador'>) {
+export async function GET(req: Request, { params }: RouteContext<'/t/[slug]/contador/excel'>) {
   const { slug } = await params
   const tienda = await getTienda(slug)
   if (!tienda) return new Response('No encontrado', { status: 404 })

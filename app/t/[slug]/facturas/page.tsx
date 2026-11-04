@@ -2,12 +2,12 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { FilePlus2, PackageOpen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { getTienda } from '@/lib/tienda/servidor'
+import { getTiendaParaOperar } from '@/lib/tienda/servidor'
 import { dinero, fechaCorta } from '@/lib/tienda/formato'
 
 export default async function FacturasPage({ params }: PageProps<'/t/[slug]/facturas'>) {
   const { slug } = await params
-  const tienda = await getTienda(slug)
+  const tienda = await getTiendaParaOperar(slug)
   if (!tienda) notFound()
 
   const supabase = await createClient()

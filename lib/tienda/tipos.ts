@@ -1,10 +1,14 @@
 // Tipos compartidos entre el servidor y las pantallas de la tienda
 
+export type RolTienda = 'dueno' | 'cajero' | 'contador'
+
 export type Tienda = {
   id: string
   negocio_id: string
   nombre: string
   slug: string
+  // El contador solo ve sus reportes; dueño y cajero usan la app completa
+  rol: RolTienda
 }
 
 export type VendePor = 'unidad' | 'libra'

@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, Banknote, CreditCard, Download, FileSpreadsheet, PackageX, Smartphone, Sparkles, TrendingDown, TrendingUp } from 'lucide-react'
-import { getEstadisticas, getTienda } from '@/lib/tienda/servidor'
+import { getEstadisticas, getTiendaParaOperar } from '@/lib/tienda/servidor'
 import { cambioPorcentual, cantidad as fmtCantidad, dinero, rangoDe, type Periodo } from '@/lib/tienda/formato'
 import type { ProductoVendido } from '@/lib/tienda/tipos'
 import Cifra from '@/components/ui/Cifra'
+import { ultimosMeses } from '@/lib/tienda/reportes'
 
 const PERIODOS: { id: Periodo; nombre: string; anterior: string }[] = [
   { id: 'hoy', nombre: 'Hoy', anterior: 'ayer' },
@@ -26,7 +27,7 @@ function nombreDia(dia: string, corto: boolean) {
 export default async function NegocioPage({ params, searchParams }: PageProps<'/t/[slug]/negocio'>) {
   const { slug } = await params
   const { periodo: p } = await searchParams
-  const tienda = await getTienda(slug)
+  const tienda = await getTiendaParaOperar(slug)
   if (!tienda) notFound()
 
   const periodo = PERIODOS.find(x => x.id === p) ?? PERIODOS[1]
@@ -145,8 +146,8 @@ export default async function NegocioPage({ params, searchParams }: PageProps<'/
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          {ultimosMeses().map(m => (
-            <a key={m.id} href={`/t/${slug}/negocio/contador?mes=${m.id}`} download className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-600/25">
+          {ultimosMeses(3).map(m => (
+            <a key={m.id} href={`/t/${slug}/contador/excel?mes=${m.id}`} download className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-600/25">
               <Download className="h-4 w-4" /> {m.nombre}
             </a>
           ))}
@@ -179,23 +180,6 @@ export default async function NegocioPage({ params, searchParams }: PageProps<'/
       </section>
     </div>
   )
-}
-
-// Los últimos 3 meses en hora de Panamá: "2026-11", "2026-10", "2026-09"
-function ultimosMeses(): { id: string; nombre: string }[] {
-  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Panama' }).format(new Date())
-  let anio = Number(hoy.slice(0, 4))
-  let mes = Number(hoy.slice(5, 7))
-  const meses = []
-  for (let i = 0; i < 3; i++) {
-    const id = `${anio}-${String(mes).padStart(2, '0')}`
-    const nombre = new Intl.DateTimeFormat('es-PA', { month: 'long', timeZone: 'UTC' }).format(new Date(`${id}-15T12:00:00Z`))
-    const mayuscula = nombre.charAt(0).toUpperCase() + nombre.slice(1)
-    meses.push({ id, nombre: i === 0 ? `${mayuscula} (va en curso)` : mayuscula })
-    mes -= 1
-    if (mes === 0) { mes = 12; anio -= 1 }
-  }
-  return meses
 }
 
 function ListaProductos({ titulo, vacio, productos, mostrar }: { titulo: string; vacio: string; productos: ProductoVendido[]; mostrar: 'importe' | 'ganancia' }) {
