@@ -178,3 +178,61 @@ export async function quitarDeTienda(negocioId: string, usuarioId: string): Prom
   revalidatePath('/admin')
   return { ok: true, data: null }
 }
+
+// ---------- Personas que se registraron solas ----------
+
+export type Registrado = {
+  usuario_id: string
+  nombre: string | null
+  usuario: string
+  estado: 'pendiente' | 'aprobado' | 'rechazado'
+  creado_en: string
+}
+
+// Cuentas de dueños de negocio (no del equipo Valis) que todavía no están en ninguna tienda
+export async function listarRegistrados(): Promise<Registrado[]> {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const [{ data: perfiles }, { data: miembros }, usuarios] = await Promise.all([
+    admin.from('perfiles').select('id, nombre, email, status').eq('role', 'usuario'),
+    admin.from('miembros').select('usuario_id'),
+    admin.auth.admin.listUsers({ perPage: 1000 }),
+  ])
+  const conTienda = new Set((miembros ?? []).map(m => m.usuario_id as string))
+  const creado = new Map((usuarios.data?.users ?? []).map(u => [u.id, u.created_at]))
+  return (perfiles ?? [])
+    .filter(p => !conTienda.has(p.id as string))
+    .map(p => ({
+      usuario_id: p.id as string,
+      nombre: (p.nombre as string | null) ?? null,
+      usuario: usuarioVisible((p.email as string) ?? ''),
+      estado: p.status as Registrado['estado'],
+      creado_en: creado.get(p.id as string) ?? '',
+    }))
+    .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
+}
+
+// La persona ya tiene cuenta (se registró sola): queda aprobada y como dueña, con su propia contraseña
+export async function agregarRegistrado(negocioId: string, usuarioId: string): Promise<Resultado<{ nombre: string; usuario: string }>> {
+  const actor = await requireAdmin()
+  const admin = createAdminClient()
+  const [{ data: negocio }, { data: p }] = await Promise.all([
+    admin.from('negocios').select('id, nombre').eq('id', negocioId).single(),
+    admin.from('perfiles').select('id, nombre, email, role').eq('id', usuarioId).maybeSingle(),
+  ])
+  if (!negocio) return { ok: false, error: 'Ese negocio no existe' }
+  if (!p) return { ok: false, error: 'Esa cuenta no existe' }
+  if (p.role !== 'usuario') return { ok: false, error: 'Esa cuenta es del equipo Valis, no de un dueño' }
+
+  await admin.from('perfiles').update({ status: 'aprobado' }).eq('id', usuarioId)
+  const { error } = await admin.from('miembros').upsert({ negocio_id: negocioId, usuario_id: usuarioId, rol: 'dueno' }, { onConflict: 'negocio_id,usuario_id' })
+  if (error) return { ok: false, error: 'No se pudo agregar a la tienda' }
+
+  const usuario = usuarioVisible(p.email as string)
+  await logAudit({
+    tipo_evento: 'edicion', actor, entidad: 'usuario', entidad_id: usuarioId,
+    nombre_referencia: usuario, descripcion: `Aprobó a ${(p.nombre as string | null) ?? usuario} y lo agregó como dueño de ${negocio.nombre}`,
+  })
+  revalidatePath('/admin')
+  return { ok: true, data: { nombre: (p.nombre as string | null) ?? usuario, usuario } }
+}
