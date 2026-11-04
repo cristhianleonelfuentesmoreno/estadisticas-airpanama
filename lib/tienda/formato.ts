@@ -35,3 +35,27 @@ export function normalizarCodigo(codigo: string): string {
   const c = codigo.trim()
   return /^0\d{12}$/.test(c) ? c.slice(1) : c
 }
+
+// ---------- Avisos de "te queda poco" ----------
+
+// Sin mínimo propio avisa cuando queda 1 o se acabó: en una tienda pequeña es normal tener 2 de muchas cosas
+export const MINIMO_POR_DEFECTO = 1
+
+type ConStock = { nombre: string; stock: number; stock_minimo: number | null; vende_por: 'unidad' | 'libra'; contado: boolean }
+
+export function minimoDe(p: Pick<ConStock, 'stock_minimo'>): number {
+  return p.stock_minimo ?? MINIMO_POR_DEFECTO
+}
+
+// Lo que nunca se contó no avisa: no se sabe cuánto hay
+export function porAgotarse(p: Pick<ConStock, 'stock' | 'stock_minimo' | 'contado'>): boolean {
+  return p.contado && p.stock <= minimoDe(p)
+}
+
+// Texto listo para mandar por WhatsApp al proveedor o a quien hace las compras
+export function textoPedido(productos: ConStock[], tienda: string): string {
+  const lineas = [...productos]
+    .sort((a, b) => a.stock - b.stock)
+    .map(p => `• ${p.nombre} (${p.stock <= 0 ? 'no hay' : `quedan ${cantidad(p.stock, p.vende_por)}`})`)
+  return [`Pedido para ${tienda}:`, ...lineas].join('\n')
+}

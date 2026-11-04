@@ -84,7 +84,7 @@ export default function ProductoDesconocido({
       onListo({
         id: r.data.id, nombre: nombre.trim(), marca: datos.marca, presentacion: datos.presentacion, categoria,
         codigo_barras: codigo, vende_por: vendePor, precio_venta: precioNum, costo: null, itbms: datos.itbms,
-        imagen_url: datos.imagen_url, stock: 0,
+        imagen_url: datos.imagen_url, stock_minimo: null, stock: 0, contado: false,
       })
     })
   }

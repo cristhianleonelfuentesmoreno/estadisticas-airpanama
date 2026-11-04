@@ -2,22 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, ScanBarcode, Search, X } from 'lucide-react'
+import { AlertTriangle, MessageCircle, ScanBarcode, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, margen, normalizarCodigo } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, textoPedido } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
 
-type Filtro = 'todos' | 'agotados' | 'sin-precio' | 'sin-codigo'
+export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-precio' | 'sin-codigo'
 
-export default function InventarioClient({ tiendaId, productos: iniciales }: { tiendaId: string; productos: Producto[] }) {
+export default function InventarioClient({
+  tiendaId, tiendaNombre, productos: iniciales, filtroInicial = 'todos',
+}: {
+  tiendaId: string
+  tiendaNombre: string
+  productos: Producto[]
+  filtroInicial?: Filtro
+}) {
   const router = useRouter()
   const [productos, setProductos] = useState(iniciales)
   const [busqueda, setBusqueda] = useState('')
-  const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [filtro, setFiltro] = useState<Filtro>(filtroInicial)
   const [escaneando, setEscaneando] = useState(false)
   const [desconocido, setDesconocido] = useState<string | null>(null)
   const [abierto, setAbierto] = useState<Producto | null>(null)
@@ -27,13 +34,14 @@ export default function InventarioClient({ tiendaId, productos: iniciales }: { t
     total: productos.length,
     valor: productos.reduce((s, p) => s + Math.max(p.stock, 0) * (p.costo ?? 0), 0),
     venta: productos.reduce((s, p) => s + Math.max(p.stock, 0) * (p.precio_venta ?? 0), 0),
-    agotados: productos.filter(p => p.stock <= 0).length,
+    porAgotarse: productos.filter(porAgotarse).length,
   }), [productos])
 
   const lista = useMemo(() => {
     const f = busqueda.trim().toLowerCase()
     return productos.filter(p => {
-      if (filtro === 'agotados' && p.stock > 0) return false
+      if (filtro === 'por-agotarse' && !porAgotarse(p)) return false
+      if (filtro === 'sin-contar' && p.contado) return false
       if (filtro === 'sin-precio' && p.precio_venta !== null) return false
       if (filtro === 'sin-codigo' && p.codigo_barras) return false
       return !f || p.nombre.toLowerCase().includes(f) || (p.categoria ?? '').toLowerCase().includes(f) || p.codigo_barras === f
@@ -57,7 +65,9 @@ export default function InventarioClient({ tiendaId, productos: iniciales }: { t
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-2">
         <Tarjeta titulo="Productos" valor={String(resumen.total)} />
-        <Tarjeta titulo="Agotados" valor={String(resumen.agotados)} alerta={resumen.agotados > 0} />
+        <button onClick={() => setFiltro('por-agotarse')} className="text-left">
+          <Tarjeta titulo="Por agotarse" valor={String(resumen.porAgotarse)} alerta={resumen.porAgotarse > 0} nota={resumen.porAgotarse > 0 ? 'Toca para ver la lista' : undefined} />
+        </button>
         <Tarjeta titulo="Inventario a costo" valor={dinero(resumen.valor)} nota="solo productos con costo" />
         <Tarjeta titulo="Inventario a precio de venta" valor={dinero(resumen.venta)} />
       </div>
@@ -73,12 +83,23 @@ export default function InventarioClient({ tiendaId, productos: iniciales }: { t
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {([['todos', 'Todos'], ['agotados', 'Agotados'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
+        {([['todos', 'Todos'], ['por-agotarse', 'Por agotarse'], ['sin-contar', 'Sin contar'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
           <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold ${filtro === f ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-sm'}`}>
             {nombre}
           </button>
         ))}
       </div>
+
+      {filtro === 'por-agotarse' && lista.length > 0 && (
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(textoPedido(lista, tiendaNombre))}`}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3.5 text-base font-bold text-white shadow"
+        >
+          <MessageCircle className="h-5 w-5" /> Mandar la lista de pedido por WhatsApp
+        </a>
+      )}
 
       <ul className="divide-y divide-slate-100 rounded-3xl bg-white shadow-sm">
         {lista.map(p => (
@@ -90,7 +111,7 @@ export default function InventarioClient({ tiendaId, productos: iniciales }: { t
                 <p className="truncate text-xs text-slate-500">{p.categoria ?? 'Sin categoría'}{p.codigo_barras ? ` · ${p.codigo_barras}` : ''}</p>
               </div>
               <div className="text-right">
-                <p className={`font-bold ${p.stock <= 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmtCantidad(p.stock, p.vende_por)}</p>
+                <p className={`font-bold ${!p.contado ? 'text-slate-400' : p.stock <= 0 ? 'text-red-600' : porAgotarse(p) ? 'text-amber-600' : 'text-slate-800'}`}>{p.contado ? fmtCantidad(p.stock, p.vende_por) : 'sin contar'}</p>
                 <p className="text-xs text-slate-500">{dinero(p.precio_venta)}{p.vende_por === 'libra' ? '/lb' : ''}</p>
               </div>
             </button>
@@ -151,6 +172,7 @@ function FichaProducto({
   const [nombre, setNombre] = useState(producto.nombre)
   const [precio, setPrecio] = useState(producto.precio_venta?.toString() ?? '')
   const [codigo, setCodigo] = useState(producto.codigo_barras ?? '')
+  const [minimo, setMinimo] = useState(producto.stock_minimo?.toString() ?? '')
   const [escaneando, setEscaneando] = useState(false)
   const [guardando, startGuardar] = useTransition()
   const precioNum = precio.trim() === '' ? null : Number(precio)
@@ -162,14 +184,19 @@ function FichaProducto({
       toast.error('El precio no es válido')
       return
     }
+    const minimoNum = minimo.trim() === '' ? null : Number(minimo)
+    if (minimoNum !== null && (!Number.isFinite(minimoNum) || minimoNum < 0)) {
+      toast.error('El aviso de "quedan pocos" no es válido')
+      return
+    }
     startGuardar(async () => {
-      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, codigo_barras: codigo || null })
+      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, codigo_barras: codigo || null, stock_minimo: minimoNum })
       if (!r.ok) {
         toast.error(r.error)
         return
       }
       toast.success('Guardado')
-      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, codigo_barras: codigo.trim() || null })
+      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum })
     })
   }
 
@@ -186,7 +213,7 @@ function FichaProducto({
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
-          <Dato titulo="En tienda" valor={fmtCantidad(producto.stock, producto.vende_por)} alerta={producto.stock <= 0} />
+          <Dato titulo="En tienda" valor={producto.contado ? fmtCantidad(producto.stock, producto.vende_por) : 'Sin contar'} alerta={producto.contado && producto.stock <= 0} />
           <Dato titulo="Costo" valor={dinero(producto.costo)} />
           <Dato titulo="Ganancia" valor={ganancia === null ? '—' : `${ganancia}%`} alerta={ganancia !== null && ganancia < 15} />
         </div>
@@ -203,6 +230,10 @@ function FichaProducto({
         <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
           {producto.vende_por === 'libra' ? 'Precio por libra' : 'Precio de venta'}
           <input value={precio} onChange={e => setPrecio(e.target.value)} inputMode="decimal" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+          Avísame cuando queden
+          <input value={minimo} onChange={e => setMinimo(e.target.value)} inputMode="decimal" placeholder={`${MINIMO_POR_DEFECTO} (si lo dejas vacío)`} className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
           Código de barras
