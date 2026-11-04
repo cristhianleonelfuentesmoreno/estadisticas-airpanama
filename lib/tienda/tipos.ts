@@ -47,3 +47,37 @@ export type LineaEntrada = {
 }
 
 export type Resultado<T = null> = { ok: true; data: T } | { ok: false; error: string }
+
+export type MotivoAjuste = 'regalia' | 'compra_sin_factura' | 'danado' | 'consumo' | 'conteo'
+
+export type ResumenDia = {
+  fecha: string
+  base_caja: number
+  ventas_cantidad: number
+  total_ventas: number
+  efectivo: number
+  yappy: number
+  tarjeta: number
+  ganancia: number
+  ventas_sin_costo: number
+}
+
+export type VentaDelDia = {
+  id: string
+  total: number
+  metodo_pago: MetodoPago
+  creado_en: string
+  anulada_en: string | null
+  motivo_anulacion: string | null
+  lineas: { nombre: string; cantidad: number; subtotal: number; vende_por: VendePor }[]
+}
+
+export type CierreDia = {
+  fecha: string
+  efectivo_esperado: number
+  efectivo_contado: number
+  diferencia: number
+  total_ventas: number
+  ganancia: number
+  creado_en: string
+}

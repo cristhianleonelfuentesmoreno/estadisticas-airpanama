@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { FilePlus2 } from 'lucide-react'
+import { FilePlus2, PackageOpen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getTienda } from '@/lib/tienda/servidor'
 import { dinero, fechaCorta } from '@/lib/tienda/formato'
@@ -24,9 +24,15 @@ export default async function FacturasPage({ params }: PageProps<'/t/[slug]/fact
         href={`/t/${slug}/facturas/nueva`}
         className="flex items-center justify-center gap-3 rounded-3xl bg-emerald-600 py-5 text-xl font-bold text-white shadow-lg"
       >
-        <FilePlus2 className="h-7 w-7" /> Registrar factura
+        <FilePlus2 className="h-7 w-7" /> Llegó mercancía con factura
       </Link>
-      <p className="px-1 text-sm text-slate-500">Lo que llega del proveedor sube el inventario y actualiza el costo de cada producto.</p>
+      <Link
+        href={`/t/${slug}/facturas/sin-factura`}
+        className="flex items-center justify-center gap-3 rounded-3xl bg-white py-4 text-lg font-bold text-emerald-800 shadow-sm"
+      >
+        <PackageOpen className="h-6 w-6" /> Sin factura: regalo, daño, conteo…
+      </Link>
+      <p className="px-1 pt-1 text-sm font-semibold text-slate-500">Facturas registradas</p>
       <ul className="divide-y divide-slate-100 rounded-3xl bg-white shadow-sm">
         {(entradas ?? []).map(e => {
           const lineas = (e.entradas_lineas as unknown as { count: number }[])[0]?.count ?? 0

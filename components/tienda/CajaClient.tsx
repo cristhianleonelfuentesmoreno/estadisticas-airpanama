@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Banknote, CreditCard, Minus, Plus, ScanBarcode, Scale, Search, Smartphone, Trash2 } from 'lucide-react'
+import { Banknote, CreditCard, ListChecks, Lock, Minus, Plus, ScanBarcode, Scale, Search, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { registrarVenta } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, normalizarCodigo, redondear2 } from '@/lib/tienda/formato'
@@ -21,10 +22,12 @@ function precioDe(l: Linea): number | null {
 
 export default function CajaClient({
   tiendaId,
+  slug,
   productos: iniciales,
   ventasHoy,
 }: {
   tiendaId: string
+  slug: string
   productos: Producto[]
   ventasHoy: { cantidad: number; total: number }
 }) {
@@ -128,9 +131,19 @@ export default function CajaClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm">
-        <span className="text-sm text-slate-500">Vendido hoy</span>
-        <span className="text-sm font-semibold text-slate-800">{dinero(ventasHoy.total)} · {ventasHoy.cantidad} ventas</span>
+      <div className="rounded-2xl bg-white p-3 shadow-sm">
+        <div className="flex items-baseline justify-between px-1">
+          <span className="text-sm text-slate-500">Vendido hoy</span>
+          <span className="text-lg font-black text-slate-900">{dinero(ventasHoy.total)} <span className="text-sm font-semibold text-slate-500">· {ventasHoy.cantidad} ventas</span></span>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Link href={`/t/${slug}/ventas`} className="flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 py-2.5 text-sm font-semibold text-slate-700">
+            <ListChecks className="h-4 w-4" /> Ventas de hoy
+          </Link>
+          <Link href={`/t/${slug}/cierre`} className="flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 py-2.5 text-sm font-semibold text-slate-700">
+            <Lock className="h-4 w-4" /> Cerrar el día
+          </Link>
+        </div>
       </div>
 
       <button
