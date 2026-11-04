@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { requireApprovedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getMisTiendas } from '@/lib/tienda/servidor'
+import { emparejar, type Coincidencia } from '@/lib/tienda/emparejar'
+import { FacturaIaError, leerFactura, type FacturaLeida, type LineaLeida } from '@/lib/tienda/factura-ia'
 import type {
   LineaEntrada, LineaVenta, MetodoPago, MotivoAjuste, Resultado, SugerenciaProducto, Tienda, VendePor,
 } from '@/lib/tienda/tipos'
@@ -236,4 +238,47 @@ export async function cerrarCaja(tiendaId: string, efectivoContado: number, nota
   if (error) return { ok: false, error: 'No se pudo cerrar la caja' }
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: null }
+}
+
+// ---------- Leer una factura con foto (Gemini) ----------
+
+const LECTURAS_POR_DIA = 30
+const MIME_IMAGEN = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
+export type LineaFacturaFoto = LineaLeida & { coincidencia: Coincidencia }
+
+export async function leerFacturaConFoto(
+  tiendaId: string, imagenBase64: string, mime: string,
+): Promise<Resultado<{ proveedor: string | null; numero_factura: string | null; lineas: LineaFacturaFoto[]; quedan: number }>> {
+  const tienda = await tiendaDelUsuario(tiendaId)
+  if (!MIME_IMAGEN.has(mime)) return { ok: false, error: 'La foto debe ser JPG, PNG o WEBP' }
+  if (typeof imagenBase64 !== 'string' || imagenBase64.length > 7_000_000) return { ok: false, error: 'La foto es muy grande' }
+  if (!process.env.GEMINI_API_KEY) return { ok: false, error: 'La lectura con foto todavía no está activada' }
+
+  const supabase = await createClient()
+  const { data: quedan, error: errCupo } = await supabase.rpc('usar_ia', { p_tienda: tienda.id, p_limite: LECTURAS_POR_DIA })
+  if (errCupo) return { ok: false, error: 'No se pudo leer la factura' }
+  if ((quedan as number) < 0) return { ok: false, error: `Ya se leyeron ${LECTURAS_POR_DIA} facturas hoy. Mañana se puede de nuevo, o regístrala a mano.` }
+
+  let leida: FacturaLeida
+  try {
+    leida = await leerFactura(imagenBase64, mime)
+  } catch (e) {
+    const motivo = e instanceof FacturaIaError ? e.motivo : 'ilegible'
+    return {
+      ok: false,
+      error: motivo === 'ocupado'
+        ? 'El servicio de lectura está muy ocupado. Prueba otra vez en un minuto.'
+        : motivo === 'sin-clave' ? 'La lectura con foto todavía no está activada'
+          : 'No pude leer la factura. Toma la foto de frente, con buena luz y que se vea completa.',
+    }
+  }
+
+  const { data: productos } = await supabase
+    .from('productos')
+    .select('id, nombre, codigo_barras')
+    .eq('negocio_id', tienda.negocio_id)
+    .eq('activo', true)
+  const lineas = leida.lineas.map(l => ({ ...l, coincidencia: emparejar(l, productos ?? []) }))
+  return { ok: true, data: { proveedor: leida.proveedor, numero_factura: leida.numero_factura, lineas, quedan: quedan as number } }
 }
