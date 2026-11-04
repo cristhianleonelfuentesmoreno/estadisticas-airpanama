@@ -112,7 +112,7 @@ export function IaPanel({ config }: { config: ConfigIa }) {
         </p>
       )}
 
-      <button onClick={() => setAbierto(true)} className="flex items-center justify-center gap-2 rounded-2xl bg-slate-900 py-3 font-bold text-white">
+      <button onClick={() => setAbierto(true)} className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 py-3 font-bold text-white shadow-md shadow-emerald-700/30">
         <BarChart3 className="h-5 w-5" /> Ver consumo por tienda
       </button>
 

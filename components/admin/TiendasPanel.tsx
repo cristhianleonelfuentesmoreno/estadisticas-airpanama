@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Copy, KeyRound, MessageCircle, Plus, RefreshCw, Store, UserCheck, UserPlus, X } from 'lucide-react'
+import { Copy, KeyRound, MessageCircle, Package, Plus, RefreshCw, Store, UserCheck, UserPlus, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { confirmDialog } from '@/components/ui/dialogs'
 import {
   agregarRegistrado, cambiarContrasenaDueno, crearDueno, crearTienda, quitarDeTienda, type Registrado, type TiendaAdmin,
 } from '@/app/actions/tiendas'
-import { limpiarUsuario } from '@/lib/cuenta'
+import { limpiarUsuario, usuarioVisible } from '@/lib/cuenta'
+import Cifra from '@/components/ui/Cifra'
 
 const ESTADO = {
   activo: { texto: 'Ya entró', clase: 'bg-emerald-100 text-emerald-800' },
@@ -58,12 +59,27 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <p className="flex-1 text-slate-600">Cada negocio solo ve lo suyo. Los dueños usan la app completa de su tienda, sin este panel.</p>
-        <button onClick={() => setCreando(true)} className="flex items-center gap-1.5 rounded-2xl bg-emerald-600 px-4 py-3 font-bold text-white shadow">
-          <Plus className="h-5 w-5" /> Nueva tienda
-        </button>
+    <section className="escalonado flex flex-col gap-4">
+      <div className="brillo relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-800 to-emerald-950 p-5 text-white shadow-xl shadow-emerald-900/20">
+        <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-lime-300/15 blur-2xl" />
+        <div className="grid grid-cols-3 gap-3">
+          {([
+            ['Tiendas', tiendas.length, Store],
+            ['Dueños', tiendas.reduce((n, t) => n + t.personas.length, 0), Users],
+            ['Productos', tiendas.reduce((n, t) => n + t.productos, 0), Package],
+          ] as const).map(([nombre, valor, Icono]) => (
+            <div key={nombre}>
+              <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-100/90"><Icono className="h-4 w-4" /> {nombre}</p>
+              <p className="text-3xl font-black"><Cifra valor={valor} formato="entero" /></p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <p className="flex-1 text-sm text-emerald-100/90">Cada negocio solo ve lo suyo. Los dueños usan la app de su tienda, sin este panel.</p>
+          <button onClick={() => setCreando(true)} className="flex items-center gap-1.5 rounded-2xl bg-lime-300 px-4 py-3 font-bold text-emerald-950 shadow-lg shadow-emerald-950/30">
+            <Plus className="h-5 w-5" /> Nueva tienda
+          </button>
+        </div>
       </div>
 
       {tiendas.length === 0 && <p className="text-slate-500">Todavía no hay tiendas.</p>}
@@ -86,12 +102,15 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
             <ul className="mt-4 flex flex-col gap-2">
               {t.personas.length === 0 && <li className="rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">Sin dueño todavía: toca “Agregar dueño”.</li>}
               {t.personas.map(p => (
-                <li key={p.usuario_id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-800">{p.nombre || p.email}</p>
-                    <p className="text-sm text-slate-500">Usuario: <b className="font-mono">{p.email}</b></p>
+                <li key={p.usuario_id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-slate-50 px-4 py-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-700 font-bold text-white">{(p.nombre || p.email).slice(0, 1).toUpperCase()}</span>
+                  <div className="min-w-0 flex-1 basis-40">
+                    <p className="flex flex-wrap items-center gap-2 font-semibold text-slate-800">
+                      {p.nombre || usuarioVisible(p.email)}
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${ESTADO[p.estado].clase}`}>{ESTADO[p.estado].texto}</span>
+                    </p>
+                    <p className="break-all text-sm text-slate-500">Usuario: <b className="font-mono">{usuarioVisible(p.email)}</b></p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO[p.estado].clase}`}>{ESTADO[p.estado].texto}</span>
                   <button
                     onClick={() => setNuevaClave({ id: p.usuario_id, nombre: p.nombre || p.email, tienda: t.nombre })}
                     className="flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
