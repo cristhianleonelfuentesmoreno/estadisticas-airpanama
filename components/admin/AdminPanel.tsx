@@ -377,9 +377,9 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
                   onChange={(e) => setTempRole(e.target.value as User['role'])}
                   className="h-12 px-4 rounded-xl bg-surface-container text-on-surface font-label-md focus:outline-none focus:ring-2 ring-primary/20"
                 >
-                  <option value="usuario">Usuario · trabajo diario</option>
-                  <option value="supervisor">Supervisor · acepta usuarios, resuelve solicitudes, ve la bitácora</option>
-                  <option value="administrador">Administrador · todo, incluida la configuración</option>
+                  <option value="usuario">Dueño de negocio · usa su tienda, sin panel de administración</option>
+                  <option value="supervisor">Supervisor (equipo Valis) · acepta usuarios y ve la bitácora</option>
+                  <option value="administrador">Administrador (equipo Valis) · todo, incluida la configuración</option>
                 </select>
               </div>}
 

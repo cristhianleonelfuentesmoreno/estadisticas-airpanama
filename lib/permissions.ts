@@ -6,7 +6,7 @@ export type Role = 'administrador' | 'supervisor' | 'usuario'
 export const ROLE_LABEL: Record<Role, string> = {
   administrador: 'Administrador',
   supervisor: 'Supervisor',
-  usuario: 'Usuario',
+  usuario: 'Dueño de negocio',
 }
 
 export const toRole = (value: unknown): Role =>
@@ -16,25 +16,16 @@ const staff = (r: Role) => r === 'supervisor' || r === 'administrador'
 const admin = (r: Role) => r === 'administrador'
 
 export const can = {
-  // Trabajo diario: cualquier usuario aprobado
-  approveFlights: (_r: Role) => true,
-  // Eliminar un vuelo directamente; los usuarios solo pueden solicitarlo
-  deleteFlights: staff,
-  reviewDeletionRequests: staff,
-  restoreFlights: staff,
-  // Panel de supervisión
+  // Panel de administración (equipo de Valis Digital). Los dueños de negocio no entran.
   accessPanel: staff,
   viewAudit: staff,
   viewDevices: staff,
   // Aceptar o rechazar usuarios, editar su nombre y cargo, enviar enlace de contraseña
   manageUsers: staff,
-  // Base de conocimiento (flota, tripulación, rutas, vuelos regulares)
-  manageFleet: staff,
   // Solo el administrador
   manageRoles: admin,
   deleteAccounts: admin,
   manageSettings: admin,
-  viewMonitoring: admin,
 }
 
 // Un supervisor solo gestiona cuentas de usuarios; las de supervisores y administradores

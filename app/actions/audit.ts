@@ -1,68 +1,16 @@
 "use server";
 
-import { requireApprovedUser, requireSupervisor } from "@/lib/auth";
+import { requireSupervisor } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { logAudit, type TipoEventoAuditoria } from "@/lib/audit";
-
-// ---------------------------------------------------------------------------
-// Eventos que ocurren en el navegador (navegar, exportar). Cada usuario solo puede
-// registrar eventos a su propio nombre y de estos tipos: no permite falsear otros.
-// ---------------------------------------------------------------------------
-const PAGE_NAMES: Record<string, string> = {
-  '/dashboard': 'Inicio',
-  '/dashboard/diario': 'Registro Histórico',
-  '/dashboard/mensual': 'Reportes',
-  '/dashboard/admin': 'Panel de supervisión',
-};
-
-export type UserEvent =
-  | { tipo: 'navegacion'; ruta: string }
-  | { tipo: 'exportacion'; formato: 'excel' | 'pdf'; periodo: string; aerolinea: string; vuelos: number };
-
-export async function logUserEvent(event: UserEvent) {
-  const user = await requireApprovedUser().catch(() => null);
-  if (!user || !event || typeof event !== 'object') return;
-
-  if (event.tipo === 'navegacion') {
-    const ruta = typeof event.ruta === 'string' ? event.ruta.split('?')[0].slice(0, 120) : '';
-    if (!ruta.startsWith('/dashboard')) return;
-    const pagina = PAGE_NAMES[ruta] ?? ruta;
-    await logAudit({
-      tipo_evento: 'navegacion',
-      actor: user,
-      entidad: 'pagina',
-      entidad_id: ruta,
-      nombre_referencia: pagina,
-      descripcion: `Abrió ${pagina}`,
-    });
-    return;
-  }
-
-  if (event.tipo === 'exportacion') {
-    const formato = event.formato === 'pdf' ? 'PDF' : 'Excel';
-    const periodo = String(event.periodo ?? '').slice(0, 60);
-    const aerolinea = String(event.aerolinea ?? '').slice(0, 60);
-    const vuelos = Number.isFinite(event.vuelos) ? Math.max(0, Math.round(event.vuelos)) : 0;
-    await logAudit({
-      tipo_evento: 'exportacion',
-      actor: user,
-      entidad: 'reporte',
-      nombre_referencia: `Reporte ${periodo} · ${aerolinea}`,
-      descripcion: `Exportó el reporte en ${formato} (${vuelos} vuelos)`,
-      detalles_extra: { formato, periodo, aerolinea, vuelos },
-    });
-  }
-}
+import type { TipoEventoAuditoria } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // Consulta de la bitácora (supervisores y administrador)
 // ---------------------------------------------------------------------------
-export type AuditCategoria = 'todos' | 'accesos' | 'vuelos' | 'solicitudes' | 'datos' | 'usuarios' | 'navegacion' | 'fallas';
+export type AuditCategoria = 'todos' | 'accesos' | 'datos' | 'usuarios' | 'navegacion' | 'fallas';
 
 const CATEGORIAS: Record<Exclude<AuditCategoria, 'todos'>, TipoEventoAuditoria[]> = {
   accesos: ['inicio_sesion', 'cierre_sesion', 'acceso_fallido'],
-  vuelos: ['creacion', 'edicion', 'aprobacion', 'eliminacion', 'restauracion'],
-  solicitudes: ['solicitud_eliminacion', 'resolucion_solicitud'],
   datos: ['importacion', 'exportacion'],
   usuarios: ['edicion', 'eliminacion'],
   navegacion: ['navegacion'],
@@ -113,7 +61,6 @@ export async function getAuditLogs(filters: AuditFilters = {}) {
   const categoria = filters.categoria ?? 'todos';
   if (categoria !== 'todos' && CATEGORIAS[categoria]) {
     query = query.in('tipo_evento', CATEGORIAS[categoria]);
-    if (categoria === 'vuelos') query = query.eq('entidad', 'vuelo');
     // Los registros anteriores a esta versión no tienen entidad: eran cambios de usuarios y flota
     if (categoria === 'usuarios') query = query.or('entidad.in.(usuario,flota,configuracion),entidad.is.null');
   } else if (!filters.incluirNavegacion) {
