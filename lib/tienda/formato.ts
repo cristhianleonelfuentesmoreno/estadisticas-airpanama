@@ -59,3 +59,26 @@ export function textoPedido(productos: ConStock[], tienda: string): string {
     .map(p => `• ${p.nombre} (${p.stock <= 0 ? 'no hay' : `quedan ${cantidad(p.stock, p.vende_por)}`})`)
   return [`Pedido para ${tienda}:`, ...lineas].join('\n')
 }
+
+// ---------- Períodos de "Mi negocio" (fechas de Panamá, AAAA-MM-DD) ----------
+
+export type Periodo = 'hoy' | 'semana' | 'mes'
+
+function diaPanama(fecha: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Panama' }).format(fecha)
+}
+
+export function rangoDe(periodo: Periodo, ahora = new Date()): { desde: string; hasta: string } {
+  const hasta = diaPanama(ahora)
+  if (periodo === 'hoy') return { desde: hasta, hasta }
+  if (periodo === 'mes') return { desde: `${hasta.slice(0, 8)}01`, hasta }
+  const hace6 = new Date(`${hasta}T12:00:00-05:00`)
+  hace6.setUTCDate(hace6.getUTCDate() - 6)
+  return { desde: diaPanama(hace6), hasta }
+}
+
+// "Vas 12 % arriba" / "Vas 5 % abajo"; null si no hay con qué comparar
+export function cambioPorcentual(actual: number, anterior: number): number | null {
+  if (anterior <= 0) return null
+  return Math.round(((actual - anterior) / anterior) * 100)
+}
