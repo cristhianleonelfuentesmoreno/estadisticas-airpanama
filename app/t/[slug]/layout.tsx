@@ -20,22 +20,22 @@ export default async function TiendaLayout({ children, params }: LayoutProps<'/t
   if (!tienda) notFound()
 
   return (
-    <div className="min-h-dvh bg-slate-50 pb-24">
-      <header className="sticky top-0 z-30 flex items-center gap-2 bg-emerald-700 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow">
-        <Image src="/icono-app.png" alt="" width={40} height={40} priority className="h-10 w-10 shrink-0" />
+    <div className="min-h-dvh bg-slate-50 pb-28 lg:pb-10 lg:pl-64">
+      <header className="sticky top-0 z-30 flex items-center gap-2 bg-gradient-to-r from-emerald-800 to-emerald-700 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow-md lg:from-white lg:to-white lg:px-8 lg:py-4 lg:text-slate-900 lg:shadow-sm">
+        <Image src="/icono-app.png" alt="" width={40} height={40} priority className="h-10 w-10 shrink-0 lg:hidden" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-emerald-200">ValisVentas</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-emerald-200 lg:text-emerald-700">ValisVentas</p>
           <h1 className="truncate text-lg font-bold">{tienda.nombre}</h1>
         </div>
         {can.accessPanel(profile.role) && (
-          <Link href="/admin" aria-label="Administración" className="rounded-full bg-white/15 p-2">
+          <Link href="/admin" aria-label="Administración" className="rounded-full bg-white/15 p-2 lg:bg-slate-100 lg:text-slate-600">
             <Settings className="h-5 w-5" />
           </Link>
         )}
-        <BotonSalir />
+        <BotonSalir className="lg:bg-slate-100 lg:text-slate-600" />
       </header>
-      <main className="mx-auto w-full max-w-3xl px-3 py-4">{children}</main>
-      <NavTienda slug={tienda.slug} />
+      <main className="mx-auto w-full max-w-3xl px-3 py-4 lg:max-w-5xl lg:px-8 lg:py-8">{children}</main>
+      <NavTienda slug={tienda.slug} tienda={tienda.nombre} />
     </div>
   )
 }

@@ -147,7 +147,7 @@ function ConsumoModal({ onCerrar }: { onCerrar: () => void }) {
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onCerrar}>
+    <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] p-0 sm:items-center sm:p-4" onClick={onCerrar}>
       <div onClick={e => e.stopPropagation()} className="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
         <div className="flex items-center justify-between bg-emerald-800 px-5 py-4 text-white">
           <div>

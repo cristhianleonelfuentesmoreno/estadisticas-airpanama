@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { cerrarCaja } from '@/app/actions/tienda'
 import { dinero, redondear2 } from '@/lib/tienda/formato'
 import type { CierreDia as Cierre, ResumenDia } from '@/lib/tienda/tipos'
+import Cifra from '@/components/ui/Cifra'
 
 function Diferencia({ diferencia }: { diferencia: number }) {
   if (Math.abs(diferencia) < 0.005) {
@@ -53,17 +54,19 @@ export default function CierreDia({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="escalonado mx-auto flex w-full max-w-xl flex-col gap-4">
       <Link href={`/t/${slug}/caja`} className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
         <ArrowLeft className="h-4 w-4" /> Volver a la caja
       </Link>
 
       {!contando && cierre ? (
         <section className="flex flex-col items-center gap-3 rounded-3xl bg-white p-6 text-center shadow-sm">
-          <PartyPopper className="h-12 w-12 text-emerald-600" />
+          <span className="venta-lista flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-lime-300 to-emerald-500 text-white shadow-lg shadow-emerald-500/30">
+            <PartyPopper className="h-10 w-10" />
+          </span>
           <p className="text-lg font-bold text-slate-800">Día cerrado</p>
           <p className="text-slate-600">Hoy vendiste</p>
-          <p className="text-4xl font-black text-slate-900">{dinero(cierre.total_ventas)}</p>
+          <p className="text-4xl font-black text-slate-900"><Cifra valor={cierre.total_ventas} /></p>
           <p className="text-slate-600">y ganaste más o menos <b className="text-emerald-700">{dinero(cierre.ganancia)}</b></p>
           {resumen.ventas_sin_costo > 0 && (
             <p className="text-xs text-slate-400">La ganancia no cuenta {dinero(resumen.ventas_sin_costo)} de productos que todavía no tienen costo.</p>
@@ -81,10 +84,10 @@ export default function CierreDia({
         </section>
       ) : (
         <>
-          <section className="rounded-3xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Hoy vendiste</p>
-            <p className="text-4xl font-black text-slate-900">{dinero(resumen.total_ventas)}</p>
-            <p className="text-sm text-slate-500">en {resumen.ventas_cantidad} ventas</p>
+          <section className="rounded-3xl bg-gradient-to-br from-emerald-700 to-emerald-950 p-5 text-white shadow-lg shadow-emerald-900/20">
+            <p className="text-sm text-emerald-100/90">Hoy vendiste</p>
+            <p className="text-4xl font-black"><Cifra valor={resumen.total_ventas} /></p>
+            <p className="text-sm text-emerald-100/90">en {resumen.ventas_cantidad} {resumen.ventas_cantidad === 1 ? 'venta' : 'ventas'}</p>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
               <Dato titulo="Efectivo" valor={dinero(resumen.efectivo)} />
               <Dato titulo="Yappy" valor={dinero(resumen.yappy)} />
@@ -132,9 +135,9 @@ export default function CierreDia({
 
 function Dato({ titulo, valor }: { titulo: string; valor: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-2">
-      <p className="text-xs text-slate-500">{titulo}</p>
-      <p className="font-bold text-slate-900">{valor}</p>
+    <div className="rounded-2xl bg-white/10 p-2">
+      <p className="text-xs text-emerald-100/80">{titulo}</p>
+      <p className="font-bold text-white">{valor}</p>
     </div>
   )
 }

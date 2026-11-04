@@ -105,7 +105,7 @@ export default function ProductoDesconocido({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center">
+    <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
       <div className="flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-3xl bg-white sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4">
           <div>

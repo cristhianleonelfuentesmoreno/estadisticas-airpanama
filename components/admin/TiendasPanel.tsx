@@ -118,7 +118,7 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
 
 function Ventana({ titulo, onCerrar, children }: { titulo: string; onCerrar: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={onCerrar}>
+    <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center" onClick={onCerrar}>
       <div onClick={e => e.stopPropagation()} className="flex max-h-[92dvh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-t-3xl bg-white p-5 sm:rounded-3xl">
         <div className="flex items-center justify-between gap-3">
           <p className="text-lg font-bold text-slate-900">{titulo}</p>
