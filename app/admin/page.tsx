@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Activity, ExternalLink, ImageIcon, Sparkles, Store, Users } from 'lucide-react'
 import { fetchAllUsers } from '@/app/actions/admin'
 import { obtenerConfigIa } from '@/app/actions/ia'
-import { listarTiendas } from '@/app/actions/tiendas'
+import { listarRegistrados, listarTiendas } from '@/app/actions/tiendas'
 import { getSessionProfile } from '@/lib/auth'
 import { AdminPanel, type User } from '@/components/admin/AdminPanel'
 import { AuditoriaPanel } from '@/components/admin/AuditoriaPanel'
@@ -55,7 +55,7 @@ export default async function AdminPage({ searchParams }: PageProps<'/admin'>) {
         ))}
       </nav>
 
-      {seccion === 'tiendas' && <TiendasPanel tiendas={await listarTiendas()} />}
+      {seccion === 'tiendas' && <TiendasPanel tiendas={await listarTiendas()} registrados={await listarRegistrados()} />}
 
       {seccion === 'personas' && <AdminPanel initialUsers={usuarios} role={profile.role} currentUserId={profile.id} />}
 

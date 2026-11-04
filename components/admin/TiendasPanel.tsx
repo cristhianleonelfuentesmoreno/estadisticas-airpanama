@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Copy, KeyRound, MessageCircle, Plus, RefreshCw, Store, UserPlus, X } from 'lucide-react'
+import { Copy, KeyRound, MessageCircle, Plus, RefreshCw, Store, UserCheck, UserPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { confirmDialog } from '@/components/ui/dialogs'
-import { cambiarContrasenaDueno, crearDueno, crearTienda, quitarDeTienda, type TiendaAdmin } from '@/app/actions/tiendas'
+import {
+  agregarRegistrado, cambiarContrasenaDueno, crearDueno, crearTienda, quitarDeTienda, type Registrado, type TiendaAdmin,
+} from '@/app/actions/tiendas'
 import { limpiarUsuario } from '@/lib/cuenta'
 
 const ESTADO = {
@@ -26,7 +28,7 @@ function contrasenaNueva(): string {
 
 type Datos = { nombre: string; usuario: string; contrasena: string | null; tienda: string; yaExistia: boolean }
 
-export function TiendasPanel({ tiendas }: { tiendas: TiendaAdmin[] }) {
+export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[]; registrados: Registrado[] }) {
   const router = useRouter()
   const [creando, setCreando] = useState(false)
   const [agregandoEn, setAgregandoEn] = useState<TiendaAdmin | null>(null)
@@ -107,7 +109,7 @@ export function TiendasPanel({ tiendas }: { tiendas: TiendaAdmin[] }) {
       </ul>
 
       {creando && <NuevaTienda onCerrar={() => setCreando(false)} onListo={listo} />}
-      {agregandoEn && <AgregarDueno tienda={agregandoEn} onCerrar={() => setAgregandoEn(null)} onListo={listo} />}
+      {agregandoEn && <AgregarDueno tienda={agregandoEn} registrados={registrados} onCerrar={() => setAgregandoEn(null)} onListo={listo} />}
       {nuevaClave && <NuevaContrasena persona={nuevaClave} onCerrar={() => setNuevaClave(null)} onListo={listo} />}
       {datos && <DatosParaEntrar datos={datos} onCerrar={() => setDatos(null)} />}
     </section>
@@ -215,7 +217,25 @@ function NuevaTienda({ onCerrar, onListo }: { onCerrar: () => void; onListo: (d:
   )
 }
 
-function AgregarDueno({ tienda, onCerrar, onListo }: { tienda: TiendaAdmin; onCerrar: () => void; onListo: (d: Datos) => void }) {
+const ESTADO_REGISTRO = {
+  pendiente: { texto: 'Esperando aprobación', clase: 'bg-amber-100 text-amber-800' },
+  aprobado: { texto: 'Aprobado, sin tienda', clase: 'bg-slate-100 text-slate-600' },
+  rechazado: { texto: 'Rechazado', clase: 'bg-red-100 text-red-700' },
+} as const
+
+const fechaCorta = (iso: string) =>
+  iso ? new Intl.DateTimeFormat('es-PA', { timeZone: 'America/Panama', day: 'numeric', month: 'short' }).format(new Date(iso)) : ''
+
+function AgregarDueno({
+  tienda, registrados, onCerrar, onListo,
+}: {
+  tienda: TiendaAdmin
+  registrados: Registrado[]
+  onCerrar: () => void
+  onListo: (d: Datos) => void
+}) {
+  const [modo, setModo] = useState<'nueva' | 'registrado'>(registrados.some(r => r.estado === 'pendiente') ? 'registrado' : 'nueva')
+  const [agregando, startAgregar] = useTransition()
   const [nombre, setNombre] = useState('')
   const [usuario, setUsuario] = useState('')
   const [contrasena, setContrasena] = useState(contrasenaNueva)
@@ -230,14 +250,59 @@ function AgregarDueno({ tienda, onCerrar, onListo }: { tienda: TiendaAdmin; onCe
     })
   }
 
+  function elegir(r: Registrado) {
+    startAgregar(async () => {
+      const res = await agregarRegistrado(tienda.negocio_id, r.usuario_id)
+      if (!res.ok) return void toast.error(res.error)
+      onListo({ nombre: res.data.nombre, usuario: res.data.usuario, contrasena: null, tienda: tienda.nombre, yaExistia: true })
+    })
+  }
+
   return (
     <Ventana titulo={`Agregar dueño a ${tienda.nombre}`} onCerrar={onCerrar}>
-      <form onSubmit={guardar} className="flex flex-col gap-3">
-        <CamposDueno nombre={nombre} setNombre={setNombre} usuario={usuario} setUsuario={setUsuario} contrasena={contrasena} setContrasena={setContrasena} />
-        <button disabled={pendiente} className="mt-1 rounded-2xl bg-emerald-600 py-3.5 font-bold text-white disabled:opacity-50">
-          {pendiente ? 'Creando…' : 'Crear su cuenta'}
+      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+        <button onClick={() => setModo('nueva')} className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${modo === 'nueva' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}>
+          <UserPlus className="h-4 w-4" /> Crear cuenta nueva
         </button>
-      </form>
+        <button onClick={() => setModo('registrado')} className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold ${modo === 'registrado' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}>
+          <UserCheck className="h-4 w-4" /> Ya se registró
+          {registrados.length > 0 && <span className="rounded-full bg-amber-400 px-1.5 text-xs text-amber-950">{registrados.length}</span>}
+        </button>
+      </div>
+
+      {modo === 'nueva' ? (
+        <form onSubmit={guardar} className="flex flex-col gap-3">
+          <CamposDueno nombre={nombre} setNombre={setNombre} usuario={usuario} setUsuario={setUsuario} contrasena={contrasena} setContrasena={setContrasena} />
+          <button disabled={pendiente} className="mt-1 rounded-2xl bg-emerald-600 py-3.5 font-bold text-white disabled:opacity-50">
+            {pendiente ? 'Creando…' : 'Crear su cuenta'}
+          </button>
+        </form>
+      ) : registrados.length === 0 ? (
+        <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+          Nadie se ha registrado sin tienda. Cuando alguien se registre en la página de inicio, aparece aquí.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-slate-600">Toca a la persona: queda aprobada y como dueña de {tienda.nombre}. Entra con la contraseña que ella misma eligió.</p>
+          <ul className="flex flex-col gap-2">
+            {registrados.map(r => (
+              <li key={r.usuario_id}>
+                <button
+                  disabled={agregando}
+                  onClick={() => elegir(r)}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-left disabled:opacity-50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-800">{r.nombre || r.usuario}</p>
+                    <p className="truncate text-sm text-slate-500">{r.usuario}{r.creado_en ? ` · se registró el ${fechaCorta(r.creado_en)}` : ''}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_REGISTRO[r.estado].clase}`}>{ESTADO_REGISTRO[r.estado].texto}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Ventana>
   )
 }
