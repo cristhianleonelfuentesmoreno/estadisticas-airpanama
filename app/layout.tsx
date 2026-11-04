@@ -13,7 +13,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://airpanama-david.vercel.app"),
+  metadataBase: new URL("https://valisventasapp.vercel.app"),
   title: "Air Panama",
   description: "Plataforma de operaciones de la Estación Aeropuerto Internacional Enrique Malek: vuelos, registro histórico y reportes.",
   applicationName: "Air Panama",
