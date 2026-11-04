@@ -14,3 +14,4 @@ Sistema de tienda (inventario, escáner de código de barras, caja, estadística
 
 - **Autor de los commits en este repo**: `cristhianleonelfuentesmoreno <cristhianleonelfuentesmoreno@gmail.com>`. Manda sobre el correo de `REGLAS.md`.
 - No es el módulo ValisVen de ValisHub (venta de licencias): son proyectos distintos.
+- **Fusionar PRs: en este repo sí se permite** (decisión de Cristhian, 2026-11-04). Manda sobre el "nunca fusionar PRs" de `REGLAS.md`. Solo con el PR en verde (comprobaciones del repo y vista previa de Vercel), con `gh pr merge --squash --match-head-commit <sha>`, y revisando después que la publicación de producción quede en `READY`. Siguen prohibidos `push --force`, `reset --hard` y `--no-verify`.
