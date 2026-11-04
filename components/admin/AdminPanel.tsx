@@ -4,12 +4,9 @@ import { useState } from "react";
 import { updateUserStatus, updateUserRole, updateUserCargo, deleteUserAction, updateUserName, sendPasswordResetAction } from "@/app/actions/admin";
 import { toast } from "sonner";
 
-import { SettingsWidget } from "./SettingsWidget";
-import { DispositivosPanel } from "./DispositivosPanel";
-import { AuditoriaPanel } from "./AuditoriaPanel";
-import { VelocidadPanel } from "./VelocidadPanel";
 import { can, canManageAccount, ROLE_LABEL, type Role } from "@/lib/permissions";
 import { confirmDialog } from "@/components/ui/dialogs";
+import { esCuentaInterna, usuarioVisible } from "@/lib/cuenta";
 
 export interface User {
   id: string;
@@ -158,9 +155,6 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
-      {/* ========================================= */}
-      {/* WIDGET DE CONFIGURACIÓN Y APIs            */}
-      {/* ========================================= */}
       {/* Solicitudes de acceso de personas nuevas */}
       {pendingAccess.length > 0 && (
         <section className="flex flex-col gap-3 bg-amber-50/60 border border-amber-200 rounded-3xl p-5 md:p-6">
@@ -173,7 +167,7 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
             <div key={u.id} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white rounded-2xl p-3.5 border border-amber-100">
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-on-surface truncate">{u.nombre || 'Sin nombre'}</p>
-                <p className="text-sm text-on-surface-variant truncate">{u.email} · se registró el {new Date(u.created_at).toLocaleDateString('es-PA')}</p>
+                <p className="text-sm text-on-surface-variant truncate">{usuarioVisible(u.email)} · se registró el {new Date(u.created_at).toLocaleDateString('es-PA')}</p>
               </div>
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => quickStatus(u, 'rechazado')} disabled={quickBusy === u.id} className="px-4 h-10 rounded-xl font-bold text-sm bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
@@ -187,11 +181,6 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
             </div>
           ))}
         </section>
-      )}
-
-      {/* Configuración del sistema: solo administrador */}
-      {can.manageSettings(role) && (
-        <SettingsWidget />
       )}
 
       {/* Resumen del personal: cuentas reales, sin datos de ejemplo */}
@@ -252,7 +241,7 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
                       {user.nombre || "Sin Nombre"}
                     </span>
                     <span className="font-body-sm text-body-sm text-on-surface-variant truncate flex items-center gap-1">
-                      {user.email} <span className="opacity-50">•</span> <span>{ROLE_LABEL[user.role]}</span>
+                      {usuarioVisible(user.email)} <span className="opacity-50">•</span> <span>{ROLE_LABEL[user.role]}</span>
                     </span>
                   </div>
                 </div>
@@ -314,19 +303,6 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
       </section>
 
       {/* ========================================= */}
-      {/* PANEL DE DISPOSITIVOS ACTIVOS             */}
-      {/* ========================================= */}
-      <DispositivosPanel />
-
-      {/* ========================================= */}
-      {/* REGISTRO DE AUDITORIA Y FALLAS            */}
-      {/* ========================================= */}
-      <AuditoriaPanel />
-
-      {/* Velocidad real de la app (mediciones del equipo) */}
-      {can.viewAudit(role) && <VelocidadPanel />}
-
-      {/* ========================================= */}
       {/* MODAL DE EDICIÓN                          */}
       {/* ========================================= */}
       {editingUser && (
@@ -335,7 +311,7 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
             
             <div className="p-6 bg-primary-container text-on-primary">
               <h2 className="font-headline-sm font-bold">Editar Usuario</h2>
-              <p className="font-body-sm opacity-80 mt-1">{editingUser.email}</p>
+              <p className="font-body-sm opacity-80 mt-1">{usuarioVisible(editingUser.email)}</p>
             </div>
 
             <div className="p-6 flex flex-col gap-6">
@@ -398,6 +374,11 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
               {/* Acceso */}
               <div className="flex flex-col gap-2">
                 <label className="font-label-md font-bold text-on-surface">Acceso</label>
+                {esCuentaInterna(editingUser.email) ? (
+                  <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">
+                    Esta cuenta entra con usuario, sin correo. Para darle una contraseña nueva ve a <b>Tiendas → Nueva contraseña</b>.
+                  </p>
+                ) : <>
                 <button
                   type="button"
                   onClick={handleSendReset}
@@ -412,6 +393,7 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
                 <p className="font-body-sm text-xs text-on-surface-variant">
                   El usuario recibe un correo para crear una contraseña nueva. Tú no la ves en ningún momento.
                 </p>
+                </>}
               </div>
             </div>
 

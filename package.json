@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/alias.mjs \"lib/**/*.test.ts\"",
+    "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/alias.mjs \"lib/**/*.test.ts\" \"lib/*.test.ts\"",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
