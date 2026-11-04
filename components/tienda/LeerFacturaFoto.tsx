@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera, ImageUp, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { leerFacturaConFoto, type LineaFacturaFoto } from '@/app/actions/tienda'
 
@@ -29,7 +29,9 @@ async function prepararFoto(archivo: File): Promise<string> {
 }
 
 export default function LeerFacturaFoto({ tiendaId, onLeida }: { tiendaId: string; onLeida: (f: FacturaDeFoto) => void }) {
-  const entrada = useRef<HTMLInputElement>(null)
+  // Dos entradas: la cámara directo, o elegir una foto que ya está en el celular (WhatsApp, galería)
+  const camara = useRef<HTMLInputElement>(null)
+  const galeria = useRef<HTMLInputElement>(null)
   const [leyendo, setLeyendo] = useState(false)
 
   async function alElegir(e: React.ChangeEvent<HTMLInputElement>) {
@@ -55,14 +57,27 @@ export default function LeerFacturaFoto({ tiendaId, onLeida }: { tiendaId: strin
 
   return (
     <>
-      <button
-        onClick={() => entrada.current?.click()}
-        disabled={leyendo}
-        className="flex items-center justify-center gap-3 rounded-3xl bg-gradient-to-r from-emerald-700 to-emerald-500 py-5 text-xl font-bold text-white shadow-lg disabled:opacity-60"
-      >
-        <Camera className="h-8 w-8" /> Tomar foto de la factura
-      </button>
-      <input ref={entrada} type="file" accept="image/*" capture="environment" onChange={alElegir} className="hidden" />
+      <div className="flex flex-col gap-2 rounded-3xl bg-gradient-to-r from-emerald-700 to-emerald-500 p-3 shadow-lg">
+        <p className="px-1 text-sm font-semibold text-emerald-50">Leer la factura con inteligencia artificial</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => camara.current?.click()}
+            disabled={leyendo}
+            className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-white/15 py-4 text-base font-bold text-white disabled:opacity-60"
+          >
+            <Camera className="h-8 w-8" /> Tomar foto
+          </button>
+          <button
+            onClick={() => galeria.current?.click()}
+            disabled={leyendo}
+            className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-white/15 py-4 text-base font-bold text-white disabled:opacity-60"
+          >
+            <ImageUp className="h-8 w-8" /> Subir foto
+          </button>
+        </div>
+      </div>
+      <input ref={camara} type="file" accept="image/*" capture="environment" onChange={alElegir} className="hidden" />
+      <input ref={galeria} type="file" accept="image/*" onChange={alElegir} className="hidden" />
 
       {leyendo && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-emerald-950/85 px-8 text-center text-white">
