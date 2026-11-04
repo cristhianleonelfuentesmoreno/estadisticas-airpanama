@@ -14,18 +14,21 @@ const jakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://valisventasapp.vercel.app"),
-  title: "Air Panama",
-  description: "Plataforma de operaciones de la Estación Aeropuerto Internacional Enrique Malek: vuelos, registro histórico y reportes.",
-  applicationName: "Air Panama",
+  title: "ValisVentas",
+  description: "Caja, inventario y escáner de códigos de barras para tu tienda.",
+  applicationName: "ValisVentas",
+  // Instalada en el iPhone desde Safari: nombre, ícono y pantalla completa
+  appleWebApp: { capable: true, title: "ValisVentas", statusBarStyle: "default" },
+  icons: { apple: "/apple-icon.png" },
   // Herramienta interna: que los buscadores no la muestren (ver también app/robots.ts)
   robots: { index: false, follow: false, googleBot: { index: false, follow: false } },
   // Vista previa al compartir el enlace (WhatsApp, correo…); imagen en app/opengraph-image.png
   openGraph: {
     type: "website",
     locale: "es_PA",
-    siteName: "Air Panama",
-    title: "Air Panama · Plataforma de Operaciones",
-    description: "Estación Aeropuerto Internacional Enrique Malek. Acceso solo para personal autorizado.",
+    siteName: "ValisVentas",
+    title: "ValisVentas · Caja e inventario para tu tienda",
+    description: "Escanea, vende y controla tu inventario desde el celular.",
   },
 };
 
@@ -35,6 +38,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#047857",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
