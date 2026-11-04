@@ -1,10 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { headers } from 'next/headers'
 import { requireAdmin } from '@/lib/auth'
 import { logAudit } from '@/lib/audit'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { correoDeUsuario, usuarioVisible } from '@/lib/cuenta'
 import type { Resultado } from '@/lib/tienda/tipos'
 
 // Tiendas y sus dueños, desde el panel. Solo el administrador (equipo de Valis Digital).
@@ -28,7 +28,6 @@ export type TiendaAdmin = {
   personas: PersonaTienda[]
 }
 
-const correoValido = (c: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c)
 const limpio = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ').slice(0, max) : '')
 
 // "Mini Super San Judas 11" -> "mini-super-san-judas-11"
@@ -69,7 +68,7 @@ export async function listarTiendas(): Promise<TiendaAdmin[]> {
       .map(m => {
         const p = perfil.get(m.usuario_id as string)
         const estado: PersonaTienda['estado'] = p?.status !== 'aprobado' ? 'bloqueado' : entraron.has(m.usuario_id as string) ? 'activo' : 'invitado'
-        return { usuario_id: m.usuario_id as string, nombre: (p?.nombre as string | null) ?? null, email: (p?.email as string) ?? '', rol: m.rol as PersonaTienda['rol'], estado }
+        return { usuario_id: m.usuario_id as string, nombre: (p?.nombre as string | null) ?? null, email: usuarioVisible((p?.email as string) ?? ''), rol: m.rol as PersonaTienda['rol'], estado }
       }),
   }))
 }
@@ -100,50 +99,70 @@ export async function crearTienda(datos: { negocio: string; tienda: string }): P
   return { ok: true, data: { id: tie.id, negocio_id: neg.id } }
 }
 
-// Agrega a una persona como dueña del negocio. Si no tiene cuenta, le llega un correo para crear su contraseña
-// (también puede entrar con Google usando ese mismo correo).
-export async function agregarDueno(negocioId: string, datos: { email: string; nombre: string }): Promise<Resultado<{ invitado: boolean }>> {
+// Crea la cuenta del dueño en el momento, sin correos: el administrador le pasa el usuario y la contraseña
+// (WhatsApp o papel). Si la persona ya tenía cuenta, solo se agrega a la tienda y conserva su contraseña.
+export async function crearDueno(
+  negocioId: string, datos: { nombre: string; usuario: string; contrasena: string },
+): Promise<Resultado<{ usuario: string; contrasena: string | null; yaExistia: boolean }>> {
   const actor = await requireAdmin()
-  const email = limpio(datos.email, 120).toLowerCase()
   const nombre = limpio(datos.nombre, 80)
-  if (!correoValido(email)) return { ok: false, error: 'El correo no es válido' }
+  const email = correoDeUsuario(datos.usuario ?? '')
+  const contrasena = typeof datos.contrasena === 'string' ? datos.contrasena.trim() : ''
+  if (!nombre) return { ok: false, error: 'Escribe el nombre del dueño' }
+  if (!email) return { ok: false, error: 'El usuario debe tener al menos 3 letras o números (o ser un correo)' }
 
   const admin = createAdminClient()
   const { data: negocio } = await admin.from('negocios').select('id, nombre').eq('id', negocioId).single()
   if (!negocio) return { ok: false, error: 'Ese negocio no existe' }
 
   let usuarioId: string
-  let invitado = false
+  let yaExistia = false
   const { data: existente } = await admin.from('perfiles').select('id, nombre').ilike('email', email).maybeSingle()
   if (existente) {
     usuarioId = existente.id as string
+    yaExistia = true
   } else {
-    const h = await headers()
-    const origin = h.get('origin') ?? `https://${h.get('host')}`
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: nombre || undefined },
-      redirectTo: `${origin}/api/auth/confirm?next=/update-password`,
+    if (contrasena.length < 6) return { ok: false, error: 'La contraseña debe tener al menos 6 caracteres' }
+    const { data, error } = await admin.auth.admin.createUser({
+      email, password: contrasena, email_confirm: true, user_metadata: { full_name: nombre },
     })
-    if (error || !data.user) return { ok: false, error: 'No se pudo enviar la invitación a ese correo' }
+    if (error || !data.user) return { ok: false, error: 'No se pudo crear la cuenta. Prueba con otro usuario.' }
     usuarioId = data.user.id
-    invitado = true
   }
 
-  // Queda aprobado y con el rol de dueño de negocio (sin acceso al panel de administración)
+  // Aprobado y como dueño de negocio (sin panel). A una cuenta del equipo Valis no se le cambia el rol.
   const cambios: Record<string, string> = { status: 'aprobado' }
-  if (nombre && !existente?.nombre) cambios.nombre = nombre
-  if (invitado) cambios.role = 'usuario'
+  if (!existente?.nombre) cambios.nombre = nombre
+  if (!yaExistia) cambios.role = 'usuario'
   await admin.from('perfiles').update(cambios).eq('id', usuarioId)
 
   const { error: eMiembro } = await admin.from('miembros').upsert({ negocio_id: negocioId, usuario_id: usuarioId, rol: 'dueno' }, { onConflict: 'negocio_id,usuario_id' })
   if (eMiembro) return { ok: false, error: 'No se pudo agregar a la tienda' }
 
   await logAudit({
-    tipo_evento: 'edicion', actor, entidad: 'usuario', entidad_id: usuarioId,
-    nombre_referencia: email, descripcion: `Agregó a ${email} como dueño de ${negocio.nombre}${invitado ? ' (invitación por correo)' : ''}`,
+    tipo_evento: yaExistia ? 'edicion' : 'creacion', actor, entidad: 'usuario', entidad_id: usuarioId,
+    nombre_referencia: usuarioVisible(email), descripcion: `${yaExistia ? 'Agregó' : 'Creó la cuenta de'} ${nombre} como dueño de ${negocio.nombre}`,
   })
   revalidatePath('/admin')
-  return { ok: true, data: { invitado } }
+  return { ok: true, data: { usuario: usuarioVisible(email), contrasena: yaExistia ? null : contrasena, yaExistia } }
+}
+
+// Para cuando el dueño olvida su contraseña: el administrador le pone una nueva. Solo a dueños de negocio.
+export async function cambiarContrasenaDueno(usuarioId: string, contrasena: string): Promise<Resultado<{ usuario: string }>> {
+  const actor = await requireAdmin()
+  const nueva = typeof contrasena === 'string' ? contrasena.trim() : ''
+  if (nueva.length < 6) return { ok: false, error: 'La contraseña debe tener al menos 6 caracteres' }
+  const admin = createAdminClient()
+  const { data: p } = await admin.from('perfiles').select('email, role, nombre').eq('id', usuarioId).maybeSingle()
+  if (!p) return { ok: false, error: 'Esa cuenta no existe' }
+  if (p.role !== 'usuario') return { ok: false, error: 'Solo se cambia aquí la contraseña de los dueños de negocio' }
+  const { error } = await admin.auth.admin.updateUserById(usuarioId, { password: nueva })
+  if (error) return { ok: false, error: 'No se pudo cambiar la contraseña' }
+  await logAudit({
+    tipo_evento: 'edicion', actor, entidad: 'usuario', entidad_id: usuarioId,
+    nombre_referencia: usuarioVisible(p.email as string), descripcion: `Le puso una contraseña nueva a ${(p.nombre as string | null) ?? 'un dueño'}`,
+  })
+  return { ok: true, data: { usuario: usuarioVisible(p.email as string) } }
 }
 
 export async function quitarDeTienda(negocioId: string, usuarioId: string): Promise<Resultado> {

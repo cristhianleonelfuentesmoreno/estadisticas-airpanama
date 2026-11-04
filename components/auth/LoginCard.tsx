@@ -11,6 +11,7 @@ import { TermsModal } from "@/components/legal/TermsModal";
 import { TERMS_VERSION } from "@/lib/terms";
 import { alertDialog } from "@/components/ui/dialogs";
 import { frameFor, frameCss, DEFAULT_BG_ASPECT, type LoginBgSettings } from "@/lib/loginBackground";
+import { correoDeUsuario } from "@/lib/cuenta";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -330,10 +331,15 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     e.preventDefault();
     // Leemos del formulario: con autocompletado el estado puede ir un paso atrás
     const fields = e.currentTarget.elements;
-    const email = (fields.namedItem("email") as HTMLInputElement).value;
+    // Los dueños que crea el administrador entran con un usuario simple ("jeremias"), sin correo
+    const entrada = (fields.namedItem("email") as HTMLInputElement).value;
     const password = (fields.namedItem("password") as HTMLInputElement).value;
-    if (!email || !password) {
-      return toast.error("Ingresa correo y contraseña.");
+    if (!entrada || !password) {
+      return toast.error("Ingresa tu usuario y tu contraseña.");
+    }
+    const email = correoDeUsuario(entrada);
+    if (!email) {
+      return toast.error("Revisa el usuario o el correo.");
     }
     
     setLoading(true);
@@ -484,7 +490,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
             onAnimationStart={e => { if (e.animationName === "autofill-detect") setLogAutofilled(true); }}
             suppressHydrationWarning
           >
-            <input type="email" name="email" autoComplete="username" placeholder="Correo electrónico" value={logEmail} onChange={e => { setLogEmail(e.target.value); setLogAutofilled(false); }} required suppressHydrationWarning />
+            <input type="text" inputMode="email" autoCapitalize="none" autoCorrect="off" name="email" autoComplete="username" placeholder="Usuario o correo" value={logEmail} onChange={e => { setLogEmail(e.target.value); setLogAutofilled(false); }} required suppressHydrationWarning />
             
             <div className="password-wrapper">
               <input type={showLogPassword ? "text" : "password"} name="password" autoComplete="current-password" placeholder="Contraseña" value={logPassword} onChange={e => { setLogPassword(e.target.value); setLogAutofilled(false); }} required suppressHydrationWarning />
