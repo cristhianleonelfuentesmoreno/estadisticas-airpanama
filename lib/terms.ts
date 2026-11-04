@@ -1,6 +1,6 @@
 // Términos y condiciones de la plataforma. Si cambia el contenido, sube TERMS_VERSION:
 // queda guardada junto a la aceptación de cada registro.
-export const TERMS_VERSION = "2.0";
+export const TERMS_VERSION = "2.1";
 export const TERMS_DATE = "4 de noviembre de 2026";
 
 export const TERMS: { title: string; body: string[] }[] = [
@@ -37,7 +37,7 @@ export const TERMS: { title: string; body: string[] }[] = [
   {
     title: "5. Servicios que intervienen",
     body: [
-      "La información se almacena y se procesa en los proveedores de infraestructura de la plataforma (Supabase para la base de datos y la autenticación, y Vercel para el alojamiento), únicamente para prestar el servicio.",
+      "La información se almacena y se procesa en los proveedores de infraestructura de la plataforma (Supabase para la base de datos y la autenticación, y Vercel para el alojamiento), únicamente para prestar el servicio. Las fotos de facturas se procesan con Anthropic (Claude).",
       "Si te registras con Google, Google verifica tu identidad y comparte con la plataforma tu nombre, correo y foto de perfil.",
       "Cuando se escanea un código de barras que la tienda no tiene, se consulta ese código (solo el número) en el catálogo público Open Food Facts para sugerir el nombre, la marca y la foto del producto.",
     ],
@@ -45,7 +45,8 @@ export const TERMS: { title: string; body: string[] }[] = [
   {
     title: "6. Inteligencia artificial",
     body: [
-      "Por ahora la plataforma no envía tus datos a servicios de inteligencia artificial. La cámara se usa solo para leer códigos de barras en tu propio teléfono: las imágenes no se guardan ni se envían. Si más adelante se agrega la lectura de facturas con inteligencia artificial, se te avisará antes.",
+      "Cuando usas \"Tomar foto de la factura\", esa foto se envía a Claude, el servicio de inteligencia artificial de Anthropic, solo para leer los productos, cantidades y costos. La foto no se guarda en la plataforma y siempre revisas lo leído antes de guardarlo.",
+      "La cámara del escáner de códigos de barras se usa solo en tu propio teléfono: esas imágenes no se guardan ni se envían.",
     ],
   },
   {
