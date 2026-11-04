@@ -1,18 +1,17 @@
 import Link from "next/link";
-import { NotFoundScene } from "@/components/errors/NotFoundScene";
+import { SearchX } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <main className="nf">
-      <header className="nf__copy">
-        <h1 className="nf__title">Página no encontrada</h1>
-        <p className="nf__text">Esta ruta no está en nuestro itinerario.</p>
-        <Link href="/" className="nf__cta">
-          <span className="material-symbols-outlined" aria-hidden="true">flight_takeoff</span>
-          Volver al inicio
-        </Link>
-      </header>
-      <NotFoundScene />
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-slate-50 px-6 text-center">
+      <div className="rounded-3xl bg-emerald-100 p-5 text-emerald-700">
+        <SearchX className="h-12 w-12" />
+      </div>
+      <h1 className="text-2xl font-black text-slate-900">Página no encontrada</h1>
+      <p className="max-w-sm text-slate-600">Esta dirección no existe o no tienes acceso a esa tienda.</p>
+      <Link href="/" className="rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow">
+        Volver a la caja
+      </Link>
     </main>
   );
 }

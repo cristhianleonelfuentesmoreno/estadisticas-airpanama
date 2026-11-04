@@ -1,13 +1,13 @@
 // Términos y condiciones de la plataforma. Si cambia el contenido, sube TERMS_VERSION:
 // queda guardada junto a la aceptación de cada registro.
-export const TERMS_VERSION = "1.1";
-export const TERMS_DATE = "24 de septiembre de 2026";
+export const TERMS_VERSION = "2.0";
+export const TERMS_DATE = "4 de noviembre de 2026";
 
 export const TERMS: { title: string; body: string[] }[] = [
   {
     title: "1. Objeto de la plataforma",
     body: [
-      "Esta plataforma es una herramienta interna de AirPanama para registrar y analizar las operaciones de la Estación Aeropuerto Internacional Enrique Malek: llegadas, salidas, pasajeros, itinerarios y reportes.",
+      "ValisVentas es una plataforma de Valis Digital para que tiendas y abarroterías lleven su caja, su inventario, las facturas de sus proveedores y sus ventas. Cada negocio solo ve su propia información.",
     ],
   },
   {
@@ -22,15 +22,15 @@ export const TERMS: { title: string; body: string[] }[] = [
     title: "3. Datos que se registran",
     body: [
       "Datos de tu cuenta: nombre, correo electrónico y cargo.",
-      "Ubicación: las coordenadas de tu dispositivo al iniciar sesión. Es obligatoria para acceder.",
       "Datos de conexión: dirección IP, tipo de dispositivo, sistema operativo y navegador.",
-      "Actividad: páginas visitadas y acciones realizadas (crear, editar, aprobar, solicitar o resolver eliminaciones, importar y exportar), con fecha, hora y el valor anterior y nuevo de lo que se modifica.",
+      "Actividad: páginas visitadas y acciones realizadas (ventas, facturas de proveedor, cambios de productos y precios, aprobaciones), con fecha, hora y quién las hizo.",
+      "Datos de la tienda: productos, precios, costos, inventario, proveedores y ventas.",
     ],
   },
   {
     title: "4. Para qué se usan tus datos",
     body: [
-      "Exclusivamente para el funcionamiento de esta plataforma: proteger las cuentas, detectar accesos no autorizados, mantener la trazabilidad de los cambios (auditoría) y generar las estadísticas operativas de la estación.",
+      "Exclusivamente para el funcionamiento de esta plataforma: proteger las cuentas, detectar accesos no autorizados, mantener la trazabilidad de los cambios (auditoría) y darle al negocio sus propias cuentas y estadísticas.",
       "No se venden, no se usan con fines comerciales ni publicitarios y no se comparten con terceros fuera de lo indicado en el punto 5.",
     ],
   },
@@ -38,14 +38,14 @@ export const TERMS: { title: string; body: string[] }[] = [
     title: "5. Servicios que intervienen",
     body: [
       "La información se almacena y se procesa en los proveedores de infraestructura de la plataforma (Supabase para la base de datos y la autenticación, y Vercel para el alojamiento), únicamente para prestar el servicio.",
-      "Para mostrar la ciudad aproximada desde donde se inicia sesión, las coordenadas se consultan en el servicio de mapas OpenStreetMap (Nominatim).",
       "Si te registras con Google, Google verifica tu identidad y comparte con la plataforma tu nombre, correo y foto de perfil.",
+      "Cuando se escanea un código de barras que la tienda no tiene, se consulta ese código (solo el número) en el catálogo público Open Food Facts para sugerir el nombre, la marca y la foto del producto.",
     ],
   },
   {
     title: "6. Inteligencia artificial",
     body: [
-      "La plataforma no está conectada a servicios de inteligencia artificial. La lectura de imágenes de itinerarios se hace con reconocimiento de texto (OCR) dentro de la propia plataforma, sin enviar tus datos a servicios externos de inteligencia artificial.",
+      "Por ahora la plataforma no envía tus datos a servicios de inteligencia artificial. La cámara se usa solo para leer códigos de barras en tu propio teléfono: las imágenes no se guardan ni se envían. Si más adelante se agrega la lectura de facturas con inteligencia artificial, se te avisará antes.",
     ],
   },
   {
@@ -65,15 +65,15 @@ export const TERMS: { title: string; body: string[] }[] = [
     title: "9. Uso aceptable",
     body: [
       "Registrar información veraz y corregir los errores que detectes.",
-      "No compartir la información operativa fuera de la organización.",
-      "No intentar eludir los controles de seguridad, de ubicación o de permisos.",
-      "Solicitar las eliminaciones de registros por el medio previsto, indicando el motivo.",
+      "No compartir la información del negocio con personas ajenas a él.",
+      "No intentar eludir los controles de seguridad o de permisos.",
+      "Corregir los errores con los medios de la plataforma (por ejemplo, anular una venta) en lugar de borrar registros.",
     ],
   },
   {
     title: "10. Conservación y derechos",
     body: [
-      "Los datos se conservan mientras tu cuenta esté activa y por el tiempo necesario para la operación y la auditoría interna.",
+      "Los datos se conservan mientras tu cuenta esté activa y por el tiempo necesario para la operación del negocio y la auditoría.",
       "Puedes pedir al administrador la revisión o corrección de tus datos personales.",
       "El incumplimiento de estos términos puede llevar a la suspensión de la cuenta.",
     ],

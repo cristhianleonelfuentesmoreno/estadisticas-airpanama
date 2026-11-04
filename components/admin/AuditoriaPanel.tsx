@@ -10,8 +10,6 @@ import { ROLE_LABEL, toRole } from "@/lib/permissions";
 
 const CATEGORIAS: { id: AuditCategoria; label: string }[] = [
   { id: "todos", label: "Todo" },
-  { id: "vuelos", label: "Vuelos" },
-  { id: "solicitudes", label: "Solicitudes" },
   { id: "datos", label: "Importar / Exportar" },
   { id: "accesos", label: "Accesos" },
   { id: "usuarios", label: "Usuarios y config." },
@@ -140,7 +138,7 @@ export function AuditoriaPanel() {
           <span className="text-[12px] font-bold text-on-surface-variant w-10">Hasta</span>
           <input type="date" value={hasta} min={desde || undefined} onChange={e => change(() => setHasta(e.target.value))} className={`${inputCls} flex-1 min-w-0`} />
         </label>
-        <input type="search" value={texto} onChange={e => { setTexto(e.target.value); setLoading(true); }} placeholder="Buscar vuelo, persona o texto…" className={inputCls} aria-label="Buscar en la bitácora" />
+        <input type="search" value={texto} onChange={e => { setTexto(e.target.value); setLoading(true); }} placeholder="Buscar persona o texto…" className={inputCls} aria-label="Buscar en la bitácora" />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
         <label className={`flex items-center gap-2 text-sm font-semibold text-on-surface-variant ${categoria !== "todos" ? "opacity-40 pointer-events-none" : ""}`}>

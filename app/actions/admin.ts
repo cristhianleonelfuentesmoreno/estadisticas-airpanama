@@ -85,7 +85,7 @@ export async function updateUserStatus(userId: string, status: "aprobado" | "pen
 
   const verbo = status === 'aprobado' ? 'Aceptó el acceso' : status === 'rechazado' ? 'Rechazó el acceso' : 'Suspendió el acceso (pendiente)';
   await logUserChange(actor!, auth.target, `${verbo} de la cuenta`, { estado: { antes: before?.status ?? null, despues: status } });
-  revalidatePath("/dashboard");
+  revalidatePath("/admin");
   return { success: true };
 }
 
@@ -99,7 +99,7 @@ export async function updateUserRole(userId: string, role: Role) {
   if (error) return { error: error.message };
 
   await logUserChange(actor!, auth.target, `Cambió el rol: ${ROLE_LABEL[auth.target.role]} → ${ROLE_LABEL[role]}`, { rol: { antes: auth.target.role, despues: role } });
-  revalidatePath("/dashboard");
+  revalidatePath("/admin");
   return { success: true };
 }
 
@@ -115,7 +115,7 @@ export async function updateUserCargo(userId: string, cargo: string | null) {
   if (error) return { error: error.message };
 
   await logUserChange(actor!, auth.target, `Cambió el cargo: ${before?.cargo || '—'} → ${value || '—'}`, { cargo: { antes: before?.cargo ?? null, despues: value } });
-  revalidatePath("/dashboard");
+  revalidatePath("/admin");
   return { success: true };
 }
 
@@ -129,7 +129,7 @@ export async function updateUserName(userId: string, nombre: string | null) {
   if (error) return { error: error.message };
 
   await logUserChange(actor!, auth.target, `Cambió el nombre: ${auth.target.nombre || '—'} → ${value || '—'}`, { nombre: { antes: auth.target.nombre, despues: value } });
-  revalidatePath("/dashboard");
+  revalidatePath("/admin");
   return { success: true };
 }
 
@@ -146,7 +146,7 @@ export async function deleteUserAction(userId: string) {
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
   if (error) return { error: error.message };
 
-  revalidatePath("/dashboard");
+  revalidatePath("/admin");
   return { success: true };
 }
 

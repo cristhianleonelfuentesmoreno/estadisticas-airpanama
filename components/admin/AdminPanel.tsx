@@ -7,8 +7,6 @@ import { toast } from "sonner";
 import { SettingsWidget } from "./SettingsWidget";
 import { DispositivosPanel } from "./DispositivosPanel";
 import { AuditoriaPanel } from "./AuditoriaPanel";
-import { FleetKnowledgePanel } from "./FleetKnowledgePanel";
-import { DeletionRequestsPanel } from "./DeletionRequestsPanel";
 import { VelocidadPanel } from "./VelocidadPanel";
 import { can, canManageAccount, ROLE_LABEL, type Role } from "@/lib/permissions";
 import { confirmDialog } from "@/components/ui/dialogs";
@@ -191,9 +189,6 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
         </section>
       )}
 
-      {/* Solicitudes de eliminación de vuelos */}
-      {can.reviewDeletionRequests(role) && <DeletionRequestsPanel />}
-
       {/* Configuración del sistema: solo administrador */}
       {can.manageSettings(role) && (
         <SettingsWidget />
@@ -317,11 +312,6 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
           </div>
         )}
       </section>
-
-      {/* ========================================= */}
-      {/* FLOTA Y TRIPULACIÓN (base de conocimiento) */}
-      {/* ========================================= */}
-      {can.manageFleet(role) && <FleetKnowledgePanel />}
 
       {/* ========================================= */}
       {/* PANEL DE DISPOSITIVOS ACTIVOS             */}
