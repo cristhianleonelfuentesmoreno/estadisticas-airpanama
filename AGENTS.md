@@ -7,3 +7,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# ValisVentas
+
+Sistema de tienda (inventario, escáner de código de barras, caja, estadísticas). Reemplaza a Estadísticas Air Panama y reutiliza su repo, Vercel y Supabase. El plan técnico está en `docs/VALISVENTAS-BASE.md`: léelo antes de cambiar algo.
+
+- **Autor de los commits en este repo**: `cristhianleonelfuentesmoreno <cristhianleonelfuentesmoreno@gmail.com>`. Manda sobre el correo de `REGLAS.md`.
+- No es el módulo ValisVen de ValisHub (venta de licencias): son proyectos distintos.
