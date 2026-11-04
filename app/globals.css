@@ -260,3 +260,88 @@
     width: 60%;
   }
 }
+
+/* ── Movimiento de ValisVentas ──────────────────────────────────────────
+   Botones que se hunden al tocarlos, pantallas que entran suave,
+   barras que crecen y cifras que cuentan. Todo se apaga si el teléfono
+   pide menos movimiento. */
+@layer base {
+  button, a { -webkit-tap-highlight-color: transparent; }
+  button, a {
+    transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s, color 0.2s, box-shadow 0.2s;
+  }
+  button:active:not(:disabled), a:active { transform: scale(0.97); }
+}
+
+@keyframes entrar {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.pagina { animation: entrar 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.escalonado > * { animation: entrar 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.escalonado > :nth-child(2) { animation-delay: 0.06s; }
+.escalonado > :nth-child(3) { animation-delay: 0.12s; }
+.escalonado > :nth-child(4) { animation-delay: 0.18s; }
+.escalonado > :nth-child(5) { animation-delay: 0.24s; }
+.escalonado > :nth-child(6) { animation-delay: 0.3s; }
+.escalonado > :nth-child(n + 7) { animation-delay: 0.36s; }
+
+@keyframes crecer-y { from { transform: scaleY(0); } }
+.barra-y {
+  transform-origin: bottom;
+  animation: crecer-y 0.8s cubic-bezier(0.25, 1, 0.3, 1) both;
+  animation-delay: calc(0.15s + var(--i, 0) * 45ms);
+}
+@keyframes crecer-x { from { transform: scaleX(0); } }
+.barra-x {
+  transform-origin: left;
+  animation: crecer-x 0.9s cubic-bezier(0.25, 1, 0.3, 1) both;
+  animation-delay: calc(0.25s + var(--i, 0) * 70ms);
+}
+
+/* Brillo que cruza una tarjeta una sola vez al aparecer */
+@keyframes brillo { from { transform: translateX(-120%) skewX(-20deg); } to { transform: translateX(260%) skewX(-20deg); } }
+.brillo { position: relative; overflow: hidden; }
+.brillo::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.18), transparent);
+  animation: brillo 1.4s 0.4s ease-out both; pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pagina, .escalonado > *, .barra-y, .barra-x, .brillo::after { animation: none; }
+  button:active:not(:disabled), a:active { transform: none; }
+}
+
+/* Caja: línea láser que recorre el ícono del escáner */
+@keyframes laser { 0%, 100% { top: 10%; } 50% { top: 85%; } }
+.linea-escaner { animation: laser 1.8s ease-in-out infinite; }
+
+/* Producto que entra al ticket: se desliza y se ilumina un momento */
+@keyframes fila-nueva {
+  from { opacity: 0; transform: translateX(-12px); background-color: rgb(209 250 229); }
+  60% { background-color: rgb(236 253 245); }
+  to { opacity: 1; transform: none; background-color: transparent; }
+}
+.fila-nueva { animation: fila-nueva 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Venta registrada: la tarjeta salta y el check aparece */
+@keyframes venta-lista {
+  0% { opacity: 0; transform: scale(0.7); }
+  55% { opacity: 1; transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.venta-lista { animation: venta-lista 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .linea-escaner, .fila-nueva, .venta-lista { animation: none; }
+}
+
+/* Ventanas que suben desde abajo en el celular (y aparecen al centro en la computadora) */
+@keyframes oscurecer { from { background-color: rgb(0 0 0 / 0); } }
+@keyframes subir { from { transform: translateY(40px); opacity: 0; } }
+.hoja { animation: oscurecer 0.25s ease-out both; }
+.hoja > * { animation: subir 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .hoja, .hoja > * { animation: none; }
+}

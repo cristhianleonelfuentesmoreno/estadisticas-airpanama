@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { anularVenta } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero } from '@/lib/tienda/formato'
 import type { VentaDelDia } from '@/lib/tienda/tipos'
+import Cifra from '@/components/ui/Cifra'
 
 const METODO = { efectivo: 'Efectivo', yappy: 'Yappy', tarjeta: 'Tarjeta' } as const
 const MOTIVOS = ['Me equivoqué al cobrar', 'El cliente devolvió el producto', 'Otro motivo']
@@ -39,14 +40,14 @@ export default function VentasHoy({ tiendaId, slug, ventas }: { tiendaId: string
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="escalonado mx-auto flex w-full max-w-xl flex-col gap-4">
       <Link href={`/t/${slug}/caja`} className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
         <ArrowLeft className="h-4 w-4" /> Volver a la caja
       </Link>
-      <div className="rounded-2xl bg-white p-4 shadow-sm">
-        <p className="text-sm text-slate-500">Hoy</p>
-        <p className="text-3xl font-black text-slate-900">{dinero(total)}</p>
-        <p className="text-sm text-slate-500">{validas.length} ventas</p>
+      <div className="rounded-3xl bg-gradient-to-br from-emerald-700 to-emerald-950 p-5 text-white shadow-lg shadow-emerald-900/20">
+        <p className="text-sm text-emerald-100/90">Hoy</p>
+        <p className="text-4xl font-black"><Cifra valor={total} /></p>
+        <p className="text-sm text-emerald-100/90">{validas.length} {validas.length === 1 ? 'venta' : 'ventas'}</p>
       </div>
 
       {ventas.length === 0 && <p className="py-10 text-center text-slate-500">Todavía no hay ventas hoy.</p>}
@@ -81,7 +82,7 @@ export default function VentasHoy({ tiendaId, slug, ventas }: { tiendaId: string
       </ul>
 
       {anulando && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center">
+        <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
           <div className="flex w-full max-w-sm flex-col gap-4 rounded-t-3xl bg-white p-5 sm:rounded-3xl">
             <div>
               <p className="text-lg font-bold">¿Anular la venta de {dinero(anulando.total)}?</p>

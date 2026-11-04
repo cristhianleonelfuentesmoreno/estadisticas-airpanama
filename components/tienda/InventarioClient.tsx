@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, MessageCircle, ScanBarcode, Search, X } from 'lucide-react'
+import { AlertTriangle, CircleDollarSign, MessageCircle, Package, ScanBarcode, Search, Wallet, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, precioParaGanar, textoPedido } from '@/lib/tienda/formato'
@@ -64,15 +64,17 @@ export default function InventarioClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-2">
-        <Tarjeta titulo="Productos" valor={String(resumen.total)} />
+      <div className="escalonado grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+        <button onClick={() => setFiltro('todos')} className="text-left">
+          <Tarjeta titulo="Productos" valor={String(resumen.total)} Icono={Package} tono="emerald" activa={filtro === 'todos'} />
+        </button>
         <button onClick={() => setFiltro('por-agotarse')} className="text-left">
-          <Tarjeta titulo="Por agotarse" valor={String(resumen.porAgotarse)} alerta={resumen.porAgotarse > 0} nota={resumen.porAgotarse > 0 ? 'Toca para ver la lista' : undefined} />
+          <Tarjeta titulo="Por agotarse" valor={String(resumen.porAgotarse)} Icono={AlertTriangle} tono={resumen.porAgotarse > 0 ? 'red' : 'emerald'} activa={filtro === 'por-agotarse'} nota={resumen.porAgotarse > 0 ? 'Toca para ver la lista' : undefined} />
         </button>
         <button onClick={() => setFiltro('sin-costo')} className="text-left">
-          <Tarjeta titulo="Sin costo" valor={String(resumen.sinCosto)} alerta={resumen.sinCosto > 0} nota={resumen.sinCosto > 0 ? 'No se sabe cuánto ganas en ellos' : 'Todos tienen costo'} />
+          <Tarjeta titulo="Sin costo" valor={String(resumen.sinCosto)} Icono={CircleDollarSign} tono={resumen.sinCosto > 0 ? 'amber' : 'emerald'} activa={filtro === 'sin-costo'} nota={resumen.sinCosto > 0 ? 'No se sabe cuánto ganas en ellos' : 'Todos tienen costo'} />
         </button>
-        <Tarjeta titulo="Inventario a precio de venta" valor={dinero(resumen.venta)} />
+        <Tarjeta titulo="Tu mercancía vale" valor={dinero(resumen.venta)} Icono={Wallet} tono="lime" nota="a precio de venta" />
       </div>
 
       <div className="flex gap-2">
@@ -80,14 +82,14 @@ export default function InventarioClient({
           <Search className="h-5 w-5 text-slate-400" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar producto o categoría" className="w-full bg-transparent py-3.5 focus:outline-none" />
         </div>
-        <button onClick={() => setEscaneando(true)} aria-label="Escanear" className="rounded-2xl bg-emerald-600 px-4 text-white shadow">
+        <button onClick={() => setEscaneando(true)} aria-label="Escanear" className="rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 px-4 text-white shadow-md shadow-emerald-700/30">
           <ScanBarcode className="h-6 w-6" />
         </button>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {([['todos', 'Todos'], ['por-agotarse', 'Por agotarse'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
-          <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold ${filtro === f ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-sm'}`}>
+          <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${filtro === f ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25' : 'bg-white text-slate-600 shadow-sm hover:bg-emerald-50'}`}>
             {nombre}
           </button>
         ))}
@@ -104,17 +106,17 @@ export default function InventarioClient({
         </a>
       )}
 
-      <ul className="divide-y divide-slate-100 rounded-3xl bg-white shadow-sm">
+      <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-3xl bg-slate-100 shadow-sm lg:grid-cols-2">
         {lista.map(p => (
-          <li key={p.id}>
-            <button onClick={() => setAbierto(p)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+          <li key={p.id} className="bg-white">
+            <button onClick={() => setAbierto(p)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-emerald-50/60 active:scale-100">
               <FotoProducto producto={p} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-slate-800">{p.nombre}</p>
                 <p className="truncate text-xs text-slate-500">{p.categoria ?? 'Sin categoría'}{p.codigo_barras ? ` · ${p.codigo_barras}` : ''}</p>
               </div>
               <div className="text-right">
-                <p className={`font-bold ${!p.contado ? 'text-slate-400' : p.stock <= 0 ? 'text-red-600' : porAgotarse(p) ? 'text-amber-600' : 'text-slate-800'}`}>{p.contado ? fmtCantidad(p.stock, p.vende_por) : 'sin contar'}</p>
+                <p className={`ml-auto w-fit rounded-full px-2 py-0.5 text-sm font-bold ${!p.contado ? 'bg-slate-100 text-slate-400' : p.stock <= 0 ? 'bg-red-50 text-red-600' : porAgotarse(p) ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-800'}`}>{p.contado ? fmtCantidad(p.stock, p.vende_por) : 'sin contar'}</p>
                 <p className="text-xs text-slate-500">{dinero(p.precio_venta)}{p.vende_por === 'libra' ? '/lb' : ''}</p>
                 {gananciaPorUnidad(p.precio_venta, p.costo) === null
                   ? <p className="text-[11px] font-semibold text-amber-600">sin costo</p>
@@ -123,7 +125,7 @@ export default function InventarioClient({
             </button>
           </li>
         ))}
-        {!lista.length && <li className="px-4 py-10 text-center text-slate-500">No hay productos con ese filtro.</li>}
+        {!lista.length && <li className="bg-white px-4 py-10 text-center text-slate-500 lg:col-span-2">No hay productos con ese filtro.</li>}
       </ul>
 
       {escaneando && <Escaner titulo="Escanea para buscar" onCodigo={alEscanear} onCerrar={() => setEscaneando(false)} />}
@@ -157,11 +159,21 @@ export default function InventarioClient({
   )
 }
 
-function Tarjeta({ titulo, valor, nota, alerta }: { titulo: string; valor: string; nota?: string; alerta?: boolean }) {
+const TONOS = {
+  emerald: 'bg-emerald-100 text-emerald-700',
+  red: 'bg-red-100 text-red-600',
+  amber: 'bg-amber-100 text-amber-700',
+  lime: 'bg-lime-200 text-emerald-900',
+} as const
+
+function Tarjeta({ titulo, valor, nota, Icono, tono, activa }: { titulo: string; valor: string; nota?: string; Icono: LucideIcon; tono: keyof typeof TONOS; activa?: boolean }) {
   return (
-    <div className="rounded-2xl bg-white p-3 shadow-sm">
-      <p className="text-xs text-slate-500">{titulo}</p>
-      <p className={`text-xl font-black ${alerta ? 'text-red-600' : 'text-slate-900'}`}>{valor}</p>
+    <div className={`h-full rounded-2xl bg-white p-3 shadow-sm ring-2 transition-shadow lg:p-4 ${activa ? 'ring-emerald-500' : 'ring-transparent'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">{titulo}</p>
+        <span className={`flex h-7 w-7 items-center justify-center rounded-full ${TONOS[tono]}`}><Icono className="h-4 w-4" /></span>
+      </div>
+      <p className={`text-xl font-black lg:text-2xl ${tono === 'red' ? 'text-red-600' : 'text-slate-900'}`}>{valor}</p>
       {nota && <p className="text-[11px] text-slate-400">{nota}</p>}
     </div>
   )
@@ -215,7 +227,7 @@ function FichaProducto({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center">
+    <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
       <form onSubmit={guardar} className="flex max-h-[92dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-t-3xl bg-white p-5 sm:rounded-3xl">
         <div className="flex items-start gap-3">
           <FotoProducto producto={producto} tamano="h-16 w-16" />

@@ -482,7 +482,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
         />
         
         <div className={`form login ${activeView === "login" ? "active" : ""}`}>
-          <Image src="/logo.png" alt="ValisVentas" width={520} height={384} priority style={{ width: 100, height: "auto", marginBottom: -6 }} />
+          <Image src="/logo-valisventas.png" alt="ValisVentas" width={520} height={384} priority style={{ width: 100, height: "auto", marginBottom: -6 }} />
           <h2>Iniciar Sesión</h2>
           <GoogleButton text="Ingresa con Google" onClick={() => handleGoogleAuth('login')} loading={loading} />
           <p>O usa tu cuenta local</p>
