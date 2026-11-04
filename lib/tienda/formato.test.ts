@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cantidad, dinero, inicioDeHoyPanama, margen, normalizarCodigo, redondear2 } from "@/lib/tienda/formato";
+import { cantidad, dinero, inicioDeHoyPanama, margen, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, redondear2, textoPedido } from "@/lib/tienda/formato";
 
 test("redondea la plata a centavos sin errores de coma flotante", () => {
   assert.equal(redondear2(0.1 + 0.2), 0.3);
@@ -33,4 +33,24 @@ test("un UPC leído con 13 dígitos es el mismo producto que con 12", () => {
   assert.equal(normalizarCodigo("0041789002915"), "041789002915"); // Maruchan
   assert.equal(normalizarCodigo("041789002915"), "041789002915");
   assert.equal(normalizarCodigo("7451011301106"), "7451011301106"); // EAN-13 de Panamá no cambia
+});
+
+test("avisa cuando el stock llega al mínimo; sin mínimo propio avisa con 1 o menos", () => {
+  assert.equal(porAgotarse({ stock: 1, stock_minimo: null, contado: true }), true);
+  assert.equal(porAgotarse({ stock: 2, stock_minimo: null, contado: true }), false);
+  assert.equal(porAgotarse({ stock: 10, stock_minimo: 12, contado: true }), true);
+  assert.equal(porAgotarse({ stock: 1, stock_minimo: 0, contado: true }), false);
+  assert.equal(minimoDe({ stock_minimo: null }), MINIMO_POR_DEFECTO);
+});
+
+test("lo que nunca se contó no avisa aunque su stock sea 0", () => {
+  assert.equal(porAgotarse({ stock: 0, stock_minimo: null, contado: false }), false);
+});
+
+test("arma la lista de pedido con lo que más falta primero", () => {
+  const texto = textoPedido([
+    { nombre: "Coca-Cola 2L", stock: 2, stock_minimo: null, vende_por: "unidad", contado: true },
+    { nombre: "Papa", stock: 0, stock_minimo: 5, vende_por: "libra", contado: true },
+  ], "Mini Super");
+  assert.equal(texto, "Pedido para Mini Super:\n• Papa (no hay)\n• Coca-Cola 2L (quedan 2)");
 });

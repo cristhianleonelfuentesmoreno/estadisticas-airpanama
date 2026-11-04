@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Banknote, CreditCard, ListChecks, Lock, Minus, Plus, ScanBarcode, Scale, Search, Smartphone, Trash2 } from 'lucide-react'
+import { AlertTriangle, Banknote, CreditCard, ListChecks, Lock, Minus, Plus, ScanBarcode, Scale, Search, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { registrarVenta } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, normalizarCodigo, redondear2 } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, normalizarCodigo, porAgotarse, redondear2 } from '@/lib/tienda/formato'
 import type { MetodoPago, Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
@@ -56,7 +56,13 @@ export default function CajaClient({
     return productos.filter(p => p.nombre.toLowerCase().includes(f) || p.codigo_barras === f).slice(0, 8)
   }, [productos, busqueda])
 
+  // Un solo aviso de "no hay" por producto en cada venta (el escaneo continuo no debe llenar la pantalla)
+  const avisados = useRef(new Set<string>())
   const agregar = useCallback((p: Producto, cant = 1) => {
+    if (p.contado && p.stock <= 0 && !avisados.current.has(p.id)) {
+      avisados.current.add(p.id)
+      toast.warning(`El sistema dice que no hay ${p.nombre}. Se puede vender igual; revisa el inventario después.`)
+    }
     setLineas(ls => {
       const i = ls.findIndex(l => l.producto.id === p.id)
       if (i >= 0 && p.vende_por === 'unidad') {
@@ -119,18 +125,33 @@ export default function CajaClient({
         return
       }
       toast.success(`Venta registrada: ${dinero(total)}`)
-      setProductos(ps => ps.map(p => {
+      const actualizados = productos.map(p => {
         const vendido = lineas.filter(l => l.producto.id === p.id).reduce((s, l) => s + l.cantidad, 0)
         return vendido ? { ...p, stock: p.stock - vendido } : p
-      }))
+      })
+      const quedanPocos = actualizados.filter(p => lineas.some(l => l.producto.id === p.id) && porAgotarse(p))
+      if (quedanPocos.length) {
+        toast.warning(`Te quedan pocos: ${quedanPocos.slice(0, 3).map(p => `${p.nombre} (${p.stock <= 0 ? 'no hay' : fmtCantidad(p.stock, p.vende_por)})`).join(', ')}${quedanPocos.length > 3 ? ` y ${quedanPocos.length - 3} más` : ''}`, { duration: 6000 })
+      }
+      setProductos(actualizados)
+      avisados.current.clear()
       setLineas([])
       setRecibido('')
       router.refresh()
     })
   }
 
+  const porAgotarseCantidad = productos.filter(porAgotarse).length
+
   return (
     <div className="flex flex-col gap-4">
+      {porAgotarseCantidad > 0 && (
+        <Link href={`/t/${slug}/inventario?filtro=por-agotarse`} className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          {porAgotarseCantidad === 1 ? '1 producto está por agotarse' : `${porAgotarseCantidad} productos están por agotarse`}
+          <span className="ml-auto underline">Ver</span>
+        </Link>
+      )}
       <div className="rounded-2xl bg-white p-3 shadow-sm">
         <div className="flex items-baseline justify-between px-1">
           <span className="text-sm text-slate-500">Vendido hoy</span>

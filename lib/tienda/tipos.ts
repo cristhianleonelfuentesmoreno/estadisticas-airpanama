@@ -21,7 +21,10 @@ export type Producto = {
   costo: number | null
   itbms: number
   imagen_url: string | null
+  stock_minimo: number | null
   stock: number
+  // false si nunca se contó ni entró nada: su stock 0 no significa que se acabó
+  contado: boolean
 }
 
 // Lo que devuelve Open Food Facts para llenar un producto nuevo

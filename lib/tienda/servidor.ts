@@ -21,9 +21,10 @@ export const getTienda = cache(async (slug: string): Promise<Tienda | null> => {
   return tiendas.find(t => t.slug === slug) ?? null
 })
 
-type FilaProducto = Omit<Producto, 'stock' | 'precio_venta' | 'costo' | 'itbms'> & {
+type FilaProducto = Omit<Producto, 'stock' | 'precio_venta' | 'costo' | 'itbms' | 'stock_minimo'> & {
   precio_venta: number | string | null
   costo: number | string | null
+  stock_minimo: number | string | null
   itbms: number | string
 }
 
@@ -36,7 +37,7 @@ export async function getProductos(tienda: Tienda): Promise<Producto[]> {
   const [{ data: productos }, { data: stock }] = await Promise.all([
     supabase
       .from('productos')
-      .select('id, nombre, marca, presentacion, categoria, codigo_barras, vende_por, precio_venta, costo, itbms, imagen_url')
+      .select('id, nombre, marca, presentacion, categoria, codigo_barras, vende_por, precio_venta, costo, itbms, imagen_url, stock_minimo')
       .eq('negocio_id', tienda.negocio_id)
       .eq('activo', true)
       .order('nombre')
@@ -48,8 +49,10 @@ export async function getProductos(tienda: Tienda): Promise<Producto[]> {
     ...p,
     precio_venta: aNumero(p.precio_venta),
     costo: aNumero(p.costo),
+    stock_minimo: aNumero(p.stock_minimo),
     itbms: Number(p.itbms),
     stock: porProducto.get(p.id) ?? 0,
+    contado: porProducto.has(p.id),
   }))
 }
 
