@@ -4,14 +4,18 @@ import { getSessionProfile } from '@/lib/auth'
 import { AdminPanel, type User } from '@/components/admin/AdminPanel'
 import { IaPanel } from '@/components/admin/IaPanel'
 import { obtenerConfigIa } from '@/app/actions/ia'
+import { TiendasPanel } from '@/components/admin/TiendasPanel'
+import { listarTiendas } from '@/app/actions/tiendas'
 
 export default async function AdminPage() {
   // El layout ya verificó la sesión y el rol
   const profile = await getSessionProfile()
   if (!profile) return null
-  const [{ users }, configIa] = await Promise.all([
+  const esAdmin = profile.role === 'administrador'
+  const [{ users }, configIa, tiendas] = await Promise.all([
     fetchAllUsers(),
-    profile.role === 'administrador' ? obtenerConfigIa() : Promise.resolve(null),
+    esAdmin ? obtenerConfigIa() : Promise.resolve(null),
+    esAdmin ? listarTiendas() : Promise.resolve(null),
   ])
 
   return (
@@ -31,6 +35,7 @@ export default async function AdminPage() {
           <ExternalLink className="h-4 w-4" /> Ver la página de login
         </a>
       </div>
+      {tiendas && <TiendasPanel tiendas={tiendas} />}
       {configIa && <IaPanel config={configIa} />}
       <AdminPanel initialUsers={(users as User[] | undefined) ?? []} role={profile.role} currentUserId={profile.id} />
     </div>
