@@ -3,10 +3,10 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, PartyPopper, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, MessageCircle, PartyPopper, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { cerrarCaja } from '@/app/actions/tienda'
-import { dinero, redondear2 } from '@/lib/tienda/formato'
+import { dinero, redondear2, textoCierre } from '@/lib/tienda/formato'
 import type { CierreDia as Cierre, ResumenDia } from '@/lib/tienda/tipos'
 import Cifra from '@/components/ui/Cifra'
 
@@ -22,9 +22,10 @@ function Diferencia({ diferencia }: { diferencia: number }) {
 }
 
 export default function CierreDia({
-  tiendaId, slug, resumen, cierre,
+  tiendaId, tiendaNombre, slug, resumen, cierre,
 }: {
   tiendaId: string
+  tiendaNombre: string
   slug: string
   resumen: ResumenDia
   cierre: Cierre | null
@@ -78,7 +79,19 @@ export default function CierreDia({
           {resumen.total_ventas !== cierre.total_ventas && (
             <p className="text-sm text-amber-700">Hubo ventas después del cierre. Vuelve a contar para incluirlas.</p>
           )}
-          <button onClick={() => setContando(true)} className="mt-2 rounded-2xl bg-slate-100 px-5 py-3 font-semibold text-slate-700">
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(textoCierre({
+              tienda: tiendaNombre, fecha: cierre.fecha, ventas: resumen.ventas_cantidad, total: cierre.total_ventas,
+              efectivo: resumen.efectivo, yappy: resumen.yappy, tarjeta: resumen.tarjeta, ganancia: cierre.ganancia,
+              esperado: cierre.efectivo_esperado, contado: cierre.efectivo_contado, diferencia: cierre.diferencia,
+            }))}`}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3.5 text-base font-bold text-white shadow"
+          >
+            <MessageCircle className="h-5 w-5" /> Mandar el resumen por WhatsApp
+          </a>
+          <button onClick={() => setContando(true)} className="rounded-2xl bg-slate-100 px-5 py-3 font-semibold text-slate-700">
             Volver a contar
           </button>
         </section>

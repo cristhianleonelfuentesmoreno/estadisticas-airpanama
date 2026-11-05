@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cambioPorcentual, costoDe, diasParaVencer, sumarMeses, textoVence, vencePronto, venceQueda, porcentajeValido, totalDe, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
+import { agruparPorProveedor, precioSugerido, textoCierre, cambioPorcentual, costoDe, diasParaVencer, sumarMeses, textoVence, vencePronto, venceQueda, porcentajeValido, totalDe, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
 
 test("redondea la plata a centavos sin errores de coma flotante", () => {
   assert.equal(redondear2(0.1 + 0.2), 0.3);
@@ -118,4 +118,25 @@ test("caducidad: con mercancía nueva queda la fecha que vence primero", () => {
   assert.equal(venceQueda("2026-12-01", "2027-01-01", "2026-11-05"), "2026-12-01");
   assert.equal(venceQueda("2027-02-01", "2027-01-01", "2026-11-05"), "2027-01-01");
   assert.equal(venceQueda("2026-10-01", "2027-01-01", "2026-11-05"), "2027-01-01");
+});
+
+test("pedido: con proveedor en el título y agrupado por proveedor", () => {
+  assert.equal(textoPedido([{ nombre: "Papa", stock: 0, stock_minimo: 5, vende_por: "libra", contado: true }], "Mini Super", "Feduro"),
+    "Pedido para Mini Super · Feduro:\n• Papa (no hay)");
+  const g = agruparPorProveedor([{ id: "a" }, { id: "b" }, { id: "c" }], { a: "Feduro", c: "AJE" });
+  assert.deepEqual(g.map(x => [x.proveedor, x.productos.map(p => p.id)]), [["AJE", ["c"]], ["Feduro", ["a"]], [null, ["b"]]]);
+});
+
+test("sube el costo: sugiere el precio para seguir ganando el %", () => {
+  assert.equal(precioSugerido(0.5, 0.4, 0.42, 19), 0.55); // gana 16 %, quiere 19 %
+  assert.equal(precioSugerido(0.5, 0.4, 0.38, 19), null); // bajó el costo
+  assert.equal(precioSugerido(0.6, 0.4, 0.41, 30), null); // sigue ganando 32 %
+  assert.equal(precioSugerido(null, 0.4, 0.5, 30), null); // sin precio lo pone la factura
+  assert.equal(precioSugerido(1, null, 0.9, 30), 1.3); // primer costo y gana poco
+});
+
+test("resumen del cierre para WhatsApp", () => {
+  const t = textoCierre({ tienda: "Mini Super", fecha: "2026-11-05", ventas: 5, total: 5.35, efectivo: 5.35, yappy: 0, tarjeta: 0, ganancia: 1.2, esperado: 25.35, contado: 25, diferencia: -0.35 });
+  assert.match(t, /Vendiste \$5\.35 en 5 ventas/);
+  assert.match(t, /faltan \$0\.35/);
 });

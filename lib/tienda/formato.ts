@@ -53,11 +53,23 @@ export function porAgotarse(p: Pick<ConStock, 'stock' | 'stock_minimo' | 'contad
 }
 
 // Texto listo para mandar por WhatsApp al proveedor o a quien hace las compras
-export function textoPedido(productos: ConStock[], tienda: string): string {
+export function textoPedido(productos: ConStock[], tienda: string, proveedor?: string): string {
   const lineas = [...productos]
     .sort((a, b) => a.stock - b.stock)
     .map(p => `• ${p.nombre} (${p.stock <= 0 ? 'no hay' : `quedan ${cantidad(p.stock, p.vende_por)}`})`)
-  return [`Pedido para ${tienda}:`, ...lineas].join('\n')
+  return [`Pedido para ${tienda}${proveedor ? ` · ${proveedor}` : ''}:`, ...lineas].join('\n')
+}
+
+// La lista de pedido separada por el último proveedor que trajo cada producto; sin proveedor, al final
+export function agruparPorProveedor<T extends { id: string }>(productos: T[], proveedorDe: Record<string, string>): { proveedor: string | null; productos: T[] }[] {
+  const grupos = new Map<string | null, T[]>()
+  for (const p of productos) {
+    const prov = proveedorDe[p.id] ?? null
+    grupos.set(prov, [...(grupos.get(prov) ?? []), p])
+  }
+  return [...grupos.entries()]
+    .map(([proveedor, ps]) => ({ proveedor, productos: ps }))
+    .sort((a, b) => (a.proveedor === null ? 1 : b.proveedor === null ? -1 : a.proveedor.localeCompare(b.proveedor, 'es')))
 }
 
 // ---------- Períodos de "Mi negocio" (fechas de Panamá, AAAA-MM-DD) ----------
@@ -162,4 +174,31 @@ export function sumarMeses(hoy: string, meses: number): string {
 export function venceQueda(actual: string | null, nuevo: string, hoy: string): string {
   if (actual === null || actual < hoy) return nuevo
   return actual < nuevo ? actual : nuevo
+}
+
+// ---------- Cuando sube el costo: precio para seguir ganando lo mismo ----------
+
+// Si con el costo nuevo el producto ya no deja su %, devuelve el precio para volver a ganarlo; si no, null
+export function precioSugerido(precio: number | null, costoAntes: number | null, costoNuevo: number, porcentaje: number): number | null {
+  if (precio === null || precio <= 0 || costoNuevo <= 0) return null
+  if (costoAntes !== null && costoNuevo <= costoAntes) return null
+  if ((margen(precio, costoNuevo) ?? 0) >= porcentaje) return null
+  const sugerido = precioParaGanar(costoNuevo, porcentaje)
+  return sugerido > precio ? sugerido : null
+}
+
+// ---------- Resumen del cierre para mandar por WhatsApp ----------
+
+export function textoCierre(d: {
+  tienda: string; fecha: string; ventas: number; total: number; efectivo: number; yappy: number; tarjeta: number
+  ganancia: number; esperado: number; contado: number; diferencia: number
+}): string {
+  const cuadre = Math.abs(d.diferencia) < 0.005 ? 'cuadra perfecto' : d.diferencia > 0 ? `sobran ${dinero(d.diferencia)}` : `faltan ${dinero(-d.diferencia)}`
+  return [
+    `Cierre de ${d.tienda} · ${d.fecha}`,
+    `Vendiste ${dinero(d.total)} en ${d.ventas} ${d.ventas === 1 ? 'venta' : 'ventas'}`,
+    `• Efectivo ${dinero(d.efectivo)} · Yappy ${dinero(d.yappy)} · Tarjeta ${dinero(d.tarjeta)}`,
+    `Ganaste más o menos ${dinero(d.ganancia)}`,
+    `Caja: debía haber ${dinero(d.esperado)}, contaste ${dinero(d.contado)} (${cuadre})`,
+  ].join('\n')
 }

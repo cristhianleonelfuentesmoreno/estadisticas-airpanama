@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AlertTriangle, Barcode, CalendarClock, ChevronDown, CircleDollarSign, ClipboardList, FileSpreadsheet, Hash, MessageCircle, Package, PackagePlus, Pause, Play, ScanBarcode, Search, SlidersHorizontal, Tag, Wallet, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, hoyPanama, porAgotarse, porcentajeValido, precioParaGanar, textoPedido, textoVence, vencePronto } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, hoyPanama, porAgotarse, porcentajeValido, precioParaGanar, textoPedido, textoVence, vencePronto, agruparPorProveedor } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
@@ -29,12 +29,14 @@ const FILTROS: { id: Filtro; nombre: string; Icono: LucideIcon }[] = [
 ]
 
 export default function InventarioClient({
-  tiendaId, tiendaNombre, slug, productos: iniciales, filtroInicial = 'todos',
+  tiendaId, tiendaNombre, slug, productos: iniciales, proveedorDe, filtroInicial = 'todos',
 }: {
   tiendaId: string
   tiendaNombre: string
   slug: string
   productos: Producto[]
+  // Último proveedor que trajo cada producto: la lista de pedido sale separada por proveedor
+  proveedorDe: Record<string, string>
   filtroInicial?: Filtro
 }) {
   const router = useRouter()
@@ -151,14 +153,23 @@ export default function InventarioClient({
       </div>
 
       {filtro === 'por-agotarse' && lista.length > 0 && (
-        <a
-          href={`https://wa.me/?text=${encodeURIComponent(textoPedido(lista, tiendaNombre))}`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3.5 text-base font-bold text-white shadow"
-        >
-          <MessageCircle className="h-5 w-5" /> Mandar la lista de pedido por WhatsApp
-        </a>
+        <div className="flex flex-col gap-2">
+          {agruparPorProveedor(lista, proveedorDe).map(({ proveedor, productos: ps }) => (
+            <a
+              key={proveedor ?? 'sin-proveedor'}
+              href={`https://wa.me/?text=${encodeURIComponent(textoPedido(ps, tiendaNombre, proveedor ?? undefined))}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 rounded-2xl bg-[#25D366] px-4 py-3 text-white shadow"
+            >
+              <MessageCircle className="h-5 w-5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-bold">{proveedor ? `Pedido a ${proveedor}` : 'Sin proveedor todavía'}</span>
+                <span className="block text-xs text-white/85">{ps.length} {ps.length === 1 ? 'producto' : 'productos'} · mandar por WhatsApp</span>
+              </span>
+            </a>
+          ))}
+        </div>
       )}
 
       <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-3xl bg-slate-100 shadow-sm lg:grid-cols-2">

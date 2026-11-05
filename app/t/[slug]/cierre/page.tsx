@@ -8,5 +8,5 @@ export default async function CierrePage({ params }: PageProps<'/t/[slug]/cierre
   if (!tienda) notFound()
   const resumen = await getResumenDia(tienda)
   const cierre = await getCierreHoy(tienda, resumen.fecha)
-  return <CierreDia tiendaId={tienda.id} slug={slug} resumen={resumen} cierre={cierre} />
+  return <CierreDia tiendaId={tienda.id} tiendaNombre={tienda.nombre} slug={slug} resumen={resumen} cierre={cierre} />
 }

@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { HelpCircle, PackagePlus, ScanBarcode, Search, Trash2, X } from 'lucide-react'
+import { HelpCircle, PackagePlus, ScanBarcode, Search, Trash2, TrendingUp, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { actualizarProducto, crearProducto, registrarEntrada, type LineaFacturaFoto } from '@/app/actions/tienda'
+import { actualizarProducto, crearProducto, registrarEntrada, type LineaFacturaFoto, type SugerenciaPrecio } from '@/app/actions/tienda'
 import { costoDe, dinero, GANANCIA_POR_DEFECTO, margen, normalizarCodigo, redondear2, totalDe } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
@@ -75,6 +75,9 @@ export default function FacturaNueva({
   const [pendientes, setPendientes] = useState<LineaFacturaFoto[]>([])
   const [asignando, setAsignando] = useState<number | null>(null)
   const [creando, startCrear] = useTransition()
+  // Al guardar: productos a los que les subió el costo y ya no dejan su %
+  const [sugerencias, setSugerencias] = useState<SugerenciaPrecio[] | null>(null)
+  const [subiendo, startSubir] = useTransition()
   useEffect(precargarEscaner, [])
 
   function alLeerFoto(f: FacturaDeFoto) {
@@ -200,7 +203,20 @@ export default function FacturaNueva({
         return
       }
       toast.success(`Factura guardada: ${dinero(total)}. El inventario ya subió.`)
-      router.push(`/t/${slug}/facturas`)
+      if (r.data.sugerencias.length) setSugerencias(r.data.sugerencias)
+      else router.push(`/t/${slug}/facturas`)
+    })
+  }
+
+  function subirPrecios(cuales: SugerenciaPrecio[]) {
+    startSubir(async () => {
+      const resultados = await Promise.all(cuales.map(c => actualizarProducto(tiendaId, c.producto_id, { precio_venta: c.sugerido })))
+      const fallaron = resultados.filter(r => !r.ok).length
+      if (fallaron) toast.error(`No se pudieron cambiar ${fallaron} precios`)
+      else toast.success(cuales.length === 1 ? `${cuales[0].nombre}: ahora a ${dinero(cuales[0].sugerido)}` : `${cuales.length} precios actualizados`)
+      const quedan = (sugerencias ?? []).filter(s => !cuales.some(c => c.producto_id === s.producto_id))
+      if (quedan.length) setSugerencias(quedan)
+      else router.push(`/t/${slug}/facturas`)
     })
   }
 
@@ -334,6 +350,41 @@ export default function FacturaNueva({
             {guardando ? 'Guardando…' : 'Guardar factura'}
           </button>
         </section>
+      )}
+
+      {sugerencias && (
+        <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
+          <div className="flex max-h-[88dvh] w-full max-w-lg flex-col gap-3 rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"><TrendingUp className="h-5 w-5" /></span>
+              <div>
+                <p className="text-lg font-bold">Te subieron el costo</p>
+                <p className="text-sm text-slate-500">Con estos precios ganas menos de lo que quieres. ¿Los subimos?</p>
+              </div>
+            </div>
+            <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
+              {sugerencias.map(s => (
+                <li key={s.producto_id} className="flex items-center gap-3 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-slate-800">{s.nombre}</p>
+                    <p className="text-xs text-slate-500">
+                      Te cuesta {dinero(s.costo)} · a {dinero(s.precio)} ganas {margen(s.precio, s.costo) ?? 0}% (quieres {s.porcentaje}%)
+                    </p>
+                  </div>
+                  <button disabled={subiendo} onClick={() => subirPrecios([s])} className="shrink-0 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
+                    Subir a {dinero(s.sugerido)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="grid grid-cols-2 gap-2">
+              <button disabled={subiendo} onClick={() => router.push(`/t/${slug}/facturas`)} className="rounded-2xl bg-slate-100 py-3 font-semibold text-slate-700">Dejarlos así</button>
+              <button disabled={subiendo} onClick={() => subirPrecios(sugerencias)} className="rounded-2xl bg-emerald-600 py-3 font-bold text-white disabled:opacity-50">
+                {subiendo ? 'Guardando…' : sugerencias.length === 1 ? 'Subir' : `Subir los ${sugerencias.length}`}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {escaneando && <Escaner titulo="Escanea lo que llegó" onCodigo={alEscanear} onCerrar={() => setEscaneando(false)} />}
