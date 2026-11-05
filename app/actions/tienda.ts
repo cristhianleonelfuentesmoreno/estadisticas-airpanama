@@ -5,7 +5,7 @@ import { requireApprovedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMisTiendas } from '@/lib/tienda/servidor'
-import { hoyPanama, precioParaGanar, precioSugerido, venceQueda } from '@/lib/tienda/formato'
+import { hoyPanama, normalizarCodigo, precioParaGanar, precioSugerido, venceQueda } from '@/lib/tienda/formato'
 import { emparejar, type Coincidencia } from '@/lib/tienda/emparejar'
 import { anotar as anotarUso } from '@/lib/tienda/uso'
 import { FacturaIaError, leerFactura, type FacturaLeida, type LineaLeida } from '@/lib/tienda/factura-ia'
@@ -43,11 +43,26 @@ function numeroValido(v: unknown): number | null {
 
 const CODIGO = /^[0-9A-Za-z-]{4,32}$/
 
-// ---------- Catálogo abierto (Open Food Facts) ----------
+// ---------- Catálogo: primero el de Valis (fotos que sube el administrador), después Open Food Facts ----------
 
 export async function buscarEnCatalogoAbierto(codigo: string): Promise<SugerenciaProducto | null> {
   await requireApprovedUser()
   if (!/^\d{8,14}$/.test(codigo)) return null
+  const supabase = await createClient()
+  const { data: propio } = await supabase
+    .from('catalogo')
+    .select('nombre, marca, presentacion, categoria, imagen_url')
+    .eq('codigo', normalizarCodigo(codigo))
+    .maybeSingle()
+  if (propio) {
+    return {
+      nombre: propio.nombre as string,
+      marca: (propio.marca as string | null) ?? null,
+      presentacion: (propio.presentacion as string | null) ?? null,
+      categoria: (propio.categoria as string | null) ?? null,
+      imagen_url: (propio.imagen_url as string | null) ?? null,
+    }
+  }
   try {
     const r = await fetch(
       `https://world.openfoodfacts.org/api/v2/product/${codigo}.json?fields=product_name,product_name_es,brands,quantity,image_front_small_url`,

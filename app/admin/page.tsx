@@ -1,11 +1,13 @@
 import Link from 'next/link'
-import { Activity, ExternalLink, ImageIcon, Sparkles, Store, Users } from 'lucide-react'
+import { Activity, ExternalLink, ImageIcon, ScanBarcode, Sparkles, Store, Users } from 'lucide-react'
 import { fetchAllUsers } from '@/app/actions/admin'
 import { obtenerConfigIa } from '@/app/actions/ia'
 import { listarRegistrados, listarTiendas } from '@/app/actions/tiendas'
+import { listarCatalogo } from '@/app/actions/catalogo'
 import { getSessionProfile } from '@/lib/auth'
 import { AdminPanel, type User } from '@/components/admin/AdminPanel'
 import { AuditoriaPanel } from '@/components/admin/AuditoriaPanel'
+import { CatalogoPanel } from '@/components/admin/CatalogoPanel'
 import { DispositivosPanel } from '@/components/admin/DispositivosPanel'
 import { IaPanel } from '@/components/admin/IaPanel'
 import { SettingsWidget } from '@/components/admin/SettingsWidget'
@@ -16,6 +18,7 @@ import { VelocidadPanel } from '@/components/admin/VelocidadPanel'
 const SECCIONES = [
   { id: 'tiendas', nombre: 'Tiendas', corto: 'Tiendas', Icono: Store, soloAdmin: true },
   { id: 'personas', nombre: 'Personas', corto: 'Personas', Icono: Users, soloAdmin: false },
+  { id: 'catalogo', nombre: 'Catálogo de códigos', corto: 'Catálogo', Icono: ScanBarcode, soloAdmin: true },
   { id: 'ia', nombre: 'Inteligencia artificial', corto: 'IA', Icono: Sparkles, soloAdmin: true },
   { id: 'login', nombre: 'Página de inicio', corto: 'Inicio', Icono: ImageIcon, soloAdmin: true },
   { id: 'actividad', nombre: 'Actividad', corto: 'Actividad', Icono: Activity, soloAdmin: false },
@@ -38,7 +41,7 @@ export default async function AdminPage({ searchParams }: PageProps<'/admin'>) {
   return (
     <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start lg:gap-8">
       {/* En el celular: botones en cuadrícula, todos a la vista. En la computadora: menú a la izquierda */}
-      <nav className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:sticky lg:top-24 lg:flex lg:flex-col">
+      <nav className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:sticky lg:top-24 lg:flex lg:flex-col">
         {visibles.map(({ id, nombre, corto, Icono }) => (
           <Link
             key={id}
@@ -61,6 +64,8 @@ export default async function AdminPage({ searchParams }: PageProps<'/admin'>) {
       {seccion === 'tiendas' && <TiendasPanel tiendas={await listarTiendas()} registrados={await listarRegistrados()} />}
 
       {seccion === 'personas' && <AdminPanel initialUsers={usuarios} role={profile.role} currentUserId={profile.id} />}
+
+      {seccion === 'catalogo' && <CatalogoPanel {...await listarCatalogo()} />}
 
       {seccion === 'ia' && <IaPanel config={await obtenerConfigIa()} />}
 

@@ -36,6 +36,19 @@ export function normalizarCodigo(codigo: string): string {
   return /^0\d{12}$/.test(c) ? c.slice(1) : c
 }
 
+// Los códigos de barras (EAN-8, UPC-A, EAN-13, GTIN-14) traen al final un dígito de control:
+// de derecha a izquierda, los demás dígitos se multiplican por 3, 1, 3, 1… y el control es lo que
+// le falta a la suma para llegar a la siguiente decena. Así se nota un número mal copiado.
+export function revisarCodigo(codigo: string): { valido: boolean; debia: string | null } {
+  const c = codigo.trim()
+  if (!/^(\d{8}|\d{12,14})$/.test(c)) return { valido: false, debia: null }
+  const cuerpo = c.slice(0, -1)
+  let suma = 0
+  for (let i = 0; i < cuerpo.length; i++) suma += Number(cuerpo[cuerpo.length - 1 - i]) * (i % 2 === 0 ? 3 : 1)
+  const control = String((10 - (suma % 10)) % 10)
+  return control === c.slice(-1) ? { valido: true, debia: null } : { valido: false, debia: control }
+}
+
 // ---------- Avisos de "te queda poco" ----------
 
 // Sin mínimo propio avisa cuando queda 1 o se acabó: en una tienda pequeña es normal tener 2 de muchas cosas
