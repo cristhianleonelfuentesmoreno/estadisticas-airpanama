@@ -14,11 +14,11 @@ import { VelocidadPanel } from '@/components/admin/VelocidadPanel'
 
 // Una pestaña, una tarea. El administrador abre en Tiendas; el supervisor, en Personas.
 const SECCIONES = [
-  { id: 'tiendas', nombre: 'Tiendas', Icono: Store, soloAdmin: true },
-  { id: 'personas', nombre: 'Personas', Icono: Users, soloAdmin: false },
-  { id: 'ia', nombre: 'Inteligencia artificial', Icono: Sparkles, soloAdmin: true },
-  { id: 'login', nombre: 'Página de inicio', Icono: ImageIcon, soloAdmin: true },
-  { id: 'actividad', nombre: 'Actividad', Icono: Activity, soloAdmin: false },
+  { id: 'tiendas', nombre: 'Tiendas', corto: 'Tiendas', Icono: Store, soloAdmin: true },
+  { id: 'personas', nombre: 'Personas', corto: 'Personas', Icono: Users, soloAdmin: false },
+  { id: 'ia', nombre: 'Inteligencia artificial', corto: 'IA', Icono: Sparkles, soloAdmin: true },
+  { id: 'login', nombre: 'Página de inicio', corto: 'Inicio', Icono: ImageIcon, soloAdmin: true },
+  { id: 'actividad', nombre: 'Actividad', corto: 'Actividad', Icono: Activity, soloAdmin: false },
 ] as const
 type Seccion = (typeof SECCIONES)[number]['id']
 
@@ -37,19 +37,21 @@ export default async function AdminPage({ searchParams }: PageProps<'/admin'>) {
 
   return (
     <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[230px_minmax(0,1fr)] lg:items-start lg:gap-8">
-      <nav className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 lg:sticky lg:top-24 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0">
-        {visibles.map(({ id, nombre, Icono }) => (
+      {/* En el celular: botones en cuadrícula, todos a la vista. En la computadora: menú a la izquierda */}
+      <nav className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:sticky lg:top-24 lg:flex lg:flex-col">
+        {visibles.map(({ id, nombre, corto, Icono }) => (
           <Link
             key={id}
             href={`/admin?seccion=${id}`}
-            className={`flex shrink-0 items-center gap-2 rounded-2xl px-4 py-3 font-bold ${
+            className={`relative flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2.5 text-xs font-bold lg:flex-row lg:justify-start lg:gap-2 lg:px-4 lg:py-3 lg:text-base ${
               id === seccion ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/30' : 'bg-white text-slate-600 shadow-sm hover:bg-emerald-50 lg:bg-transparent lg:shadow-none'
             }`}
           >
-            <Icono className="h-5 w-5" />
-            {nombre}
+            <Icono className="h-5 w-5 shrink-0" />
+            <span className="lg:hidden">{corto}</span>
+            <span className="hidden lg:inline">{nombre}</span>
             {id === 'personas' && pendientes > 0 && (
-              <span className="rounded-full bg-amber-400 px-2 text-xs text-amber-950">{pendientes}</span>
+              <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 text-[10px] text-amber-950 lg:static lg:px-2 lg:text-xs">{pendientes}</span>
             )}
           </Link>
         ))}

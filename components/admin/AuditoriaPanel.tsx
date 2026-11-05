@@ -125,25 +125,25 @@ export function AuditoriaPanel() {
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
-        <select aria-label="Persona" value={usuarioId} onChange={e => change(() => setUsuarioId(e.target.value))} className={inputCls}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+        <select aria-label="Persona" value={usuarioId} onChange={e => change(() => setUsuarioId(e.target.value))} className={`${inputCls} col-span-2 lg:col-span-1`}>
           <option value="">Todas las personas</option>
           {people.map(p => <option key={p.id} value={p.id}>{p.nombre} · {ROLE_LABEL[toRole(p.role)]}</option>)}
         </select>
-        <label className="flex items-center gap-2">
-          <span className="text-[12px] font-bold text-on-surface-variant w-10">Desde</span>
-          <input type="date" value={desde} max={hasta || undefined} onChange={e => change(() => setDesde(e.target.value))} className={`${inputCls} flex-1 min-w-0`} />
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-[12px] font-bold text-on-surface-variant">Desde</span>
+          <input type="date" value={desde} max={hasta || undefined} onChange={e => change(() => setDesde(e.target.value))} className={`${inputCls} w-full min-w-0`} />
         </label>
-        <label className="flex items-center gap-2">
-          <span className="text-[12px] font-bold text-on-surface-variant w-10">Hasta</span>
-          <input type="date" value={hasta} min={desde || undefined} onChange={e => change(() => setHasta(e.target.value))} className={`${inputCls} flex-1 min-w-0`} />
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-[12px] font-bold text-on-surface-variant">Hasta</span>
+          <input type="date" value={hasta} min={desde || undefined} onChange={e => change(() => setHasta(e.target.value))} className={`${inputCls} w-full min-w-0`} />
         </label>
-        <input type="search" value={texto} onChange={e => { setTexto(e.target.value); setLoading(true); }} placeholder="Buscar persona o texto…" className={inputCls} aria-label="Buscar en la bitácora" />
+        <input type="search" value={texto} onChange={e => { setTexto(e.target.value); setLoading(true); }} placeholder="Buscar persona o texto…" className={`${inputCls} col-span-2 lg:col-span-1`} aria-label="Buscar en la bitácora" />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
         <label className={`flex items-center gap-2 text-sm font-semibold text-on-surface-variant ${categoria !== "todos" ? "opacity-40 pointer-events-none" : ""}`}>
           <input type="checkbox" className="w-4 h-4 accent-primary" checked={incluirNavegacion} onChange={e => change(() => setIncluirNavegacion(e.target.checked))} />
-          Incluir cada página visitada (ver el turno completo)
+          Ver también cada página visitada
         </label>
         {hasFilters && (
           <button
@@ -183,25 +183,25 @@ export function AuditoriaPanel() {
                     <span className="material-symbols-outlined text-[18px]">{st.icon}</span>
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="font-bold text-on-surface">{log.actor_nombre ?? (log.tipo_evento === "acceso_fallido" ? "Desconocido" : "—")}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate font-bold text-on-surface">{log.actor_nombre ?? (log.tipo_evento === "acceso_fallido" ? "Desconocido" : "—")}</span>
+                      <span className="material-symbols-outlined shrink-0 text-[18px] text-on-surface-variant/60">{isOpen ? "expand_less" : "expand_more"}</span>
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[11px] font-bold ${st.tone}`}>{st.label}</span>
+                      <time className="whitespace-nowrap text-[12px] text-on-surface-variant">{fmtWhen(log.creado_en)}</time>
                       {log.actor_rol && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-surface-container text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
+                        <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-on-surface-variant/70">
                           {ROLE_LABEL[toRole(log.actor_rol)]}
                         </span>
                       )}
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${st.tone}`}>{st.label}</span>
-                      <span className="text-sm font-semibold text-on-surface truncate">{log.nombre_referencia}</span>
                     </div>
-                    <p className="text-sm text-on-surface-variant mt-0.5 break-words">{log.descripcion}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <time className="block text-[12px] font-semibold text-on-surface-variant whitespace-nowrap">{fmtWhen(log.creado_en)}</time>
-                    <span className="material-symbols-outlined text-[18px] text-on-surface-variant/60">{isOpen ? "expand_less" : "expand_more"}</span>
+                    {log.nombre_referencia && <p className="mt-1 truncate text-sm font-semibold text-on-surface">{log.nombre_referencia}</p>}
+                    <p className="text-sm text-on-surface-variant break-words">{log.descripcion}</p>
                   </div>
                 </button>
                 {isOpen && (
-                  <div className="px-4 pb-4 pl-16 flex flex-col gap-3 text-sm">
+                  <div className="px-4 pb-4 sm:pl-16 flex flex-col gap-3 text-sm overflow-x-auto">
                     {hasDetails && (
                       <div className="rounded-xl border border-outline-variant/40 overflow-hidden">
                         <table className="w-full text-left">

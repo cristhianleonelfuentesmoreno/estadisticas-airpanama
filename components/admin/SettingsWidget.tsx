@@ -116,16 +116,16 @@ export function SettingsWidget() {
     <>
       <button 
         onClick={() => { setIsOpen(true); loadSettings(); }}
-        className="w-full bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-outline-variant/30 flex items-center gap-6 hover:bg-surface-container-lowest/80 transition-colors group cursor-pointer text-left"
+        className="w-full bg-surface-container-lowest rounded-3xl p-4 sm:p-6 shadow-sm border border-outline-variant/30 flex items-center gap-4 sm:gap-6 hover:bg-surface-container-lowest/80 transition-colors group cursor-pointer text-left"
       >
-        <div className="w-14 h-14 rounded-2xl bg-secondary-container text-on-secondary-container flex items-center justify-center transition-transform group-hover:scale-105">
+        <div className="w-12 h-12 shrink-0 sm:w-14 sm:h-14 rounded-2xl bg-secondary-container text-on-secondary-container flex items-center justify-center transition-transform group-hover:scale-105">
           <span className="material-symbols-outlined text-3xl">wallpaper</span>
         </div>
-        <div>
-          <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">Página de inicio de sesión</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-1">Cambia la foto de fondo y los textos de bienvenida que ven todos al entrar.</p>
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold text-on-surface">Página de inicio de sesión</h2>
+          <p className="text-sm text-on-surface-variant mt-1">Cambia la foto de fondo y los textos de bienvenida que ven todos al entrar.</p>
         </div>
-        <div className="ml-auto w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
+        <div className="ml-auto w-10 h-10 shrink-0 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-colors">
           <span className="material-symbols-outlined">edit</span>
         </div>
       </button>
