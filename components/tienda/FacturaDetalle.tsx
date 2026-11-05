@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { editarFactura } from '@/app/actions/tienda'
-import { dinero, fechaCorta, margen, redondear2 } from '@/lib/tienda/formato'
+import { dinero, fechaCorta, margen, porcentajeValido, precioParaGanar, redondear2 } from '@/lib/tienda/formato'
 import type { VendePor } from '@/lib/tienda/tipos'
 
 export type LineaGuardada = {
@@ -17,9 +17,11 @@ export type LineaGuardada = {
   cantidad: number
   costo: number
   precio: number | null
+  // El % que quiere ganar el producto (si no tiene precio, con él se calcula)
+  porcentaje: number
 }
 
-type Linea = LineaGuardada & { cantidadTxt: string; costoTxt: string; precioTxt: string; quitada: boolean }
+type Linea = LineaGuardada & { cantidadTxt: string; costoTxt: string; precioTxt: string; pctTxt: string; ganasTxt: string | null; quitada: boolean }
 
 function numero(t: string): number | null {
   if (t.trim() === '') return null
@@ -48,6 +50,9 @@ export default function FacturaDetalle({
     cantidadTxt: String(Number(l.cantidad.toFixed(3))),
     costoTxt: String(Number(l.costo.toFixed(4))),
     precioTxt: l.precio === null ? '' : l.precio.toFixed(2),
+    pctTxt: String(margen(l.precio, l.costo) ?? l.porcentaje),
+    // Mientras se escribe la ganancia se respeta lo que teclea; al salir vuelve a la cuenta
+    ganasTxt: null,
     quitada: false,
   }))
   const [lineas, setLineas] = useState<Linea[]>(comoEstaban)
@@ -55,6 +60,42 @@ export default function FacturaDetalle({
 
   function cambiar(id: number, cambios: Partial<Linea>) {
     setLineas(ls => ls.map(l => (l.id === id ? { ...l, ...cambios } : l)))
+  }
+
+  // Precio y % amarrados, igual que en Inventario y en la caja:
+  // con el % se calcula el precio (costo / (1 - %)); con el precio se ve el %.
+  function cambiarPct(l: Linea, v: string) {
+    const pct = porcentajeValido(v)
+    const costo = numero(l.costoTxt)
+    cambiar(l.id, pct !== null && costo !== null && costo > 0 ? { pctTxt: v, precioTxt: precioParaGanar(costo, pct).toFixed(2) } : { pctTxt: v })
+  }
+
+  function cambiarPrecio(l: Linea, v: string) {
+    const pct = margen(numero(v), numero(l.costoTxt))
+    cambiar(l.id, pct !== null && pct >= 0 && pct < 100 ? { precioTxt: v, pctTxt: String(pct) } : { precioTxt: v })
+  }
+
+  // Cuánto quiere ganar en dólares: precio = costo + ganancia, y se ve el %
+  function cambiarGanas(l: Linea, v: string) {
+    const g = Number(v)
+    const costo = numero(l.costoTxt)
+    if (v.trim() === '' || !Number.isFinite(g) || costo === null) return cambiar(l.id, { ganasTxt: v })
+    const precio = redondear2(costo + g)
+    const pct = margen(precio, costo)
+    cambiar(l.id, { ganasTxt: v, precioTxt: precio.toFixed(2), ...(pct !== null && pct >= 0 && pct < 100 ? { pctTxt: String(pct) } : {}) })
+  }
+
+  // Si cambia el costo, el precio se queda y se ve el % nuevo; sin precio, lo calcula con el %
+  function cambiarCosto(l: Linea, v: string) {
+    const costo = numero(v)
+    if (costo === null || costo <= 0) return cambiar(l.id, { costoTxt: v })
+    const precio = numero(l.precioTxt)
+    if (precio !== null) {
+      const pct = margen(precio, costo)
+      return cambiar(l.id, pct !== null && pct >= 0 && pct < 100 ? { costoTxt: v, pctTxt: String(pct) } : { costoTxt: v })
+    }
+    const pct = porcentajeValido(l.pctTxt)
+    cambiar(l.id, pct !== null ? { costoTxt: v, precioTxt: precioParaGanar(costo, pct).toFixed(2) } : { costoTxt: v })
   }
 
   const vivas = lineas.filter(l => !l.quitada)
@@ -67,7 +108,8 @@ export default function FacturaDetalle({
   const sinPrecio = vivas.filter(l => numero(l.precioTxt) === null).length
 
   const cambiosLineas = lineas.filter(l => l.quitada || numero(l.cantidadTxt) !== l.cantidad || numero(l.costoTxt) !== l.costo)
-  const cambiosPrecios = lineas.filter(l => !l.quitada && l.precioTxt.trim() !== '' && numero(l.precioTxt) !== l.precio)
+  const cambiosPrecios = lineas.filter(l => !l.quitada && l.precioTxt.trim() !== ''
+    && (numero(l.precioTxt) !== l.precio || porcentajeValido(l.pctTxt) !== (margen(l.precio, l.costo) ?? l.porcentaje)))
   const hayCambios = cambiosLineas.length > 0 || cambiosPrecios.length > 0
     || proveedor.trim() !== proveedorInicial || numeroFactura.trim() !== numeroInicial
 
@@ -86,6 +128,11 @@ export default function FacturaDetalle({
       toast.error(`El precio de ${precioMalo.nombre} no es válido`)
       return
     }
+    const pctMalo = cambiosPrecios.find(l => porcentajeValido(l.pctTxt) === null)
+    if (pctMalo) {
+      toast.error(`El % de ${pctMalo.nombre} va de 0 a 99`)
+      return
+    }
     if (!vivas.length) {
       toast.error('La factura tiene que quedar con al menos un producto')
       return
@@ -94,7 +141,7 @@ export default function FacturaDetalle({
       const r = await editarFactura(
         tiendaId, entradaId, proveedor, numeroFactura,
         cambiosLineas.map(l => ({ id: l.id, cantidad: l.quitada ? 0 : numero(l.cantidadTxt) ?? 0, costo_unitario: numero(l.costoTxt) ?? l.costo })),
-        cambiosPrecios.map(l => ({ producto_id: l.producto_id, precio_venta: numero(l.precioTxt) ?? 0 })),
+        cambiosPrecios.map(l => ({ producto_id: l.producto_id, precio_venta: numero(l.precioTxt) ?? 0, porcentaje_ganancia: porcentajeValido(l.pctTxt) ?? l.porcentaje })),
       )
       if (!r.ok) {
         toast.error(r.error)
@@ -161,18 +208,35 @@ export default function FacturaDetalle({
                   <Trash2 className="h-5 w-5" />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
                   Llegaron{l.vende_por === 'libra' ? ' (lb)' : ''}
                   <input value={l.cantidadTxt} onChange={e => cambiar(l.id, { cantidadTxt: e.target.value })} inputMode="decimal" className="rounded-xl border border-slate-200 px-2 py-2 text-base" />
                 </label>
                 <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
                   Costo {unidad} $
-                  <input value={l.costoTxt} onChange={e => cambiar(l.id, { costoTxt: e.target.value })} inputMode="decimal" className="rounded-xl border border-slate-200 px-2 py-2 text-base" />
+                  <input value={l.costoTxt} onChange={e => cambiarCosto(l, e.target.value)} inputMode="decimal" className="rounded-xl border border-slate-200 px-2 py-2 text-base" />
                 </label>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
                 <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
                   Vendes a $
-                  <input value={l.precioTxt} onChange={e => cambiar(l.id, { precioTxt: e.target.value })} inputMode="decimal" placeholder="Sin precio" className="rounded-xl border border-slate-200 px-2 py-2 text-base" />
+                  <input value={l.precioTxt} onChange={e => cambiarPrecio(l, e.target.value)} inputMode="decimal" placeholder="Sin precio" className="rounded-xl border border-slate-200 px-2 py-2 text-base" />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                  Quiero ganar %
+                  <input value={l.pctTxt} onChange={e => cambiarPct(l, e.target.value)} inputMode="decimal" placeholder="30" className="rounded-xl border border-emerald-200 px-2 py-2 text-base font-semibold text-emerald-800" />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                  Gano {unidad} $
+                  <input
+                    value={l.ganasTxt ?? (ganas === null ? '' : ganas.toFixed(2))}
+                    onChange={e => cambiarGanas(l, e.target.value)}
+                    onBlur={() => cambiar(l.id, { ganasTxt: null })}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className={`rounded-xl border px-2 py-2 text-base font-semibold ${ganas !== null && ganas <= 0 ? 'border-red-300 text-red-600' : 'border-emerald-200 text-emerald-800'}`}
+                  />
                 </label>
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-slate-50 px-3 py-2 text-sm">
