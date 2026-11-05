@@ -6,6 +6,7 @@ import { getMisTiendas } from '@/lib/tienda/servidor';
 export default async function Home() {
   const profile = await getSessionProfile();
   if (!profile) redirect('/login');
+  if (profile.status === 'pendiente' && profile.role === 'usuario') redirect('/solicitud');
   if (profile.status !== 'aprobado') redirect('/login?status=pending');
 
   // Quien es de una tienda entra directo a su caja; el equipo Valis sin tienda, al panel

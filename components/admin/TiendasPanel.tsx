@@ -10,6 +10,7 @@ import {
 } from '@/app/actions/tiendas'
 import { limpiarUsuario, usuarioVisible } from '@/lib/cuenta'
 import Cifra from '@/components/ui/Cifra'
+import { Solicitudes } from '@/components/admin/Solicitudes'
 
 const ESTADO = {
   activo: { texto: 'Ya entró', clase: 'bg-emerald-100 text-emerald-800' },
@@ -83,6 +84,8 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
           </button>
         </div>
       </div>
+
+      <Solicitudes registrados={registrados} />
 
       {tiendas.length === 0 && <p className="text-slate-500">Todavía no hay tiendas.</p>}
 

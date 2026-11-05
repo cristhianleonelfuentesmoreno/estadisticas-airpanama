@@ -111,10 +111,13 @@ export async function crearProducto(tiendaId: string, datos: ProductoNuevo, desd
   const imagen = texto(datos.imagen_url, 500)
 
   const supabase = await createClient()
+  // El % de ganancia con que arranca cada producto nuevo es el del negocio (30 si nadie lo cambió)
+  const { data: negocio } = await supabase.from('negocios').select('porcentaje_ganancia').eq('id', tienda.negocio_id).maybeSingle()
   const { data, error } = await supabase
     .from('productos')
     .insert({
       negocio_id: tienda.negocio_id,
+      ...(negocio ? { porcentaje_ganancia: Number(negocio.porcentaje_ganancia) } : {}),
       nombre,
       marca: texto(datos.marca),
       presentacion: texto(datos.presentacion, 40),
