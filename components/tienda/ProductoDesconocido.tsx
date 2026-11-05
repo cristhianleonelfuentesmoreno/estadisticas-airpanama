@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { Link2, Loader2, PackagePlus, Search, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto, buscarEnCatalogoAbierto, crearProducto } from '@/app/actions/tienda'
+import { buscarSueltoEnCatalogo, type ItemCatalogo } from '@/app/actions/catalogo'
 import { dinero, GANANCIA_POR_DEFECTO } from '@/lib/tienda/formato'
 import type { Producto, SugerenciaProducto, VendePor } from '@/lib/tienda/tipos'
 import { CATEGORIAS, SIN_ITBMS } from '@/lib/tienda/categorias'
@@ -60,6 +61,29 @@ export default function ProductoDesconocido({
       vigente = false
     }
   }, [codigo])
+
+  // Sin código: mientras escribe el nombre, lo que se parece en el catálogo de Valis (especias, granos…)
+  const [parecidos, setParecidos] = useState<ItemCatalogo[]>([])
+  useEffect(() => {
+    if (codigo !== null || sugerencia || nombre.trim().length < 2) return
+    let vigente = true
+    const t = setTimeout(() => {
+      void buscarSueltoEnCatalogo(nombre).then(r => { if (vigente) setParecidos(r) })
+    }, 300)
+    return () => {
+      vigente = false
+      clearTimeout(t)
+    }
+  }, [codigo, nombre, sugerencia])
+
+  function usarDelCatalogo(i: ItemCatalogo) {
+    setSugerencia({ nombre: i.nombre, marca: i.marca, presentacion: i.presentacion, imagen_url: i.imagen_url, categoria: i.categoria })
+    setNombre(i.nombre)
+    setMarca(i.marca ?? '')
+    setPresentacion(i.presentacion ?? '')
+    if (i.categoria && CATEGORIAS.some(c => c === i.categoria)) setCategoria(i.categoria)
+    setParecidos([])
+  }
 
   const sinCodigo = useMemo(() => {
     const f = filtro.trim().toLowerCase()
@@ -165,6 +189,27 @@ export default function ProductoDesconocido({
             <Campo etiqueta="Nombre">
               <input required value={nombre} onChange={e => setNombre(e.target.value)} className={entrada} placeholder="Ej. Kachitos clásico" />
             </Campo>
+            {codigo === null && sugerencia && (
+              <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-3">
+                {sugerencia.imagen_url && <img src={sugerencia.imagen_url} alt="" className="h-14 w-14 rounded-lg bg-white object-contain" />}
+                <p className="flex-1 text-sm text-emerald-800">Del catálogo de Valis, con foto. Ponle tu precio.</p>
+                <button type="button" onClick={() => setSugerencia(null)} aria-label="No usar" className="rounded-full p-1 text-emerald-700"><X className="h-4 w-4" /></button>
+              </div>
+            )}
+            {codigo === null && !sugerencia && parecidos.length > 0 && nombre.trim().length >= 2 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs font-semibold text-slate-500">¿Es alguno de estos? Ya tienen foto y datos:</p>
+                {parecidos.map(i => (
+                  <button key={i.id ?? i.nombre} type="button" onClick={() => usarDelCatalogo(i)} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2 text-left hover:bg-emerald-50">
+                    {i.imagen_url ? <img src={i.imagen_url} alt="" className="h-10 w-10 rounded-lg bg-white object-contain" /> : <span className="h-10 w-10 rounded-lg bg-white" />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-slate-800">{i.nombre}</span>
+                      <span className="block truncate text-xs text-slate-500">{[i.presentacion, i.vende_suelto && i.por_paquete ? `paquete de ${i.por_paquete}, suelto` : null].filter(Boolean).join(' · ')}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Campo etiqueta="Marca">
                 <input value={marca} onChange={e => setMarca(e.target.value)} className={entrada} />
