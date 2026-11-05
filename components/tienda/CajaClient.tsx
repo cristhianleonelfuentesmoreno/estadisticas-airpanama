@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Banknote, Check, ClipboardList, CreditCard, ListChecks, Lock, Minus, PackagePlus, Pencil, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2 } from 'lucide-react'
+import { Banknote, Check, ChevronRight, ClipboardList, CreditCard, ListChecks, Lock, Minus, PackagePlus, Pencil, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto, registrarVenta } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, diasParaVencer, gananciaPorUnidad, hoyPanama, margen, normalizarCodigo, porAgotarse, porcentajeValido, redondear2 } from '@/lib/tienda/formato'
@@ -52,6 +52,9 @@ export default function CajaClient({
   const [precioNuevo, setPrecioNuevo] = useState('')
   const [pctNuevo, setPctNuevo] = useState('')
   const [guardandoPrecio, startGuardarPrecio] = useTransition()
+  // Todas las verduras, frutas y carnes que se pesan, en una ventana para elegir o cambiarles el precio
+  const [verLibras, setVerLibras] = useState(false)
+  const [filtroLibra, setFiltroLibra] = useState('')
   useEffect(precargarEscaner, [])
 
   const porCodigo = useMemo(
@@ -59,6 +62,10 @@ export default function CajaClient({
     [productos],
   )
   const porLibra = useMemo(() => productos.filter(p => p.vende_por === 'libra'), [productos])
+  const librasFiltradas = useMemo(() => {
+    const f = filtroLibra.trim().toLowerCase()
+    return f ? porLibra.filter(p => p.nombre.toLowerCase().includes(f) || (p.categoria ?? '').toLowerCase().includes(f)) : porLibra
+  }, [porLibra, filtroLibra])
   const resultados = useMemo(() => {
     const f = busqueda.trim().toLowerCase()
     if (f.length < 2) return []
@@ -151,6 +158,7 @@ export default function CajaClient({
       const nuevo = { ...p, precio_venta: precio, porcentaje_ganancia: pct }
       setProductos(ps => ps.map(x => (x.id === p.id ? nuevo : x)))
       setLineas(ls => ls.map(l => (l.producto.id === p.id ? { ...l, producto: nuevo } : l)))
+      setPesando(x => (x?.id === p.id ? nuevo : x))
       setEditando(null)
       toast.success(`${p.nombre}: ahora a ${dinero(precio)}`)
     })
@@ -262,11 +270,12 @@ export default function CajaClient({
 
       {porLibra.length > 0 && (
         <div>
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <button onClick={() => { setFiltroLibra(''); setVerLibras(true) }} className="mb-2 flex w-full items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <Scale className="h-4 w-4" /> Por libra (pesa)
-          </p>
+            <span className="ml-auto flex items-center gap-0.5 rounded-full bg-emerald-50 px-2.5 py-1 normal-case tracking-normal text-emerald-800">Ver todos ({porLibra.length}) <ChevronRight className="h-3.5 w-3.5" /></span>
+          </button>
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {porLibra.map(p => (
+            {porLibra.slice(0, 8).map(p => (
               <button key={p.id} onClick={() => elegir(p)} className="shrink-0 rounded-2xl bg-white px-4 py-3 text-left shadow-sm ring-1 ring-transparent hover:ring-emerald-200">
                 <span className="block font-semibold text-slate-800">{p.nombre}</span>
                 <span className="text-xs text-slate-500">{dinero(p.precio_venta)}/lb</span>
@@ -441,7 +450,7 @@ export default function CajaClient({
         const precio = precioNuevo.trim() === '' ? null : Number(precioNuevo)
         const ganas = gananciaPorUnidad(precio !== null && Number.isFinite(precio) ? precio : null, editando.costo)
         return (
-          <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
+          <div className="hoja fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
             <form onSubmit={guardarPrecio} className="flex w-full max-w-sm flex-col gap-4 rounded-t-3xl bg-white p-5 sm:rounded-3xl">
               <div>
                 <p className="text-lg font-bold">{editando.nombre}</p>
@@ -470,12 +479,59 @@ export default function CajaClient({
         )
       })()}
 
+      {verLibras && (
+        <div onClick={() => setVerLibras(false)} className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
+          <div onClick={e => e.stopPropagation()} className="flex max-h-[88dvh] w-full max-w-lg flex-col gap-3 rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-bold">Por libra</p>
+                <p className="text-sm text-slate-500">Toca uno para pesarlo, o el lápiz para cambiar su precio.</p>
+              </div>
+              <button onClick={() => setVerLibras(false)} aria-label="Cerrar" className="rounded-full bg-slate-100 p-2"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-4">
+              <Search className="h-5 w-5 text-slate-400" />
+              <input value={filtroLibra} onChange={e => setFiltroLibra(e.target.value)} placeholder="Buscar (tomate, pollo…)" className="w-full bg-transparent py-3 text-base focus:outline-none" />
+            </div>
+            <ul className="-mx-1 min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
+              {librasFiltradas.map(p => {
+                const ganas = gananciaPorUnidad(p.precio_venta, p.costo)
+                return (
+                  <li key={p.id} className="flex items-center gap-2 px-1 py-1.5">
+                    <button onClick={() => { setVerLibras(false); elegir(p) }} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-emerald-50">
+                      <FotoProducto producto={p} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold text-slate-800">{p.nombre}</span>
+                        <span className="block text-xs text-slate-500">
+                          {p.precio_venta === null ? 'Sin precio' : `${dinero(p.precio_venta)}/lb`}
+                          {ganas !== null && <span className={ganas <= 0 ? 'text-red-600' : 'text-emerald-700'}> · ganas {dinero(ganas)}</span>}
+                        </span>
+                      </span>
+                      <Scale className="h-5 w-5 shrink-0 text-emerald-600" />
+                    </button>
+                    <button onClick={() => abrirPrecio(p)} aria-label={`Cambiar precio de ${p.nombre}`} className="shrink-0 rounded-xl bg-slate-100 p-3 text-slate-600 hover:bg-emerald-100 hover:text-emerald-800">
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </li>
+                )
+              })}
+              {!librasFiltradas.length && <li className="py-8 text-center text-sm text-slate-500">No hay ninguno con ese nombre.</li>}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {pesando && (
         <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
           <form onSubmit={confirmarPeso} className="flex w-full max-w-sm flex-col gap-4 rounded-t-3xl bg-white p-5 sm:rounded-3xl">
             <div>
               <p className="text-lg font-bold">{pesando.nombre}</p>
-              <p className="text-sm text-slate-500">{dinero(pesando.precio_venta)} la libra. Escribe lo que marca la pesa.</p>
+              <p className="text-sm text-slate-500">
+                {dinero(pesando.precio_venta)} la libra. Escribe lo que marca la pesa.{' '}
+                <button type="button" onClick={() => abrirPrecio(pesando)} className="inline-flex items-center gap-1 font-semibold text-emerald-700 underline underline-offset-2">
+                  <Pencil className="h-3.5 w-3.5" /> Cambiar precio
+                </button>
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <input
