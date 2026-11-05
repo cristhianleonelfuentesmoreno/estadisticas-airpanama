@@ -53,6 +53,7 @@ export default function ProductoDesconocido({
       if (s?.nombre) setNombre(s.nombre)
       if (s?.marca) setMarca(s.marca)
       if (s?.presentacion) setPresentacion(s.presentacion)
+      if (s?.categoria && CATEGORIAS.some(c => c === s.categoria)) setCategoria(s.categoria)
       setBuscando(false)
     })
     return () => {

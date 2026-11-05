@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agruparPorProveedor, precioSugerido, textoCierre, cambioPorcentual, costoDe, diasParaVencer, sumarMeses, textoVence, vencePronto, venceQueda, porcentajeValido, totalDe, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
+import { agruparPorProveedor, precioSugerido, textoCierre, cambioPorcentual, costoDe, diasParaVencer, sumarMeses, textoVence, vencePronto, venceQueda, porcentajeValido, totalDe, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, revisarCodigo, textoPedido } from "@/lib/tienda/formato";
 
 test("redondea la plata a centavos sin errores de coma flotante", () => {
   assert.equal(redondear2(0.1 + 0.2), 0.3);
@@ -140,3 +140,12 @@ test("resumen del cierre para WhatsApp", () => {
   assert.match(t, /Vendiste \$5\.35 en 5 ventas/);
   assert.match(t, /faltan \$0\.35/);
 });
+
+test('revisarCodigo: el último dígito es la cuenta de los demás', () => {
+  assert.deepEqual(revisarCodigo('7501055303786'), { valido: true, debia: null })
+  assert.deepEqual(revisarCodigo('7501055303785'), { valido: false, debia: '6' })
+  assert.deepEqual(revisarCodigo('049000050103'), { valido: true, debia: null })
+  assert.deepEqual(revisarCodigo('96385074'), { valido: true, debia: null })
+  assert.deepEqual(revisarCodigo('12345'), { valido: false, debia: null })
+  assert.deepEqual(revisarCodigo('ABC-123'), { valido: false, debia: null })
+})

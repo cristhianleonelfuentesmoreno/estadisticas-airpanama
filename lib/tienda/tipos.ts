@@ -43,6 +43,8 @@ export type SugerenciaProducto = {
   marca: string | null
   presentacion: string | null
   imagen_url: string | null
+  // Solo viene del catálogo de Valis
+  categoria?: string | null
 }
 
 export type MetodoPago = 'efectivo' | 'yappy' | 'tarjeta'
