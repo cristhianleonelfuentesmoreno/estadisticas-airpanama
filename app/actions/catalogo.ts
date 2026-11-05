@@ -165,3 +165,16 @@ export async function buscarSueltoEnCatalogo(texto: string): Promise<ItemCatalog
   const { data } = await supabase.from('catalogo').select(COLUMNAS).is('codigo', null).ilike('nombre', `%${q}%`).order('nombre').limit(5)
   return ((data ?? []) as Fila[]).map(c => ({ ...c, tiendas: 0 }))
 }
+
+// Para la factura: si el catálogo dice que el producto llega en paquete de N y se vende suelto,
+// la línea arranca con N unidades por paquete. Se busca por código o, sin código, por el nombre exacto.
+export async function paqueteDelCatalogo(codigo: string | null, nombre: string): Promise<number | null> {
+  await requireApprovedUser()
+  const supabase = await createClient()
+  const consulta = supabase.from('catalogo').select('por_paquete').eq('vende_suelto', true).not('por_paquete', 'is', null).limit(1)
+  const { data } = codigo && /^\d{8,14}$/.test(codigo)
+    ? await consulta.eq('codigo', normalizarCodigo(codigo))
+    : await consulta.is('codigo', null).ilike('nombre', nombre.trim().replace(/[%_\\]/g, '\\$&').slice(0, 120))
+  const n = Number(data?.[0]?.por_paquete)
+  return Number.isInteger(n) && n > 1 ? n : null
+}
