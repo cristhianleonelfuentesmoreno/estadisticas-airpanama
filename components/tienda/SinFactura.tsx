@@ -174,6 +174,7 @@ export default function SinFactura({ tiendaId, slug, productos: iniciales }: { t
       {desconocido && (
         <ProductoDesconocido
           tiendaId={tiendaId}
+          desde="sin_factura"
           codigo={desconocido}
           productos={productos}
           onCerrar={() => setDesconocido(null)}

@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getMisTiendas } from '@/lib/tienda/servidor'
 import { hoyPanama, precioParaGanar, precioSugerido, venceQueda } from '@/lib/tienda/formato'
 import { emparejar, type Coincidencia } from '@/lib/tienda/emparejar'
+import { anotar as anotarUso } from '@/lib/tienda/uso'
 import { FacturaIaError, leerFactura, type FacturaLeida, type LineaLeida } from '@/lib/tienda/factura-ia'
 import type {
   LineaEntrada, LineaVenta, MetodoPago, MotivoAjuste, Resultado, SugerenciaProducto, Tienda, VendePor,
@@ -85,7 +86,7 @@ export type ProductoNuevo = {
   imagen_url?: string | null
 }
 
-export async function crearProducto(tiendaId: string, datos: ProductoNuevo): Promise<Resultado<{ id: string }>> {
+export async function crearProducto(tiendaId: string, datos: ProductoNuevo, desde = ''): Promise<Resultado<{ id: string }>> {
   const user = await requireApprovedUser()
   const tienda = await tiendaDelUsuario(tiendaId)
   const nombre = texto(datos.nombre)
@@ -116,6 +117,7 @@ export async function crearProducto(tiendaId: string, datos: ProductoNuevo): Pro
     if (error.code === '23505') return { ok: false, error: 'Ya hay un producto con ese código de barras' }
     return { ok: false, error: 'No se pudo guardar el producto' }
   }
+  anotarUso(supabase, tienda.id, 'producto_creado', { sin_codigo: !codigo, vende_por: datos.vende_por === 'libra' ? 'libra' : 'unidad', desde: texto(desde, 30) })
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: { id: data.id } }
 }
@@ -136,7 +138,7 @@ export type CambiosProducto = {
 }
 
 export async function actualizarProducto(
-  tiendaId: string, productoId: string, cambios: CambiosProducto,
+  tiendaId: string, productoId: string, cambios: CambiosProducto, desde = '',
 ): Promise<Resultado> {
   const tienda = await tiendaDelUsuario(tiendaId)
   const fila: Record<string, string | number | boolean | null> = {}
@@ -181,6 +183,7 @@ export async function actualizarProducto(
     if (error.code === '23505') return { ok: false, error: 'Otro producto ya tiene ese código de barras' }
     return { ok: false, error: 'No se pudo guardar el cambio' }
   }
+  anotarUso(supabase, tienda.id, 'producto_editado', { campos: Object.keys(fila), desde: texto(desde, 30) })
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: null }
 }
@@ -204,6 +207,7 @@ export async function registrarVenta(
     p_tienda: tienda.id, p_metodo_pago: metodo, p_lineas: limpias,
   })
   if (error) return { ok: false, error: error.message.includes('no tiene precio') ? error.message : 'No se pudo registrar la venta' }
+  anotarUso(supabase, tienda.id, 'venta', { metodo, lineas: limpias.length })
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: { id: data as string } }
 }
@@ -260,6 +264,7 @@ export async function registrarEntrada(
     if (!Object.keys(cambios).length) return []
     return [supabase.from('productos').update(cambios).eq('id', p.id).eq('negocio_id', tienda.negocio_id)]
   }))
+  anotarUso(supabase, tienda.id, 'factura', { lineas: limpias.length, con_vence: vencen.size, sugerencias: sugerencias.length })
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: { id: data as string, sugerencias } }
 }
@@ -271,6 +276,7 @@ export async function anularVenta(tiendaId: string, ventaId: string, motivo: str
   const supabase = await createClient()
   const { error } = await supabase.rpc('anular_venta', { p_venta: ventaId, p_motivo: texto(motivo, 200) ?? '' })
   if (error) return { ok: false, error: error.message.includes('ya estaba anulada') ? 'Esta venta ya estaba anulada' : 'No se pudo anular la venta' }
+  anotarUso(supabase, tienda.id, 'venta_anulada')
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: null }
 }
@@ -290,6 +296,7 @@ export async function registrarAjuste(
     p_costo: costo === null ? null : numeroValido(costo), p_nota: texto(nota, 200) ?? '',
   })
   if (error) return { ok: false, error: 'No se pudo guardar' }
+  anotarUso(supabase, tienda.id, 'ajuste', { motivo })
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: { cambio: Number(data) } }
 }
@@ -301,6 +308,7 @@ export async function cerrarCaja(tiendaId: string, efectivoContado: number, nota
   const supabase = await createClient()
   const { error } = await supabase.rpc('cerrar_caja', { p_tienda: tienda.id, p_efectivo_contado: contado, p_nota: texto(nota, 300) ?? '' })
   if (error) return { ok: false, error: 'No se pudo cerrar la caja' }
+  anotarUso(supabase, tienda.id, 'cierre')
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: null }
 }

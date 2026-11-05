@@ -52,7 +52,7 @@ export default async function TiendaLayout({ children, params }: LayoutProps<'/t
         <BotonSalir className="lg:bg-slate-100 lg:text-slate-600" />
       </header>
       <main className="mx-auto w-full max-w-3xl px-3 py-4 lg:max-w-5xl lg:px-8 lg:py-8">{children}</main>
-      <NavTienda slug={tienda.slug} tienda={tienda.nombre} />
+      <NavTienda slug={tienda.slug} tienda={tienda.nombre} tiendaId={tienda.id} />
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { HelpCircle, PackagePlus, ScanBarcode, Search, Trash2, TrendingUp, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto, crearProducto, registrarEntrada, type LineaFacturaFoto, type SugerenciaPrecio } from '@/app/actions/tienda'
+import { anotarUso } from '@/app/actions/uso'
 import { costoDe, dinero, GANANCIA_POR_DEFECTO, margen, normalizarCodigo, redondear2, totalDe } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
@@ -111,7 +112,7 @@ export default function FacturaNueva({
     setBusqueda('')
     setLineas(ls => [lineaDesdeFactura(p, f), ...ls])
     if (f.codigo_barras && !p.codigo_barras) {
-      void actualizarProducto(tiendaId, p.id, { codigo_barras: f.codigo_barras }).then(r => {
+      void actualizarProducto(tiendaId, p.id, { codigo_barras: f.codigo_barras }, 'factura').then(r => {
         if (r.ok) setProductos(ps => ps.map(x => (x.id === p.id ? { ...x, codigo_barras: f.codigo_barras } : x)))
       })
     }
@@ -121,7 +122,7 @@ export default function FacturaNueva({
     const f = pendientes[i]
     startCrear(async () => {
       const nombre = nombreDeFactura(f.descripcion)
-      const r = await crearProducto(tiendaId, { nombre, codigo_barras: f.codigo_barras, vende_por: 'unidad', categoria: 'Otros' })
+      const r = await crearProducto(tiendaId, { nombre, codigo_barras: f.codigo_barras, vende_por: 'unidad', categoria: 'Otros' }, 'factura')
       if (!r.ok) {
         toast.error(r.error)
         return
@@ -210,7 +211,7 @@ export default function FacturaNueva({
 
   function subirPrecios(cuales: SugerenciaPrecio[]) {
     startSubir(async () => {
-      const resultados = await Promise.all(cuales.map(c => actualizarProducto(tiendaId, c.producto_id, { precio_venta: c.sugerido })))
+      const resultados = await Promise.all(cuales.map(c => actualizarProducto(tiendaId, c.producto_id, { precio_venta: c.sugerido }, 'sugerencia')))
       const fallaron = resultados.filter(r => !r.ok).length
       if (fallaron) toast.error(`No se pudieron cambiar ${fallaron} precios`)
       else toast.success(cuales.length === 1 ? `${cuales[0].nombre}: ahora a ${dinero(cuales[0].sugerido)}` : `${cuales.length} precios actualizados`)
@@ -378,7 +379,7 @@ export default function FacturaNueva({
               ))}
             </ul>
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={subiendo} onClick={() => router.push(`/t/${slug}/facturas`)} className="rounded-2xl bg-slate-100 py-3 font-semibold text-slate-700">Dejarlos así</button>
+              <button disabled={subiendo} onClick={() => { void anotarUso(tiendaId, 'sugerencia_precio', { dejados: sugerencias.length }); router.push(`/t/${slug}/facturas`) }} className="rounded-2xl bg-slate-100 py-3 font-semibold text-slate-700">Dejarlos así</button>
               <button disabled={subiendo} onClick={() => subirPrecios(sugerencias)} className="rounded-2xl bg-emerald-600 py-3 font-bold text-white disabled:opacity-50">
                 {subiendo ? 'Guardando…' : sugerencias.length === 1 ? 'Subir' : `Subir los ${sugerencias.length}`}
               </button>
@@ -391,6 +392,7 @@ export default function FacturaNueva({
       {desconocido && (
         <ProductoDesconocido
           tiendaId={tiendaId}
+          desde="factura"
           codigo={desconocido}
           productos={productos}
           onCerrar={() => setDesconocido(null)}

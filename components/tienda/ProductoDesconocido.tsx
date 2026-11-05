@@ -20,6 +20,7 @@ export default function ProductoDesconocido({
   productos,
   onListo,
   onCerrar,
+  desde,
 }: {
   tiendaId: string
   codigo: string | null
@@ -28,6 +29,8 @@ export default function ProductoDesconocido({
   productos: Producto[]
   onListo: (producto: Producto) => void
   onCerrar: () => void
+  // Dónde se creó (caja, inventario, factura…), para saber qué se usa
+  desde: string
 }) {
   const [modo, setModo] = useState<'nuevo' | 'existente'>('nuevo')
   const [buscando, setBuscando] = useState(codigo !== null)
@@ -77,7 +80,7 @@ export default function ProductoDesconocido({
         vende_por: vendePor, precio_venta: precioNum, itbms: SIN_ITBMS.has(categoria) ? 0 : 7,
         imagen_url: sugerencia?.imagen_url ?? null,
       }
-      const r = await crearProducto(tiendaId, datos)
+      const r = await crearProducto(tiendaId, datos, desde)
       if (!r.ok) {
         toast.error(r.error)
         return
@@ -97,7 +100,7 @@ export default function ProductoDesconocido({
       const r = await actualizarProducto(tiendaId, p.id, {
         codigo_barras: codigo,
         ...(sugerencia?.imagen_url && !p.imagen_url ? { imagen_url: sugerencia.imagen_url } : {}),
-      })
+      }, desde)
       if (!r.ok) {
         toast.error(r.error)
         return
