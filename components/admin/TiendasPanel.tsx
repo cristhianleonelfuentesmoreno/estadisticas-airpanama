@@ -117,7 +117,7 @@ export function TiendasPanel({ tiendas, registrados }: { tiendas: TiendaAdmin[];
                       {p.rol === 'contador' && <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-800">Contador · solo reportes</span>}
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${ESTADO[p.estado].clase}`}>{ESTADO[p.estado].texto}</span>
                     </p>
-                    <p className="break-all text-sm text-slate-500">Usuario: <b className="font-mono">{usuarioVisible(p.email)}</b></p>
+                    <p className="truncate text-sm text-slate-500">Usuario: <b className="font-mono">{usuarioVisible(p.email)}</b></p>
                   </div>
                   <button
                     onClick={() => setNuevaClave({ id: p.usuario_id, nombre: p.nombre || p.email, tienda: t.nombre, contador: p.rol === 'contador' })}

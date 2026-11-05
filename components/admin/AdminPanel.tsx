@@ -192,18 +192,18 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
           </div>
           <span className="font-label-md text-label-md text-primary font-bold">Personal</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-space-md">
+        <div className="grid grid-cols-3 gap-2 mt-space-md">
           <div className="flex flex-col bg-surface-container-low p-3 rounded-lg">
             <span className="font-headline-sm text-headline-sm font-bold text-primary">{activos}</span>
-            <span className="font-body-sm text-body-sm text-on-surface-variant">pueden entrar a la aplicación</span>
+            <span className="text-xs leading-tight text-on-surface-variant">pueden entrar</span>
           </div>
           <div className="flex flex-col bg-surface-container-low p-3 rounded-lg">
             <span className="font-headline-sm text-headline-sm font-bold text-primary">{supervisores}</span>
-            <span className="font-body-sm text-body-sm text-on-surface-variant">son supervisores o administradores</span>
+            <span className="text-xs leading-tight text-on-surface-variant">del equipo Valis</span>
           </div>
           <div className="flex flex-col bg-surface-container-low p-3 rounded-lg">
             <span className={`font-headline-sm text-headline-sm font-bold ${pendientes > 0 ? 'text-amber-600' : 'text-primary'}`}>{pendientes}</span>
-            <span className="font-body-sm text-body-sm text-on-surface-variant">esperan que aceptes su acceso</span>
+            <span className="text-xs leading-tight text-on-surface-variant">esperan acceso</span>
           </div>
         </div>
       </section>
@@ -212,14 +212,14 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
       {/* SECCIÓN 1: USUARIOS                        */}
       {/* ========================================= */}
       <section className="flex flex-col gap-space-sm mt-4">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px] text-primary-container">manage_accounts</span>
               <h2 className="font-headline-sm text-headline-sm text-primary font-bold">Usuarios</h2>
             </div>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
-              Usa el botón Editar para cambiar nombre, cargo, rol o acceso.
+            <p className="text-sm text-on-surface-variant mt-0.5">
+              Toca Editar para cambiar nombre, rol o acceso.
             </p>
           </div>
           <span className="px-2.5 py-0.5 rounded-full bg-primary-container text-on-primary font-label-sm text-label-sm font-bold whitespace-nowrap">
@@ -231,8 +231,8 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
           {(showAllUsers ? users : users.slice(0, 5)).map(user => (
             <article key={user.id} className={`flex flex-col gap-2 p-3.5 rounded-xl bg-surface-container-lowest shadow-sm relative group transition-colors border border-transparent ${canEdit(user) ? 'cursor-pointer hover:bg-surface-container-lowest/80 hover:border-outline-variant/30' : ''}`} onClick={() => canEdit(user) && openEditModal(user)}>
               <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-label-md text-label-md font-bold ${
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                  <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-label-md text-label-md font-bold ${
                     user.role === 'administrador' ? 'bg-primary-container text-on-primary' : user.role === 'supervisor' ? 'bg-amber-500 text-white' : 'bg-tertiary-container text-on-tertiary'
                   }`}>
                     {user.nombre ? user.nombre.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
@@ -241,9 +241,8 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
                     <span className="font-label-md text-label-md text-primary font-bold truncate">
                       {user.nombre || "Sin Nombre"}
                     </span>
-                    <span className="font-body-sm text-body-sm text-on-surface-variant truncate flex items-center gap-1">
-                      {usuarioVisible(user.email)} <span className="opacity-50">•</span> <span>{user.contador && user.role === 'usuario' ? 'Contador · solo reportes' : ROLE_LABEL[user.role]}</span>
-                    </span>
+                    <span className="truncate text-sm text-on-surface-variant">{usuarioVisible(user.email)}</span>
+                    <span className="truncate text-xs font-semibold text-on-surface-variant/80">{user.contador && user.role === 'usuario' ? 'Contador · solo reportes' : ROLE_LABEL[user.role]}</span>
                   </div>
                 </div>
                 {user.status === 'aprobado' ? (
@@ -263,13 +262,13 @@ export function AdminPanel({ initialUsers, role, currentUserId }: { initialUsers
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                <div className="flex items-center gap-1.5 text-on-surface-variant font-body-sm text-body-sm">
-                  <span className="material-symbols-outlined text-[16px] text-secondary-container">badge</span>
-                  <span>{user.cargo || 'Sin asignar'}</span>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <div className="flex min-w-0 items-center gap-1.5 text-sm text-on-surface-variant">
+                  <span className="material-symbols-outlined shrink-0 text-[16px] text-secondary-container">badge</span>
+                  <span className="truncate">{user.cargo || 'Sin cargo'}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-body-sm text-body-sm text-outline">
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="hidden text-sm text-outline sm:inline">
                     {new Date(user.created_at).toLocaleDateString('es-PA')}
                   </span>
                   {/* Siempre visible (también en celular): así nadie tiene que adivinar dónde se edita */}
