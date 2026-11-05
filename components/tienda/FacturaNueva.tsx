@@ -116,7 +116,7 @@ export default function FacturaNueva({
       }
       const nuevo: Producto = {
         id: r.data.id, nombre, marca: null, presentacion: null, categoria: 'Otros', codigo_barras: f.codigo_barras,
-        vende_por: 'unidad', precio_venta: null, costo: null, itbms: 0, imagen_url: null, stock_minimo: null, stock: 0, contado: false,
+        vende_por: 'unidad', precio_venta: null, costo: null, itbms: 0, imagen_url: null, stock_minimo: null, activo: true, stock: 0, contado: false,
       }
       setProductos(ps => [...ps, nuevo])
       setPendientes(ps => ps.filter((_, j) => j !== i))

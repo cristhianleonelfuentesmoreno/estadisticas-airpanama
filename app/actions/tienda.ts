@@ -120,13 +120,16 @@ export type CambiosProducto = {
   stock_minimo?: number | null
   codigo_barras?: string | null
   imagen_url?: string | null
+  categoria?: string | null
+  // false = en pausa
+  activo?: boolean
 }
 
 export async function actualizarProducto(
   tiendaId: string, productoId: string, cambios: CambiosProducto,
 ): Promise<Resultado> {
   const tienda = await tiendaDelUsuario(tiendaId)
-  const fila: Record<string, string | number | null> = {}
+  const fila: Record<string, string | number | boolean | null> = {}
   if (cambios.nombre !== undefined) {
     const nombre = texto(cambios.nombre)
     if (!nombre) return { ok: false, error: 'Falta el nombre del producto' }
@@ -135,6 +138,8 @@ export async function actualizarProducto(
   if (cambios.precio_venta !== undefined) fila.precio_venta = numeroValido(cambios.precio_venta)
   if (cambios.costo !== undefined) fila.costo = numeroValido(cambios.costo)
   if (cambios.stock_minimo !== undefined) fila.stock_minimo = numeroValido(cambios.stock_minimo)
+  if (cambios.categoria !== undefined) fila.categoria = texto(cambios.categoria, 60)
+  if (cambios.activo !== undefined) fila.activo = cambios.activo === true
   if (cambios.codigo_barras !== undefined) {
     const codigo = texto(cambios.codigo_barras, 32)
     if (codigo && !CODIGO.test(codigo)) return { ok: false, error: 'El código de barras no es válido' }

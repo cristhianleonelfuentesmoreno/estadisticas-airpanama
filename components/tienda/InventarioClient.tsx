@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, CircleDollarSign, ClipboardList, FileSpreadsheet, MessageCircle, Package, ScanBarcode, Search, Wallet, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, CircleDollarSign, ClipboardList, FileSpreadsheet, MessageCircle, Package, PackagePlus, Pause, Play, ScanBarcode, Search, Wallet, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, precioParaGanar, textoPedido } from '@/lib/tienda/formato'
@@ -10,8 +10,9 @@ import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
+import { CATEGORIAS } from '@/lib/tienda/categorias'
 
-export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-costo' | 'sin-precio' | 'sin-codigo'
+export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-costo' | 'sin-precio' | 'sin-codigo' | 'en-pausa'
 
 export default function InventarioClient({
   tiendaId, tiendaNombre, slug, productos: iniciales, filtroInicial = 'todos',
@@ -27,20 +28,25 @@ export default function InventarioClient({
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<Filtro>(filtroInicial)
   const [escaneando, setEscaneando] = useState(false)
+  // Código escaneado que no está; '' = producto nuevo sin código
   const [desconocido, setDesconocido] = useState<string | null>(null)
   const [abierto, setAbierto] = useState<Producto | null>(null)
   useEffect(precargarEscaner, [])
 
+  // Los que están en pausa no cuentan para nada: solo salen en su filtro
+  const activos = useMemo(() => productos.filter(p => p.activo), [productos])
+  const enPausa = productos.length - activos.length
+
   const resumen = useMemo(() => ({
-    total: productos.length,
-    venta: productos.reduce((s, p) => s + Math.max(p.stock, 0) * (p.precio_venta ?? 0), 0),
-    porAgotarse: productos.filter(porAgotarse).length,
-    sinCosto: productos.filter(p => p.costo === null).length,
-  }), [productos])
+    total: activos.length,
+    venta: activos.reduce((s, p) => s + Math.max(p.stock, 0) * (p.precio_venta ?? 0), 0),
+    porAgotarse: activos.filter(porAgotarse).length,
+    sinCosto: activos.filter(p => p.costo === null).length,
+  }), [activos])
 
   const lista = useMemo(() => {
     const f = busqueda.trim().toLowerCase()
-    return productos.filter(p => {
+    return (filtro === 'en-pausa' ? productos.filter(p => !p.activo) : activos).filter(p => {
       if (filtro === 'por-agotarse' && !porAgotarse(p)) return false
       if (filtro === 'sin-contar' && p.contado) return false
       if (filtro === 'sin-precio' && p.precio_venta !== null) return false
@@ -48,7 +54,7 @@ export default function InventarioClient({
       if (filtro === 'sin-costo' && p.costo !== null) return false
       return !f || p.nombre.toLowerCase().includes(f) || (p.categoria ?? '').toLowerCase().includes(f) || p.codigo_barras === f
     })
-  }, [productos, busqueda, filtro])
+  }, [productos, activos, busqueda, filtro])
 
   const alEscanear = useCallback((codigo: string) => {
     setEscaneando(false)
@@ -89,16 +95,23 @@ export default function InventarioClient({
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {([['todos', 'Todos'], ['por-agotarse', 'Para pedir'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código']] as const).map(([f, nombre]) => (
+        {([['todos', 'Todos'], ['por-agotarse', 'Para pedir'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código'], ['en-pausa', `En pausa (${enPausa})`]] as const)
+          .filter(([f]) => f !== 'en-pausa' || enPausa > 0 || filtro === 'en-pausa')
+          .map(([f, nombre]) => (
           <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${filtro === f ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25' : 'bg-white text-slate-600 shadow-sm hover:bg-emerald-50'}`}>
             {nombre}
           </button>
         ))}
       </div>
 
-      <a href={`/t/${slug}/inventario/excel`} download className="flex items-center justify-center gap-2 self-end rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
-        <FileSpreadsheet className="h-5 w-5" /> Descargar todo en Excel
-      </a>
+      <div className="flex flex-wrap justify-end gap-2">
+        <button onClick={() => setDesconocido('')} className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700">
+          <PackagePlus className="h-5 w-5" /> Producto sin código
+        </button>
+        <a href={`/t/${slug}/inventario/excel`} download className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
+          <FileSpreadsheet className="h-5 w-5" /> Descargar todo en Excel
+        </a>
+      </div>
 
       {filtro === 'por-agotarse' && lista.length > 0 && (
         <a
@@ -118,7 +131,7 @@ export default function InventarioClient({
               <FotoProducto producto={p} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-slate-800">{p.nombre}</p>
-                <p className="truncate text-xs text-slate-500">{p.categoria ?? 'Sin categoría'}{p.codigo_barras ? ` · ${p.codigo_barras}` : ''}</p>
+                <p className="truncate text-xs text-slate-500">{p.activo ? '' : 'En pausa · '}{p.categoria ?? 'Sin categoría'}{p.codigo_barras ? ` · ${p.codigo_barras}` : ''}</p>
               </div>
               <div className="text-right">
                 <p className={`ml-auto w-fit rounded-full px-2 py-0.5 text-sm font-bold ${!p.contado ? 'bg-slate-100 text-slate-400' : p.stock <= 0 ? 'bg-red-50 text-red-600' : porAgotarse(p) ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-800'}`}>{p.contado ? fmtCantidad(p.stock, p.vende_por) : 'sin contar'}</p>
@@ -135,10 +148,10 @@ export default function InventarioClient({
 
       {escaneando && <Escaner titulo="Escanea para buscar" onCodigo={alEscanear} onCerrar={() => setEscaneando(false)} />}
 
-      {desconocido && (
+      {desconocido !== null && (
         <ProductoDesconocido
           tiendaId={tiendaId}
-          codigo={desconocido}
+          codigo={desconocido || null}
           productos={productos}
           onCerrar={() => setDesconocido(null)}
           onListo={p => {
@@ -197,6 +210,7 @@ function FichaProducto({
   const [costo, setCosto] = useState(producto.costo !== null ? String(Number(producto.costo.toFixed(4))) : '')
   const [codigo, setCodigo] = useState(producto.codigo_barras ?? '')
   const [minimo, setMinimo] = useState(producto.stock_minimo?.toString() ?? '')
+  const [categoria, setCategoria] = useState(producto.categoria ?? '')
   const [escaneando, setEscaneando] = useState(false)
   const [guardando, startGuardar] = useTransition()
   const precioNum = precio.trim() === '' ? null : Number(precio)
@@ -221,13 +235,26 @@ function FichaProducto({
       return
     }
     startGuardar(async () => {
-      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum })
+      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum, categoria: categoria || null })
       if (!r.ok) {
         toast.error(r.error)
         return
       }
       toast.success('Guardado')
-      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, costo: costoValido, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum })
+      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, costo: costoValido, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum, categoria: categoria || null })
+    })
+  }
+
+  // Pausar no borra nada: el producto deja de salir en la caja y en los pedidos hasta que se vuelva a activar
+  function cambiarPausa() {
+    startGuardar(async () => {
+      const r = await actualizarProducto(tiendaId, producto.id, { activo: !producto.activo })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success(producto.activo ? `${producto.nombre} quedó en pausa. Ya no sale en la caja.` : `${producto.nombre} se vuelve a vender`)
+      onGuardado({ ...producto, activo: !producto.activo })
     })
   }
 
@@ -289,6 +316,14 @@ function FichaProducto({
           </div>
         )}
         <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+          Categoría
+          <select value={categoria} onChange={e => setCategoria(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base">
+            {!categoria && <option value="">Sin categoría</option>}
+            {categoria && !CATEGORIAS.includes(categoria) && <option>{categoria}</option>}
+            {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
           Avísame cuando queden
           <input value={minimo} onChange={e => setMinimo(e.target.value)} inputMode="decimal" placeholder={`${MINIMO_POR_DEFECTO} (si lo dejas vacío)`} className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
         </label>
@@ -304,6 +339,11 @@ function FichaProducto({
 
         <button disabled={guardando} className="rounded-2xl bg-emerald-600 py-3.5 text-base font-bold text-white disabled:opacity-50">
           {guardando ? 'Guardando…' : 'Guardar'}
+        </button>
+        <button type="button" disabled={guardando} onClick={cambiarPausa} className="flex items-center justify-center gap-2 rounded-2xl bg-slate-100 py-3 text-sm font-semibold text-slate-700 disabled:opacity-50">
+          {producto.activo
+            ? <><Pause className="h-4 w-4" /> Ya no lo vendo: ponerlo en pausa</>
+            : <><Play className="h-4 w-4" /> Volver a venderlo</>}
         </button>
       </form>
       {escaneando && (
