@@ -6,6 +6,7 @@ import { HelpCircle, PackagePlus, ScanBarcode, Search, Trash2, TrendingUp, X } f
 import { toast } from 'sonner'
 import { actualizarProducto, crearProducto, registrarEntrada, type LineaFacturaFoto, type SugerenciaPrecio } from '@/app/actions/tienda'
 import { anotarUso } from '@/app/actions/uso'
+import { paqueteDelCatalogo } from '@/app/actions/catalogo'
 import { costoDe, dinero, GANANCIA_POR_DEFECTO, margen, normalizarCodigo, redondear2, totalDe } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
@@ -152,6 +153,16 @@ export default function FacturaNueva({
         const costoPaquete = p.costo !== null ? String(Number(p.costo.toFixed(4))) : ''
         return { producto: p, paquetes: '1', porPaquete: '1', costoPaquete, totalLinea: totalDe('1', costoPaquete), vence: '' }
       })(), ...ls])
+    // Si el catálogo dice "paquete de 24, se vende suelto", la línea lo toma sola (si nadie la cambió todavía)
+    void paqueteDelCatalogo(p.codigo_barras, p.nombre).then(n => {
+      if (!n) return
+      setLineas(ls => ls.map(l => {
+        if (l.producto.id !== p.id || l.porPaquete !== '1') return l
+        const costoPaquete = p.costo !== null ? String(Number((p.costo * n).toFixed(4))) : l.costoPaquete
+        return { ...l, porPaquete: String(n), costoPaquete, totalLinea: totalDe(l.paquetes, costoPaquete) }
+      }))
+      toast.info(`${p.nombre}: el paquete trae ${n}. Ya lo puse; cámbialo si no es así.`, { duration: 4000 })
+    })
   }, [])
 
   const alEscanear = useCallback((codigo: string) => {
