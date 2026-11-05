@@ -5,7 +5,7 @@ import { requireApprovedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMisTiendas } from '@/lib/tienda/servidor'
-import { hoyPanama, precioParaGanar, venceQueda } from '@/lib/tienda/formato'
+import { hoyPanama, precioParaGanar, precioSugerido, venceQueda } from '@/lib/tienda/formato'
 import { emparejar, type Coincidencia } from '@/lib/tienda/emparejar'
 import { FacturaIaError, leerFactura, type FacturaLeida, type LineaLeida } from '@/lib/tienda/factura-ia'
 import type {
@@ -208,9 +208,12 @@ export async function registrarVenta(
   return { ok: true, data: { id: data as string } }
 }
 
+// Producto al que le subió el costo y ya no deja su %: el dueño decide si sube el precio
+export type SugerenciaPrecio = { producto_id: string; nombre: string; precio: number; sugerido: number; costo: number; porcentaje: number }
+
 export async function registrarEntrada(
   tiendaId: string, proveedor: string, numeroFactura: string, lineas: LineaEntrada[],
-): Promise<Resultado<{ id: string }>> {
+): Promise<Resultado<{ id: string; sugerencias: SugerenciaPrecio[] }>> {
   const tienda = await tiendaDelUsuario(tiendaId)
   const prov = texto(proveedor)
   if (!prov) return { ok: false, error: 'Falta el proveedor' }
@@ -220,6 +223,10 @@ export async function registrarEntrada(
   if (!limpias.length) return { ok: false, error: 'La factura no tiene productos con cantidad y costo' }
 
   const supabase = await createClient()
+  const ids = [...new Set(limpias.map(l => l.producto_id))]
+  // El costo de antes, para saber a cuáles les subió
+  const { data: antes } = await supabase.from('productos').select('id, costo').eq('negocio_id', tienda.negocio_id).in('id', ids)
+  const costoAntes = new Map((antes ?? []).map(p => [p.id as string, p.costo === null ? null : Number(p.costo)]))
   const { data, error } = await supabase.rpc('registrar_entrada', {
     p_tienda: tienda.id, p_proveedor: prov, p_numero_factura: texto(numeroFactura, 60) ?? '', p_lineas: limpias,
   })
@@ -235,20 +242,26 @@ export async function registrarEntrada(
   }
   const { data: llegaron } = await supabase
     .from('productos')
-    .select('id, vence_el, precio_venta, costo, porcentaje_ganancia')
+    .select('id, nombre, vence_el, precio_venta, costo, porcentaje_ganancia')
     .eq('negocio_id', tienda.negocio_id)
-    .in('id', [...new Set(limpias.map(l => l.producto_id))])
+    .in('id', ids)
+  const sugerencias: SugerenciaPrecio[] = []
   await Promise.all((llegaron ?? []).flatMap(p => {
     const cambios: { vence_el?: string; precio_venta?: number } = {}
     const fecha = vencen.get(p.id as string)
     if (fecha) cambios.vence_el = venceQueda(p.vence_el as string | null, fecha, hoyPanama())
     const costo = Number(p.costo)
     if (p.precio_venta === null && p.costo !== null && costo > 0) cambios.precio_venta = precioParaGanar(costo, Number(p.porcentaje_ganancia))
+    const precio = p.precio_venta === null ? null : Number(p.precio_venta)
+    const sugerido = p.costo === null ? null : precioSugerido(precio, costoAntes.get(p.id as string) ?? null, costo, Number(p.porcentaje_ganancia))
+    if (sugerido !== null && precio !== null) {
+      sugerencias.push({ producto_id: p.id as string, nombre: p.nombre as string, precio, sugerido, costo, porcentaje: Number(p.porcentaje_ganancia) })
+    }
     if (!Object.keys(cambios).length) return []
     return [supabase.from('productos').update(cambios).eq('id', p.id).eq('negocio_id', tienda.negocio_id)]
   }))
   revalidatePath(`/t/${tienda.slug}`, 'layout')
-  return { ok: true, data: { id: data as string } }
+  return { ok: true, data: { id: data as string, sugerencias } }
 }
 
 // ---------- Anular, mercancía sin factura y cierre del día ----------

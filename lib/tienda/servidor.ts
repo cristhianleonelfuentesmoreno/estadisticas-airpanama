@@ -151,3 +151,29 @@ export async function getEstadisticas(tienda: Tienda, desde: string, hasta: stri
     dias_vendiendo: r.primera_venta ? (Date.now() - new Date(r.primera_venta as string).getTime()) / 86_400_000 : 0,
   }
 }
+
+// Quién trajo cada producto la última vez (de las últimas 100 facturas): para separar la lista de pedido
+export async function getUltimoProveedor(tienda: Tienda): Promise<Record<string, string>> {
+  const supabase = await createClient()
+  const { data: entradas } = await supabase
+    .from('entradas')
+    .select('id, proveedor')
+    .eq('tienda_id', tienda.id)
+    .order('creado_en', { ascending: false })
+    .limit(100)
+  if (!entradas?.length) return {}
+  const { data: lineas } = await supabase
+    .from('entradas_lineas')
+    .select('producto_id, entrada_id')
+    .in('entrada_id', entradas.map(e => e.id as string))
+  const orden = new Map(entradas.map((e, i) => [e.id as string, i]))
+  const proveedor = new Map(entradas.map(e => [e.id as string, e.proveedor as string]))
+  const mejor = new Map<string, number>()
+  for (const l of lineas ?? []) {
+    const i = orden.get(l.entrada_id as string) ?? Infinity
+    if (i < (mejor.get(l.producto_id as string) ?? Infinity)) mejor.set(l.producto_id as string, i)
+  }
+  const resultado: Record<string, string> = {}
+  for (const [producto, i] of mejor) resultado[producto] = proveedor.get(entradas[i].id as string) ?? ''
+  return resultado
+}
