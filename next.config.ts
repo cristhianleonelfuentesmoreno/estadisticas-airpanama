@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
   // Cabeceras de seguridad en todas las respuestas
   async headers() {
     return [{
+      // El service worker siempre se pide de nuevo: así cada versión de la app lo actualiza
+      source: '/sw.js',
+      headers: [
+        { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+        { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+      ],
+    }, {
       source: '/:path*',
       headers: [
         // Nadie puede mostrar la app dentro de un marco de otro sitio (clickjacking)
