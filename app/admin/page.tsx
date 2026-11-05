@@ -65,7 +65,7 @@ export default async function AdminPage({ searchParams }: PageProps<'/admin'>) {
 
       {seccion === 'personas' && <AdminPanel initialUsers={usuarios} role={profile.role} currentUserId={profile.id} />}
 
-      {seccion === 'catalogo' && <CatalogoPanel {...await listarCatalogo()} />}
+      {seccion === 'catalogo' && <CatalogoPanel items={await listarCatalogo()} />}
 
       {seccion === 'ia' && <IaPanel config={await obtenerConfigIa()} />}
 
