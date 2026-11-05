@@ -120,6 +120,83 @@ export async function leerFactura(
   return { factura, consumo }
 }
 
+// ---------- Lista de inventario (foto de un cuaderno, una lista o el estante) ----------
+
+export type LineaInventario = { nombre: string; codigo_barras: string | null; cantidad: number | null; precio: number | null; costo: number | null }
+
+const INSTRUCCIONES_LISTA = [
+  'Eres el asistente de una abarrotería de Panamá. La foto es una lista del inventario de la tienda: un cuaderno, una hoja escrita a mano, una lista impresa o una tabla.',
+  'Devuelve un producto por renglón, en el mismo orden de la foto.',
+  'Reglas:',
+  '- nombre: el producto como lo escribieron, corrigiendo solo faltas obvias (ej. "cocacola 2lt" → "Coca-Cola 2 L"). Incluye el tamaño si aparece.',
+  '- cantidad: cuántos hay, si la lista lo dice. Si no, null.',
+  '- precio: el precio de venta, si aparece. costo: lo que le cuesta a la tienda, si aparece aparte (columnas como "costo", "compra" o "C"). Si solo hay un precio y no se sabe cuál es, ponlo en precio.',
+  '- codigo_barras: solo si aparece un código EAN/UPC de 8 a 14 dígitos.',
+  '- Ignora títulos, fechas, totales, sumas y tachones.',
+  '- No inventes: lo que no se lea, déjalo en null.',
+].join('\n')
+
+const EsquemaLista = z.object({
+  lineas: z.array(z.object({
+    nombre: z.string(),
+    codigo_barras: z.string().nullable(),
+    cantidad: z.number().nullable(),
+    precio: z.number().nullable(),
+    costo: z.number().nullable(),
+  })),
+})
+
+export async function leerListaInventario(
+  clave: string, modelo: string, imagenBase64: string, mime: TipoImagen,
+): Promise<{ lineas: LineaInventario[]; consumo: Consumo }> {
+  const cliente = new Anthropic({ apiKey: clave, maxRetries: 2, timeout: 90_000 })
+  const inicio = Date.now()
+  let respuesta
+  try {
+    respuesta = await cliente.messages.parse({
+      model: modelo,
+      max_tokens: 16000,
+      output_config: { effort: 'medium', format: zodOutputFormat(EsquemaLista) },
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mime, data: imagenBase64 } },
+          { type: 'text', text: INSTRUCCIONES_LISTA },
+        ],
+      }],
+    })
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new FacturaIaError('clave-invalida')
+    if (e instanceof Anthropic.RateLimitError || e instanceof Anthropic.InternalServerError || e instanceof Anthropic.APIConnectionError) {
+      throw new FacturaIaError('ocupado')
+    }
+    throw new FacturaIaError('ilegible')
+  }
+
+  const entrada = respuesta.usage.input_tokens + (respuesta.usage.cache_read_input_tokens ?? 0) + (respuesta.usage.cache_creation_input_tokens ?? 0)
+  const salida = respuesta.usage.output_tokens
+  const consumo: Consumo = {
+    modelo, tokens_entrada: entrada, tokens_salida: salida, costo_usd: costoDe(modelo, entrada, salida), duracion_ms: Date.now() - inicio,
+  }
+  if (respuesta.stop_reason === 'refusal' || !respuesta.parsed_output) throw new FacturaIaError('ilegible', consumo)
+  const positivo = (n: number | null) => (n !== null && Number.isFinite(n) && n >= 0 ? n : null)
+  const lineas = respuesta.parsed_output.lineas
+    .map(l => {
+      const codigo = (l.codigo_barras ?? '').replace(/\D/g, '')
+      return {
+        nombre: l.nombre.trim().replace(/\s+/g, ' ').slice(0, 120),
+        codigo_barras: /^\d{8,14}$/.test(codigo) ? codigo : null,
+        cantidad: positivo(l.cantidad),
+        precio: positivo(l.precio),
+        costo: positivo(l.costo),
+      }
+    })
+    .filter(l => l.nombre)
+    .slice(0, 150)
+  if (!lineas.length) throw new FacturaIaError('ilegible', consumo)
+  return { lineas, consumo }
+}
+
 // Comprueba una clave nueva antes de guardarla (no gasta tokens)
 export async function claveValida(clave: string): Promise<boolean> {
   try {

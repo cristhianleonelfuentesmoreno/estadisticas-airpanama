@@ -9,6 +9,7 @@ import { hoyPanama, normalizarCodigo, precioParaGanar, precioSugerido, venceQued
 import { emparejar, type Coincidencia } from '@/lib/tienda/emparejar'
 import { anotar as anotarUso } from '@/lib/tienda/uso'
 import { FacturaIaError, leerFactura, type FacturaLeida, type LineaLeida } from '@/lib/tienda/factura-ia'
+import { claveYModelo } from '@/lib/tienda/ia-config'
 import type {
   LineaEntrada, LineaVenta, MetodoPago, MotivoAjuste, Resultado, SugerenciaProducto, Tienda, VendePor,
 } from '@/lib/tienda/tipos'
@@ -377,16 +378,6 @@ type MimeImagen = (typeof MIME_IMAGEN)[number]
 
 export type LineaFacturaFoto = LineaLeida & { coincidencia: Coincidencia }
 
-// La clave vive cifrada en la bóveda de Supabase (la pone el administrador en /admin);
-// si no hay, se usa ANTHROPIC_API_KEY del servidor
-async function claveYModelo(): Promise<{ clave: string | null; modelo: string }> {
-  const admin = createAdminClient()
-  const [{ data: clave }, { data: config }] = await Promise.all([
-    admin.rpc('clave_ia'),
-    admin.from('config_ia').select('modelo').eq('id', 1).single(),
-  ])
-  return { clave: (clave as string | null) ?? process.env.ANTHROPIC_API_KEY ?? null, modelo: config?.modelo ?? 'claude-haiku-5-5' }
-}
 
 export async function leerFacturaConFoto(
   tiendaId: string, imagenBase64: string, mime: string,
