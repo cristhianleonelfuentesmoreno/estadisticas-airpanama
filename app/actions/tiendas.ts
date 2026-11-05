@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth'
 import { logAudit } from '@/lib/audit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { correoDeUsuario, usuarioVisible } from '@/lib/cuenta'
+import { limpiarSolicitud, POR_LIBRA_INICIALES, type DatosSolicitud } from '@/lib/tienda/solicitud'
 import type { Resultado } from '@/lib/tienda/tipos'
 
 // Tiendas y sus dueños, desde el panel. Solo el administrador (equipo de Valis Digital).
@@ -79,6 +80,20 @@ export async function crearTienda(datos: { negocio: string; tienda: string }): P
   const tienda = limpio(datos.tienda, 80) || negocio
   if (!negocio) return { ok: false, error: 'Escribe el nombre del negocio' }
 
+  const creada = await nuevoNegocioYTienda(negocio, tienda, 30)
+  if (!creada.ok) return creada
+  const { id, negocio_id } = creada.data
+
+  await logAudit({
+    tipo_evento: 'creacion', actor, entidad: 'configuracion', entidad_id: id,
+    nombre_referencia: tienda, descripcion: `Creó la tienda ${tienda} (${negocio})`,
+  })
+  revalidatePath('/admin')
+  return { ok: true, data: { id, negocio_id } }
+}
+
+// Negocio nuevo con su primera tienda; el slug no choca con otro
+async function nuevoNegocioYTienda(negocio: string, tienda: string, porcentaje: number): Promise<Resultado<{ id: string; negocio_id: string; slug: string }>> {
   const admin = createAdminClient()
   const base = slugDe(tienda)
   const { data: usados } = await admin.from('tiendas').select('slug').like('slug', `${base}%`)
@@ -86,17 +101,11 @@ export async function crearTienda(datos: { negocio: string; tienda: string }): P
   let slug = base
   for (let i = 2; ocupados.has(slug); i++) slug = `${base}-${i}`
 
-  const { data: neg, error: e1 } = await admin.from('negocios').insert({ nombre: negocio }).select('id').single()
+  const { data: neg, error: e1 } = await admin.from('negocios').insert({ nombre: negocio, porcentaje_ganancia: porcentaje }).select('id').single()
   if (e1 || !neg) return { ok: false, error: 'No se pudo crear el negocio' }
   const { data: tie, error: e2 } = await admin.from('tiendas').insert({ negocio_id: neg.id, nombre: tienda, slug }).select('id').single()
   if (e2 || !tie) return { ok: false, error: 'No se pudo crear la tienda' }
-
-  await logAudit({
-    tipo_evento: 'creacion', actor, entidad: 'configuracion', entidad_id: tie.id,
-    nombre_referencia: tienda, descripcion: `Creó la tienda ${tienda} (${negocio})`,
-  })
-  revalidatePath('/admin')
-  return { ok: true, data: { id: tie.id, negocio_id: neg.id } }
+  return { ok: true, data: { id: tie.id as string, negocio_id: neg.id as string, slug } }
 }
 
 // Crea la cuenta del dueño (o del contador) en el momento, sin correos: el administrador le pasa el usuario
@@ -196,17 +205,27 @@ export type Registrado = {
   usuario: string
   estado: 'pendiente' | 'aprobado' | 'rechazado'
   creado_en: string
+  // Lo que contó de su negocio al registrarse (si lo llenó)
+  solicitud: DatosSolicitud | null
 }
 
 // Cuentas de dueños de negocio (no del equipo Valis) que todavía no están en ninguna tienda
 export async function listarRegistrados(): Promise<Registrado[]> {
   await requireAdmin()
   const admin = createAdminClient()
-  const [{ data: perfiles }, { data: miembros }, usuarios] = await Promise.all([
+  const [{ data: perfiles }, { data: miembros }, usuarios, { data: solicitudes }] = await Promise.all([
     admin.from('perfiles').select('id, nombre, email, status').eq('role', 'usuario'),
     admin.from('miembros').select('usuario_id'),
     admin.auth.admin.listUsers({ perPage: 1000 }),
+    admin.from('solicitudes_negocio').select('usuario_id, negocio, tipo, telefono, vende_por_libra, porcentaje_ganancia'),
   ])
+  const solicitud = new Map((solicitudes ?? []).map(s => [s.usuario_id as string, {
+    negocio: s.negocio as string,
+    tipo: (s.tipo as string | null) ?? 'Otro',
+    telefono: (s.telefono as string | null) ?? '',
+    vende_por_libra: s.vende_por_libra as boolean,
+    porcentaje_ganancia: Number(s.porcentaje_ganancia),
+  }]))
   const conTienda = new Set((miembros ?? []).map(m => m.usuario_id as string))
   const creado = new Map((usuarios.data?.users ?? []).map(u => [u.id, u.created_at]))
   return (perfiles ?? [])
@@ -217,6 +236,7 @@ export async function listarRegistrados(): Promise<Registrado[]> {
       usuario: usuarioVisible((p.email as string) ?? ''),
       estado: p.status as Registrado['estado'],
       creado_en: creado.get(p.id as string) ?? '',
+      solicitud: solicitud.get(p.id as string) ?? null,
     }))
     .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
 }
@@ -247,4 +267,43 @@ export async function agregarRegistrado(
   })
   revalidatePath('/admin')
   return { ok: true, data: { nombre: (p.nombre as string | null) ?? usuario, usuario } }
+}
+
+// Aprobar a un dueño nuevo: con los datos de su solicitud (corregidos por el administrador)
+// se crean su negocio y su tienda, queda como dueño y, si vende por libra, con lo básico para pesar.
+// La próxima vez que entra, cae directo en su caja.
+export async function aprobarSolicitud(usuarioId: string, datos: DatosSolicitud): Promise<Resultado<{ tienda: string }>> {
+  const actor = await requireAdmin()
+  const limpio = limpiarSolicitud(datos)
+  if (typeof limpio === 'string') return { ok: false, error: limpio }
+  const admin = createAdminClient()
+  const [{ data: p }, { data: yaEs }] = await Promise.all([
+    admin.from('perfiles').select('id, nombre, email, role').eq('id', usuarioId).maybeSingle(),
+    admin.from('miembros').select('negocio_id').eq('usuario_id', usuarioId).limit(1),
+  ])
+  if (!p) return { ok: false, error: 'Esa cuenta no existe' }
+  if (p.role !== 'usuario') return { ok: false, error: 'Esa cuenta es del equipo Valis, no de un dueño' }
+  if (yaEs?.length) return { ok: false, error: 'Esa persona ya tiene una tienda' }
+
+  const creada = await nuevoNegocioYTienda(limpio.negocio, limpio.negocio, limpio.porcentaje_ganancia)
+  if (!creada.ok) return creada
+  const { negocio_id, id } = creada.data
+  const { error } = await admin.from('miembros').insert({ negocio_id, usuario_id: usuarioId, rol: 'dueno' })
+  if (error) return { ok: false, error: 'Se creó la tienda, pero no se pudo agregar al dueño. Agrégalo desde la tienda.' }
+  await admin.from('perfiles').update({ status: 'aprobado' }).eq('id', usuarioId)
+  if (limpio.vende_por_libra) {
+    await admin.from('productos').insert(POR_LIBRA_INICIALES.map(nombre => ({
+      negocio_id, nombre, vende_por: 'libra', categoria: 'Verduras y frutas', itbms: 0,
+      porcentaje_ganancia: limpio.porcentaje_ganancia, creado_por: actor.id,
+    })))
+  }
+  await admin.from('solicitudes_negocio').update({ ...limpio, telefono: limpio.telefono || null, actualizado_en: new Date().toISOString() }).eq('usuario_id', usuarioId)
+
+  const usuario = usuarioVisible(p.email as string)
+  await logAudit({
+    tipo_evento: 'aprobacion', actor, entidad: 'configuracion', entidad_id: id,
+    nombre_referencia: limpio.negocio, descripcion: `Aprobó a ${(p.nombre as string | null) ?? usuario} y creó su tienda ${limpio.negocio}`,
+  })
+  revalidatePath('/admin')
+  return { ok: true, data: { tienda: limpio.negocio } }
 }

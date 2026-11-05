@@ -16,9 +16,14 @@ export async function GET(request: Request) {
       if (userData?.user) {
         const { data: perfil } = await supabase
           .from('perfiles')
-          .select('status')
+          .select('status, role')
           .eq('id', userData.user.id)
           .single()
+
+        // Un dueño que espera aprobación entra solo a llenar su solicitud
+        if (perfil?.status === 'pendiente' && perfil.role === 'usuario') {
+          return NextResponse.redirect(`${origin}/solicitud`)
+        }
 
         if (!perfil || perfil?.status !== 'aprobado') {
           await supabase.auth.signOut()

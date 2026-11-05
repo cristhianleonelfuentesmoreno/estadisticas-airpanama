@@ -324,7 +324,7 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     if (!acceptTerms) return toast.error("Debes aceptar los términos y condiciones.");
     
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data: alta, error } = await supabase.auth.signUp({
       email: regEmail,
       password: regPassword,
       // Queda constancia de qué versión de los términos aceptó y cuándo
@@ -334,6 +334,9 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     setLoading(false);
     if (error) {
       toast.error(error.message);
+    } else if (alta.session) {
+      // Entra como "pendiente": mientras espera, cuenta de su negocio en /solicitud
+      window.location.assign("/solicitud");
     } else {
       // Como por defecto entran como "pendiente", cerramos sesión local y mostramos mensaje de marketing
       await supabase.auth.signOut();
@@ -385,9 +388,16 @@ export const LoginCard = ({ settings }: LoginCardProps = {}) => {
     if (data?.user) {
       const { data: perfil } = await supabase
         .from('perfiles')
-        .select('status')
+        .select('status, role')
         .eq('id', data.user.id)
         .single();
+
+      // Un dueño que espera aprobación sigue con su sesión solo para llenar su solicitud;
+      // las tiendas, el panel y la base de datos siguen cerrados para él
+      if (perfil?.status === 'pendiente' && perfil.role === 'usuario') {
+        window.location.assign("/solicitud");
+        return;
+      }
 
       // Validación de seguridad estricta
       if (!perfil || perfil.status !== 'aprobado') {
