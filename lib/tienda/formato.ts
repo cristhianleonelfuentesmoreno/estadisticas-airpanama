@@ -121,3 +121,45 @@ export function costoDe(paquetes: string, totalLinea: string): string {
   const t = Number(totalLinea)
   return paquetes.trim() !== '' && totalLinea.trim() !== '' && p > 0 && t >= 0 ? String(Number((t / p).toFixed(4))) : ''
 }
+
+// ---------- Caducidad (fechas AAAA-MM-DD de Panamá) ----------
+
+// Avisa desde 15 días antes: alcanza para venderlo o devolverlo al proveedor
+export const VENCE_PRONTO_DIAS = 15
+
+export function hoyPanama(ahora = new Date()): string {
+  return diaPanama(ahora)
+}
+
+export function diasParaVencer(vence: string, hoy: string): number {
+  return Math.round((Date.parse(`${vence}T12:00:00Z`) - Date.parse(`${hoy}T12:00:00Z`)) / 86_400_000)
+}
+
+export function vencePronto(vence: string | null, hoy: string): boolean {
+  return vence !== null && diasParaVencer(vence, hoy) <= VENCE_PRONTO_DIAS
+}
+
+// "Vencido hace 3 días", "Vence hoy", "Vence en 5 días", "Vence el 12 dic"
+export function textoVence(vence: string, hoy: string): string {
+  const d = diasParaVencer(vence, hoy)
+  if (d < 0) return d === -1 ? 'Venció ayer' : `Venció hace ${-d} días`
+  if (d === 0) return 'Vence hoy'
+  if (d === 1) return 'Vence mañana'
+  if (d <= VENCE_PRONTO_DIAS) return `Vence en ${d} días`
+  const f = new Intl.DateTimeFormat('es-PA', { timeZone: 'UTC', day: 'numeric', month: 'short', year: d > 300 ? 'numeric' : undefined }).format(new Date(`${vence}T12:00:00Z`))
+  return `Vence el ${f}`
+}
+
+// Botones rápidos del calendario: hoy + n meses (el 31 de enero + 1 mes queda en el último día de febrero)
+export function sumarMeses(hoy: string, meses: number): string {
+  const [a, m, d] = hoy.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(a, m - 1 + meses + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(a, m - 1 + meses, Math.min(d, ultimo))).toISOString().slice(0, 10)
+}
+
+// Al llegar mercancía nueva se guarda la fecha que vence primero, salvo que la anterior ya pasó
+// (lo viejo ya se vendió o se botó)
+export function venceQueda(actual: string | null, nuevo: string, hoy: string): string {
+  if (actual === null || actual < hoy) return nuevo
+  return actual < nuevo ? actual : nuevo
+}

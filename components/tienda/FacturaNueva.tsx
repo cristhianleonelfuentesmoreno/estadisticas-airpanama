@@ -11,6 +11,7 @@ import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
 import LeerFacturaFoto, { type FacturaDeFoto } from '@/components/tienda/LeerFacturaFoto'
+import CampoVence from '@/components/tienda/CampoVence'
 
 // Una línea de la factura: "llegaron 2 paquetes de 12 a $9.70 el paquete".
 // Si vino de la foto, guarda lo que decía la factura para poder revisarlo.
@@ -21,6 +22,8 @@ type Linea = {
   costoPaquete: string
   // Lo que dice la factura en esa línea; si se escribe, el costo del paquete sale de aquí
   totalLinea: string
+  // Opcional: cuándo vence lo que llegó; pasa al producto al guardar
+  vence: string
   deFactura?: LineaFacturaFoto
 }
 
@@ -29,7 +32,7 @@ function lineaDesdeFactura(producto: Producto, f: LineaFacturaFoto): Linea {
   const costoPaquete = String(f.costo_por_paquete)
   return {
     producto, deFactura: f,
-    paquetes, porPaquete: String(f.unidades_por_paquete), costoPaquete, totalLinea: totalDe(paquetes, costoPaquete),
+    paquetes, porPaquete: String(f.unidades_por_paquete), costoPaquete, totalLinea: totalDe(paquetes, costoPaquete), vence: '',
   }
 }
 
@@ -122,7 +125,7 @@ export default function FacturaNueva({
       }
       const nuevo: Producto = {
         id: r.data.id, nombre, marca: null, presentacion: null, categoria: 'Otros', codigo_barras: f.codigo_barras,
-        vende_por: 'unidad', precio_venta: null, costo: null, itbms: 0, imagen_url: null, stock_minimo: null, activo: true, porcentaje_ganancia: GANANCIA_POR_DEFECTO, stock: 0, contado: false,
+        vende_por: 'unidad', precio_venta: null, costo: null, itbms: 0, imagen_url: null, stock_minimo: null, activo: true, porcentaje_ganancia: GANANCIA_POR_DEFECTO, vence_el: null, stock: 0, contado: false,
       }
       setProductos(ps => [...ps, nuevo])
       setPendientes(ps => ps.filter((_, j) => j !== i))
@@ -143,7 +146,7 @@ export default function FacturaNueva({
       ? ls
       : [(() => {
         const costoPaquete = p.costo !== null ? String(Number(p.costo.toFixed(4))) : ''
-        return { producto: p, paquetes: '1', porPaquete: '1', costoPaquete, totalLinea: totalDe('1', costoPaquete) }
+        return { producto: p, paquetes: '1', porPaquete: '1', costoPaquete, totalLinea: totalDe('1', costoPaquete), vence: '' }
       })(), ...ls])
   }, [])
 
@@ -158,7 +161,7 @@ export default function FacturaNueva({
   }, [productos, agregar])
 
   // El costo del paquete y el total de la línea van amarrados: se escribe el que trae la factura
-  function cambiar(i: number, campo: 'paquetes' | 'porPaquete' | 'costoPaquete' | 'totalLinea', valor: string) {
+  function cambiar(i: number, campo: 'paquetes' | 'porPaquete' | 'costoPaquete' | 'totalLinea' | 'vence', valor: string) {
     setLineas(ls => ls.map((l, j) => {
       if (j !== i) return l
       const n = { ...l, [campo]: valor }
@@ -190,7 +193,7 @@ export default function FacturaNueva({
     startGuardar(async () => {
       const r = await registrarEntrada(tiendaId, proveedor, numero, lineas.map(l => {
         const c = calcular(l)
-        return { producto_id: l.producto.id, cantidad: c.unidades, costo_unitario: Number(c.costoUnidad.toFixed(4)) }
+        return { producto_id: l.producto.id, cantidad: c.unidades, costo_unitario: Number(c.costoUnidad.toFixed(4)), vence_el: l.vence || null }
       }))
       if (!r.ok) {
         toast.error(r.error)
@@ -301,6 +304,7 @@ export default function FacturaNueva({
               <Num etiqueta="Costo paquete" valor={l.costoPaquete} onChange={v => cambiar(i, 'costoPaquete', v)} />
               <Num etiqueta="Total de la línea" valor={l.totalLinea} onChange={v => cambiar(i, 'totalLinea', v)} />
             </div>
+            <CampoVence compacto valor={l.vence} onChange={v => cambiar(i, 'vence', v)} />
             {c.valido ? (
               <p className="text-sm text-slate-600">
                 Entran <b>{c.unidades}</b> unidades a <b>{dinero(c.costoUnidad)}</b> c/u

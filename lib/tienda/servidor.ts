@@ -50,7 +50,7 @@ export async function getProductos(tienda: Tienda, { conPausados = false } = {})
   const supabase = await createClient()
   let consulta = supabase
     .from('productos')
-    .select('id, nombre, marca, presentacion, categoria, codigo_barras, vende_por, precio_venta, costo, itbms, imagen_url, stock_minimo, activo, porcentaje_ganancia')
+    .select('id, nombre, marca, presentacion, categoria, codigo_barras, vende_por, precio_venta, costo, itbms, imagen_url, stock_minimo, activo, porcentaje_ganancia, vence_el')
     .eq('negocio_id', tienda.negocio_id)
   if (!conPausados) consulta = consulta.eq('activo', true)
   const [{ data: productos }, { data: stock }] = await Promise.all([

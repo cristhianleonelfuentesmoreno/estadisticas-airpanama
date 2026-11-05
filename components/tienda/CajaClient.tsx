@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Banknote, Check, ClipboardList, CreditCard, ListChecks, Lock, Minus, PackagePlus, Pencil, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto, registrarVenta } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, normalizarCodigo, porAgotarse, porcentajeValido, redondear2 } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, diasParaVencer, gananciaPorUnidad, hoyPanama, margen, normalizarCodigo, porAgotarse, porcentajeValido, redondear2 } from '@/lib/tienda/formato'
 import type { MetodoPago, Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
@@ -71,6 +71,10 @@ export default function CajaClient({
     if (p.contado && p.stock <= 0 && !avisados.current.has(p.id)) {
       avisados.current.add(p.id)
       toast.warning(`El sistema dice que no hay ${p.nombre}. Se puede vender igual; revisa el inventario después.`)
+    }
+    if (p.vence_el && diasParaVencer(p.vence_el, hoyPanama()) < 0 && !avisados.current.has(`vence-${p.id}`)) {
+      avisados.current.add(`vence-${p.id}`)
+      toast.warning(`${p.nombre} está vencido según el inventario. Revisa la fecha antes de venderlo.`)
     }
     setLineas(ls => {
       const i = ls.findIndex(l => l.producto.id === p.id)
