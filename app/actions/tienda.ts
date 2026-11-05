@@ -269,6 +269,44 @@ export async function registrarEntrada(
   return { ok: true, data: { id: data as string, sugerencias } }
 }
 
+// Corregir una factura ya guardada. La base ajusta el inventario con un movimiento de
+// corrección y el costo del producto si es su factura más reciente. Los precios de venta
+// que se cambiaron ahí mismo se guardan en cada producto.
+export type CambioLineaFactura = { id: number; cantidad: number; costo_unitario: number }
+export type CambioPrecioFactura = { producto_id: string; precio_venta: number }
+
+export async function editarFactura(
+  tiendaId: string, entradaId: string, proveedor: string, numeroFactura: string,
+  lineas: CambioLineaFactura[], precios: CambioPrecioFactura[],
+): Promise<Resultado> {
+  const tienda = await tiendaDelUsuario(tiendaId)
+  const prov = texto(proveedor)
+  if (!prov) return { ok: false, error: 'Falta el proveedor' }
+  const limpias = lineas.map(l => ({ id: Number(l.id), cantidad: numeroValido(l.cantidad), costo_unitario: numeroValido(l.costo_unitario) }))
+  if (limpias.some(l => !Number.isInteger(l.id) || l.cantidad === null || l.cantidad < 0 || l.costo_unitario === null || l.costo_unitario < 0)) {
+    return { ok: false, error: 'Revisa las cantidades y los costos' }
+  }
+  const nuevosPrecios = precios.map(p => ({ producto_id: p.producto_id, precio_venta: numeroValido(p.precio_venta) }))
+  if (nuevosPrecios.some(p => typeof p.producto_id !== 'string' || p.precio_venta === null || p.precio_venta < 0)) {
+    return { ok: false, error: 'Revisa los precios de venta' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('editar_entrada', {
+    p_entrada: entradaId, p_proveedor: prov, p_numero_factura: texto(numeroFactura, 60) ?? '', p_lineas: limpias,
+  })
+  if (error) {
+    return { ok: false, error: error.message.includes('al menos un producto') ? 'La factura tiene que quedar con al menos un producto' : 'No se pudo guardar la factura' }
+  }
+  const fallos = await Promise.all(nuevosPrecios.map(p =>
+    supabase.from('productos').update({ precio_venta: p.precio_venta }).eq('id', p.producto_id).eq('negocio_id', tienda.negocio_id).then(r => r.error),
+  ))
+  anotarUso(supabase, tienda.id, 'factura_editada', { lineas: limpias.length, precios: nuevosPrecios.length })
+  revalidatePath(`/t/${tienda.slug}`, 'layout')
+  if (fallos.some(Boolean)) return { ok: false, error: 'La factura se guardó, pero algunos precios no' }
+  return { ok: true, data: null }
+}
+
 // ---------- Anular, mercancía sin factura y cierre del día ----------
 
 export async function anularVenta(tiendaId: string, ventaId: string, motivo: string): Promise<Resultado> {
