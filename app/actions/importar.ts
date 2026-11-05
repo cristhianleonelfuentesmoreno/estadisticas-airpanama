@@ -4,6 +4,9 @@ import ExcelJS from 'exceljs'
 import { revalidatePath } from 'next/cache'
 import { requireApprovedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { claveYModelo } from '@/lib/tienda/ia-config'
+import { FacturaIaError, leerListaInventario } from '@/lib/tienda/factura-ia'
 import { getMisTiendas, getProductos } from '@/lib/tienda/servidor'
 import { precioParaGanar } from '@/lib/tienda/formato'
 import { SIN_ITBMS } from '@/lib/tienda/categorias'
@@ -72,10 +75,16 @@ export async function revisarExcel(tiendaId: string, base64: string): Promise<Re
   return { ok: true, data: { pasos: plan } }
 }
 
-export async function importarExcel(tiendaId: string, base64: string): Promise<Resultado<{ creados: number; actualizados: number; contados: number; fallaron: number }>> {
+type Hecho = { creados: number; actualizados: number; contados: number; fallaron: number }
+
+export async function importarExcel(tiendaId: string, base64: string): Promise<Resultado<Hecho>> {
   const tienda = await tiendaParaImportar(tiendaId)
   const plan = await planDelExcel(tienda, base64)
   if (typeof plan === 'string') return { ok: false, error: plan }
+  return { ok: true, data: await aplicarPlan(tienda, plan, 'excel') }
+}
+
+async function aplicarPlan(tienda: Tienda, plan: Paso[], desde: 'excel' | 'foto'): Promise<Hecho> {
   const user = await requireApprovedUser()
   const supabase = await createClient()
   const { data: negocio } = await supabase.from('negocios').select('porcentaje_ganancia').eq('id', tienda.negocio_id).maybeSingle()
@@ -135,12 +144,79 @@ export async function importarExcel(tiendaId: string, base64: string): Promise<R
   let contados = 0
   for (let i = 0; i < contar.length; i += 10) {
     const r = await Promise.all(contar.slice(i, i + 10).map(c => supabase.rpc('registrar_ajuste', {
-      p_tienda: tienda.id, p_producto: c.id, p_motivo: 'conteo', p_cantidad: c.cantidad, p_costo: null, p_nota: 'Subido desde Excel',
+      p_tienda: tienda.id, p_producto: c.id, p_motivo: 'conteo', p_cantidad: c.cantidad, p_costo: null, p_nota: desde === 'excel' ? 'Subido desde Excel' : 'Subido con foto',
     }).then(x => !x.error)))
     contados += r.filter(Boolean).length
   }
 
-  anotar(supabase, tienda.id, 'importar_excel', { creados, actualizados, contados, fallaron })
+  anotar(supabase, tienda.id, 'importar_excel', { desde, creados, actualizados, contados, fallaron })
   revalidatePath(`/t/${tienda.slug}`, 'layout')
-  return { ok: true, data: { creados, actualizados, contados, fallaron } }
+  return { creados, actualizados, contados, fallaron }
+}
+
+// ---------- Con foto: la IA lee la lista, la persona la corrige y se importa con las mismas reglas ----------
+
+export type FilaFoto = { nombre: string; codigo: string; cantidad: string; precio: string; costo: string }
+
+const MIME_IMAGEN = ['image/jpeg', 'image/png', 'image/webp'] as const
+
+export async function leerInventarioConFoto(tiendaId: string, imagenBase64: string, mime: string): Promise<Resultado<{ filas: FilaFoto[]; quedan: number }>> {
+  const tienda = await tiendaParaImportar(tiendaId)
+  const tipo = MIME_IMAGEN.find(m => m === mime)
+  if (!tipo) return { ok: false, error: 'La foto no es válida' }
+  if (typeof imagenBase64 !== 'string' || imagenBase64.length > 7_000_000) return { ok: false, error: 'La foto es muy grande' }
+
+  const { clave, modelo } = await claveYModelo()
+  if (!clave) return { ok: false, error: 'La lectura con foto todavía no está activada. Pídele al administrador que la active.' }
+  const supabase = await createClient()
+  const { data: reserva, error: errCupo } = await supabase.rpc('reservar_ia', { p_tienda: tienda.id })
+  if (errCupo || !reserva) return { ok: false, error: 'No se pudo leer la foto' }
+  const { quedan, limite, uso_id: usoId } = reserva as { quedan: number; limite: number; uso_id?: number }
+  if (quedan < 0 || !usoId) return { ok: false, error: `Ya se usaron las ${limite} lecturas con foto de hoy. Mañana se puede de nuevo, o usa el Excel.` }
+
+  // El consumo se anota con el cliente admin: la tienda no puede escribir en usos_ia
+  const consumo = (datos: Record<string, string | number | boolean | null>) =>
+    createAdminClient().from('usos_ia').update(datos).eq('id', usoId).then(() => undefined)
+  try {
+    const r = await leerListaInventario(clave, modelo, imagenBase64, tipo)
+    await consumo({ ...r.consumo, ok: true, lineas: r.lineas.length })
+    const n = (v: number | null) => (v === null ? '' : String(v))
+    return {
+      ok: true,
+      data: { filas: r.lineas.map(l => ({ nombre: l.nombre, codigo: l.codigo_barras ?? '', cantidad: n(l.cantidad), precio: n(l.precio), costo: n(l.costo) })), quedan },
+    }
+  } catch (e) {
+    const err = e instanceof FacturaIaError ? e : new FacturaIaError('ilegible')
+    await consumo({ ok: false, error: err.motivo, modelo, ...(err.consumo ?? {}) })
+    return {
+      ok: false,
+      error: err.motivo === 'ocupado'
+        ? 'El servicio de lectura está muy ocupado. Prueba otra vez en un minuto.'
+        : err.motivo === 'clave-invalida' ? 'La lectura con foto no está disponible ahora. Avísale al administrador.'
+          : 'No pude leer la lista. Toma la foto de frente, con buena luz y que se vea completa.',
+    }
+  }
+}
+
+// Lo que quedó después de corregir, pasado por las mismas reglas que el Excel
+function planDeFilas(filas: FilaFoto[]): ReturnType<typeof leerFilas> {
+  if (!Array.isArray(filas) || filas.length > 500) return 'Demasiados productos de una vez'
+  const t = (v: unknown) => (typeof v === 'string' ? v.slice(0, 120) : '')
+  return leerFilas([['Producto', 'Código de barras', 'Disponible', 'Precio de venta', 'Me cuesta'],
+    ...filas.map(f => [t(f.nombre), t(f.codigo), t(f.cantidad), t(f.precio), t(f.costo)])])
+}
+
+export async function revisarFilas(tiendaId: string, filas: FilaFoto[]): Promise<Resultado<{ pasos: Paso[] }>> {
+  const tienda = await tiendaParaImportar(tiendaId)
+  const leidas = planDeFilas(filas)
+  if (typeof leidas === 'string') return { ok: false, error: leidas }
+  return { ok: true, data: { pasos: planear(leidas, await getProductos(tienda, { conPausados: true })) } }
+}
+
+export async function importarFilas(tiendaId: string, filas: FilaFoto[]): Promise<Resultado<Hecho>> {
+  const tienda = await tiendaParaImportar(tiendaId)
+  const leidas = planDeFilas(filas)
+  if (typeof leidas === 'string') return { ok: false, error: leidas }
+  const plan = planear(leidas, await getProductos(tienda, { conPausados: true }))
+  return { ok: true, data: await aplicarPlan(tienda, plan, 'foto') }
 }

@@ -8,7 +8,7 @@ import { leerFacturaConFoto, type LineaFacturaFoto } from '@/app/actions/tienda'
 export type FacturaDeFoto = { proveedor: string | null; numero_factura: string | null; lineas: LineaFacturaFoto[] }
 
 // Achica la foto en el celular antes de mandarla: sube más rápido y la lectura es igual de buena
-async function prepararFoto(archivo: File): Promise<string> {
+export async function prepararFoto(archivo: File): Promise<string> {
   const url = URL.createObjectURL(archivo)
   try {
     const img = await new Promise<HTMLImageElement>((ok, mal) => {

@@ -156,7 +156,7 @@ export default function InventarioClient({
           <ClipboardList className="h-5 w-5" /> Contar rápido
         </Link>
         <Link href={`/t/${slug}/inventario/importar`} className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
-          <Upload className="h-5 w-5" /> Subir desde Excel
+          <Upload className="h-5 w-5" /> Subir Excel o foto
         </Link>
       </div>
 
