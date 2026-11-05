@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Banknote, Check, ChevronRight, ClipboardList, CreditCard, ListChecks, Lock, Minus, PackagePlus, Pencil, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2, X } from 'lucide-react'
+import { Banknote, Check, ChevronRight, CreditCard, ListChecks, Lock, Minus, PackagePlus, Pencil, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto, registrarVenta } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, diasParaVencer, gananciaPorUnidad, hoyPanama, margen, normalizarCodigo, porAgotarse, porcentajeValido, redondear2 } from '@/lib/tienda/formato'
@@ -213,22 +213,11 @@ export default function CajaClient({
     })
   }
 
-  const porAgotarseCantidad = productos.filter(porAgotarse).length
   const [celebrar, setCelebrar] = useState<{ total: number; vuelto: number | null } | null>(null)
 
   return (
     <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-6">
       <div className="flex flex-col gap-4">
-      {porAgotarseCantidad > 0 && (
-        <Link href={`/t/${slug}/inventario?filtro=por-agotarse`} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lime-200 text-emerald-900"><ClipboardList className="h-5 w-5" /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold text-slate-800">Tu lista de pedido está lista</span>
-            <span className="block text-xs text-slate-500">{porAgotarseCantidad === 1 ? '1 producto para reponer' : `${porAgotarseCantidad} productos para reponer`} · la mandas por WhatsApp</span>
-          </span>
-          <span className="shrink-0 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">Ver</span>
-        </Link>
-      )}
       <div className="rounded-2xl bg-white p-3 shadow-sm">
         <div className="flex items-baseline justify-between px-1">
           <span className="text-sm text-slate-500">Vendido hoy</span>
