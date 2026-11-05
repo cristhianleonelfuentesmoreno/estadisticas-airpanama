@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Banknote, Check, ClipboardList, CreditCard, ListChecks, Lock, Minus, PackagePlus, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2 } from 'lucide-react'
+import { Banknote, Check, ClipboardList, CreditCard, ListChecks, Lock, Minus, PackagePlus, Pencil, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { registrarVenta } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, normalizarCodigo, porAgotarse, redondear2 } from '@/lib/tienda/formato'
+import { actualizarProducto, registrarVenta } from '@/app/actions/tienda'
+import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, normalizarCodigo, porAgotarse, porcentajeValido, redondear2 } from '@/lib/tienda/formato'
 import type { MetodoPago, Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import Cifra from '@/components/ui/Cifra'
 import FotoProducto from '@/components/tienda/FotoProducto'
+import PrecioGanancia from '@/components/tienda/PrecioGanancia'
 
 type Linea = { producto: Producto; cantidad: number; precioManual: string }
 
@@ -46,6 +47,11 @@ export default function CajaClient({
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [recibido, setRecibido] = useState('')
   const [cobrando, startCobro] = useTransition()
+  // Cambiar el precio o el % mientras se vende: queda guardado en el producto
+  const [editando, setEditando] = useState<Producto | null>(null)
+  const [precioNuevo, setPrecioNuevo] = useState('')
+  const [pctNuevo, setPctNuevo] = useState('')
+  const [guardandoPrecio, startGuardarPrecio] = useTransition()
   useEffect(precargarEscaner, [])
 
   const porCodigo = useMemo(
@@ -115,6 +121,36 @@ export default function CajaClient({
   const total = redondear2(lineas.reduce((s, l) => s + redondear2((precioDe(l) ?? 0) * l.cantidad), 0))
   const faltaPrecio = lineas.some(l => precioDe(l) === null)
   const vuelto = metodo === 'efectivo' && recibido ? redondear2(Number(recibido) - total) : null
+
+  function abrirPrecio(p: Producto) {
+    setPrecioNuevo(p.precio_venta?.toFixed(2) ?? '')
+    setPctNuevo(String(margen(p.precio_venta, p.costo) ?? p.porcentaje_ganancia))
+    setEditando(p)
+  }
+
+  function guardarPrecio(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editando) return
+    const precio = Number(precioNuevo)
+    if (precioNuevo.trim() === '' || !Number.isFinite(precio) || precio < 0) {
+      toast.error('El precio no es válido')
+      return
+    }
+    const p = editando
+    const pct = porcentajeValido(pctNuevo) ?? p.porcentaje_ganancia
+    startGuardarPrecio(async () => {
+      const r = await actualizarProducto(tiendaId, p.id, { precio_venta: precio, porcentaje_ganancia: pct })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      const nuevo = { ...p, precio_venta: precio, porcentaje_ganancia: pct }
+      setProductos(ps => ps.map(x => (x.id === p.id ? nuevo : x)))
+      setLineas(ls => ls.map(l => (l.producto.id === p.id ? { ...l, producto: nuevo } : l)))
+      setEditando(null)
+      toast.success(`${p.nombre}: ahora a ${dinero(precio)}`)
+    })
+  }
 
   function cobrar() {
     if (!lineas.length || faltaPrecio) return
@@ -263,9 +299,10 @@ export default function CajaClient({
                         className="mt-1 w-24 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-sm"
                       />
                     ) : (
-                      <p className="text-sm text-slate-500">
-                        {fmtCantidad(l.cantidad, l.producto.vende_por)} × {dinero(precio)}
-                      </p>
+                      <button onClick={() => abrirPrecio(l.producto)} className="flex items-center gap-1 text-sm text-slate-500 hover:text-emerald-700">
+                        {fmtCantidad(l.cantidad, l.producto.vende_por)} × <span className="font-semibold underline decoration-dotted underline-offset-2">{dinero(precio)}</span>
+                        <Pencil className="h-3.5 w-3.5" aria-label="Cambiar precio" />
+                      </button>
                     )}
                   </div>
                   {l.producto.vende_por === 'unidad' && (
@@ -395,6 +432,39 @@ export default function CajaClient({
           }}
         />
       )}
+
+      {editando && (() => {
+        const precio = precioNuevo.trim() === '' ? null : Number(precioNuevo)
+        const ganas = gananciaPorUnidad(precio !== null && Number.isFinite(precio) ? precio : null, editando.costo)
+        return (
+          <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
+            <form onSubmit={guardarPrecio} className="flex w-full max-w-sm flex-col gap-4 rounded-t-3xl bg-white p-5 sm:rounded-3xl">
+              <div>
+                <p className="text-lg font-bold">{editando.nombre}</p>
+                <p className="text-sm text-slate-500">Te cuesta {dinero(editando.costo)}{editando.vende_por === 'libra' ? ' la libra' : ''}. El cambio queda guardado para las próximas ventas.</p>
+              </div>
+              <PrecioGanancia
+                costo={editando.costo}
+                vendePor={editando.vende_por}
+                precioAntes={editando.precio_venta}
+                precio={precioNuevo}
+                porcentaje={pctNuevo}
+                onPrecio={setPrecioNuevo}
+                onPorcentaje={setPctNuevo}
+              />
+              {ganas !== null && (
+                <p className={`text-center text-lg font-black ${ganas <= 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                  {ganas <= 0 ? `Pierdes ${dinero(-ganas)}` : `Ganas ${dinero(ganas)}`} por {editando.vende_por === 'libra' ? 'libra' : 'unidad'}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setEditando(null)} className="rounded-2xl bg-slate-100 py-3 font-semibold">Cancelar</button>
+                <button disabled={guardandoPrecio} className="rounded-2xl bg-emerald-600 py-3 font-bold text-white disabled:opacity-50">{guardandoPrecio ? 'Guardando…' : 'Guardar precio'}</button>
+              </div>
+            </form>
+          </div>
+        )
+      })()}
 
       {pesando && (
         <div className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">

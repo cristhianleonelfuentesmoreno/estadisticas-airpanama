@@ -4,7 +4,7 @@ import { filaInventario, itbmsIncluido, leFalta, rangoMes, sumarDias, ultimosMes
 import type { Producto } from "@/lib/tienda/tipos";
 
 const base: Producto = {
-  id: "1", nombre: "Coca-Cola 2L", marca: null, presentacion: null, categoria: "Bebidas", activo: true, codigo_barras: "7441001600065",
+  id: "1", nombre: "Coca-Cola 2L", marca: null, presentacion: null, categoria: "Bebidas", activo: true, porcentaje_ganancia: 30, codigo_barras: "7441001600065",
   vende_por: "unidad", precio_venta: 2.5, costo: 1.9, itbms: 0, imagen_url: null, stock_minimo: 3, stock: 10, contado: true,
 };
 

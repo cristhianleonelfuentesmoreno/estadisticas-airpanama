@@ -90,6 +90,15 @@ export function gananciaPorUnidad(precio: number | null, costo: number | null): 
   return redondear2(precio - costo)
 }
 
+// Lo que busca ganar cada producto si el dueño no le pone otro porcentaje
+export const GANANCIA_POR_DEFECTO = 30
+
+// De 0 a menos de 100: con 100 % el precio sería infinito
+export function porcentajeValido(texto: string): number | null {
+  const n = Number(texto.replace(',', '.'))
+  return texto.trim() !== '' && Number.isFinite(n) && n >= 0 && n < 100 ? n : null
+}
+
 // Precio para ganar cierto porcentaje del precio de venta, redondeado hacia arriba a 5 centavos
 // (costo $0.21 y ganar 40% -> $0.35, como lo calculan en la tienda sobre la factura)
 export function precioParaGanar(costo: number, porcentaje: number): number {
