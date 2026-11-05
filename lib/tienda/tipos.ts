@@ -26,6 +26,8 @@ export type Producto = {
   itbms: number
   imagen_url: string | null
   stock_minimo: number | null
+  // En pausa: ya no se vende; no sale en la caja ni en los pedidos, pero se guarda su historia
+  activo: boolean
   stock: number
   // false si nunca se contó ni entró nada: su stock 0 no significa que se acabó
   contado: boolean

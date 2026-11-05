@@ -6,41 +6,41 @@ import { toast } from 'sonner'
 import { actualizarProducto, buscarEnCatalogoAbierto, crearProducto } from '@/app/actions/tienda'
 import { dinero } from '@/lib/tienda/formato'
 import type { Producto, SugerenciaProducto, VendePor } from '@/lib/tienda/tipos'
-
-const CATEGORIAS = ['Abarrotes', 'Bebidas', 'Golosinas y snacks', 'Lácteos', 'Carnes', 'Panadería', 'Verduras y frutas',
-  'Especias y condimentos', 'Limpieza', 'Higiene', 'Ferretería y hogar', 'Papelería', 'Mascotas', 'Gas', 'Otros']
-const SIN_ITBMS = new Set(['Abarrotes', 'Bebidas', 'Golosinas y snacks', 'Lácteos', 'Carnes', 'Panadería',
-  'Verduras y frutas', 'Especias y condimentos'])
+import { CATEGORIAS, SIN_ITBMS } from '@/lib/tienda/categorias'
 
 // Se abre cuando se escanea un código que la tienda no tiene.
 // Opción 1: crear el producto (con nombre, marca y foto del catálogo abierto si existe).
 // Opción 2: es un producto que ya está (del cuaderno, sin código) y solo se le asigna el código.
+// Sin código (codigo = null) solo crea: frutas, verduras, pan y lo que no trae código de barras.
 export default function ProductoDesconocido({
   tiendaId,
   codigo,
+  nombreInicial = '',
   productos,
   onListo,
   onCerrar,
 }: {
   tiendaId: string
-  codigo: string
+  codigo: string | null
+  nombreInicial?: string
   productos: Producto[]
   onListo: (producto: Producto) => void
   onCerrar: () => void
 }) {
   const [modo, setModo] = useState<'nuevo' | 'existente'>('nuevo')
-  const [buscando, setBuscando] = useState(true)
+  const [buscando, setBuscando] = useState(codigo !== null)
   const [sugerencia, setSugerencia] = useState<SugerenciaProducto | null>(null)
-  const [nombre, setNombre] = useState('')
+  const [nombre, setNombre] = useState(nombreInicial)
   const [marca, setMarca] = useState('')
   const [presentacion, setPresentacion] = useState('')
-  const [categoria, setCategoria] = useState('Abarrotes')
+  const [categoria, setCategoria] = useState(codigo === null ? 'Verduras y frutas' : 'Abarrotes')
   const [vendePor, setVendePor] = useState<VendePor>('unidad')
   const [precio, setPrecio] = useState('')
   const [filtro, setFiltro] = useState('')
   const [guardando, startGuardar] = useTransition()
 
   useEffect(() => {
+    if (codigo === null) return
     let vigente = true
     buscarEnCatalogoAbierto(codigo).then(s => {
       if (!vigente) return
@@ -84,12 +84,13 @@ export default function ProductoDesconocido({
       onListo({
         id: r.data.id, nombre: nombre.trim(), marca: datos.marca, presentacion: datos.presentacion, categoria,
         codigo_barras: codigo, vende_por: vendePor, precio_venta: precioNum, costo: null, itbms: datos.itbms,
-        imagen_url: datos.imagen_url, stock_minimo: null, stock: 0, contado: false,
+        imagen_url: datos.imagen_url, stock_minimo: null, activo: true, stock: 0, contado: false,
       })
     })
   }
 
   function asignar(p: Producto) {
+    if (codigo === null) return
     startGuardar(async () => {
       const r = await actualizarProducto(tiendaId, p.id, {
         codigo_barras: codigo,
@@ -110,14 +111,16 @@ export default function ProductoDesconocido({
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4">
           <div>
             <p className="text-lg font-bold text-slate-900">Producto nuevo</p>
-            <p className="font-mono text-sm text-slate-500">{codigo}</p>
+            {codigo !== null
+              ? <p className="font-mono text-sm text-slate-500">{codigo}</p>
+              : <p className="text-sm text-slate-500">Sin código de barras: frutas, verduras, pan…</p>}
           </div>
           <button onClick={onCerrar} aria-label="Cerrar" className="rounded-full bg-slate-100 p-2">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 p-3">
+        {codigo !== null && <div className="grid grid-cols-2 gap-2 p-3">
           <button
             onClick={() => setModo('nuevo')}
             className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold ${modo === 'nuevo' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}
@@ -130,11 +133,11 @@ export default function ProductoDesconocido({
           >
             <Link2 className="h-4 w-4" /> Ya lo tengo
           </button>
-        </div>
+        </div>}
 
         {modo === 'nuevo' ? (
-          <form onSubmit={crear} className="flex flex-col gap-3 overflow-y-auto px-4 pb-4">
-            {buscando ? (
+          <form onSubmit={crear} className={`flex flex-col gap-3 overflow-y-auto px-4 pb-4 ${codigo === null ? 'pt-4' : ''}`}>
+            {codigo === null ? null : buscando ? (
               <p className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
                 <Loader2 className="h-4 w-4 animate-spin" /> Buscando en el catálogo abierto…
               </p>

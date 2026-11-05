@@ -44,16 +44,16 @@ function aNumero(v: number | string | null): number | null {
   return v === null ? null : Number(v)
 }
 
-export async function getProductos(tienda: Tienda): Promise<Producto[]> {
+// Por defecto solo los que se venden; el inventario pide también los que están en pausa
+export async function getProductos(tienda: Tienda, { conPausados = false } = {}): Promise<Producto[]> {
   const supabase = await createClient()
+  let consulta = supabase
+    .from('productos')
+    .select('id, nombre, marca, presentacion, categoria, codigo_barras, vende_por, precio_venta, costo, itbms, imagen_url, stock_minimo, activo')
+    .eq('negocio_id', tienda.negocio_id)
+  if (!conPausados) consulta = consulta.eq('activo', true)
   const [{ data: productos }, { data: stock }] = await Promise.all([
-    supabase
-      .from('productos')
-      .select('id, nombre, marca, presentacion, categoria, codigo_barras, vende_por, precio_venta, costo, itbms, imagen_url, stock_minimo')
-      .eq('negocio_id', tienda.negocio_id)
-      .eq('activo', true)
-      .order('nombre')
-      .returns<FilaProducto[]>(),
+    consulta.order('nombre').returns<FilaProducto[]>(),
     supabase.from('stock').select('producto_id, cantidad').eq('tienda_id', tienda.id),
   ])
   const porProducto = new Map((stock ?? []).map(s => [s.producto_id as string, Number(s.cantidad)]))

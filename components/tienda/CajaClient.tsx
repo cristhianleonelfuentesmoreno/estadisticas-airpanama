@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Banknote, Check, ClipboardList, CreditCard, ListChecks, Lock, Minus, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2 } from 'lucide-react'
+import { Banknote, Check, ClipboardList, CreditCard, ListChecks, Lock, Minus, PackagePlus, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { registrarVenta } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, normalizarCodigo, porAgotarse, redondear2 } from '@/lib/tienda/formato'
@@ -37,7 +37,9 @@ export default function CajaClient({
   const [lineas, setLineas] = useState<Linea[]>([])
   const [escaneando, setEscaneando] = useState(false)
   const [ultimo, setUltimo] = useState<Producto | null>(null)
+  // Código escaneado que no está; '' = producto nuevo sin código (lo que se buscó y no salió)
   const [desconocido, setDesconocido] = useState<string | null>(null)
+  const [nombreNuevo, setNombreNuevo] = useState('')
   const [pesando, setPesando] = useState<Producto | null>(null)
   const [peso, setPeso] = useState('')
   const [busqueda, setBusqueda] = useState('')
@@ -207,6 +209,15 @@ export default function CajaClient({
             ))}
           </ul>
         )}
+        {busqueda.trim().length >= 2 && resultados.length === 0 && (
+          <button
+            onClick={() => { setNombreNuevo(busqueda.trim()); setBusqueda(''); setDesconocido('') }}
+            className="absolute inset-x-0 top-full z-20 mt-1 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-xl hover:bg-emerald-50"
+          >
+            <PackagePlus className="h-5 w-5 shrink-0 text-emerald-600" />
+            <span className="min-w-0"><span className="block font-semibold text-slate-800">No está. Crear «{busqueda.trim()}»</span><span className="block text-xs text-slate-500">Para lo que no trae código: frutas, verduras, pan…</span></span>
+          </button>
+        )}
       </div>
 
       {porLibra.length > 0 && (
@@ -370,10 +381,11 @@ export default function CajaClient({
         />
       )}
 
-      {desconocido && (
+      {desconocido !== null && (
         <ProductoDesconocido
           tiendaId={tiendaId}
-          codigo={desconocido}
+          codigo={desconocido || null}
+          nombreInicial={desconocido ? '' : nombreNuevo}
           productos={productos}
           onCerrar={() => setDesconocido(null)}
           onListo={p => {
