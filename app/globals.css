@@ -277,8 +277,10 @@
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
 }
-.pagina { animation: entrar 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.escalonado > * { animation: entrar 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* "backwards" y no "both": una animación de transform que se queda puesta convierte al contenedor
+   en el marco de las ventanas "fixed", y las ventanas emergentes terminan al final de la página */
+.pagina { animation: entrar 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.escalonado > :not(.fixed) { animation: entrar 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 .escalonado > :nth-child(2) { animation-delay: 0.06s; }
 .escalonado > :nth-child(3) { animation-delay: 0.12s; }
 .escalonado > :nth-child(4) { animation-delay: 0.18s; }
@@ -341,7 +343,7 @@
 @keyframes oscurecer { from { background-color: rgb(0 0 0 / 0); } }
 @keyframes subir { from { transform: translateY(40px); opacity: 0; } }
 .hoja { animation: oscurecer 0.25s ease-out both; }
-.hoja > * { animation: subir 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.hoja > * { animation: subir 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) backwards; }
 @media (prefers-reduced-motion: reduce) {
   .hoja, .hoja > * { animation: none; }
 }
