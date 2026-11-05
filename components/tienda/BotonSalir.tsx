@@ -16,6 +16,8 @@ export default function BotonSalir({ className = '' }: { className?: string }) {
       // el cierre igual sigue
     } finally {
       localStorage.removeItem('sessionId')
+      // La copia de las pantallas (con los datos de la tienda) no se queda en el celular
+      if ('caches' in window) await caches.delete('vv-paginas-v1').catch(() => false)
       await createClient().auth.signOut().catch(() => {})
       router.push('/login')
     }

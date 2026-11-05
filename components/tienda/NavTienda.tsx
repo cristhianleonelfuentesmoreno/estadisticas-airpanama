@@ -19,7 +19,7 @@ export default function NavTienda({ slug, tienda, tiendaId }: { slug: string; ti
   const ruta = usePathname()
   // Qué pantallas se abren y cuántas veces
   useEffect(() => {
-    void anotarUso(tiendaId, 'pantalla', { ruta: ruta.replace(`/t/${slug}`, '') || '/' })
+    anotarUso(tiendaId, 'pantalla', { ruta: ruta.replace(`/t/${slug}`, '') || '/' }).catch(() => {})
   }, [ruta, slug, tiendaId])
   const secciones = SECCIONES.map(s => ({ ...s, href: `/t/${slug}/${s.ruta}`, activa: ruta.startsWith(`/t/${slug}/${s.ruta}`) }))
 

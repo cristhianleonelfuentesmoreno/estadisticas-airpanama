@@ -7,6 +7,7 @@ import { can } from '@/lib/permissions'
 import { getTienda } from '@/lib/tienda/servidor'
 import NavTienda from '@/components/tienda/NavTienda'
 import BotonSalir from '@/components/tienda/BotonSalir'
+import SinInternet from '@/components/tienda/SinInternet'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +54,7 @@ export default async function TiendaLayout({ children, params }: LayoutProps<'/t
       </header>
       <main className="mx-auto w-full max-w-3xl px-3 py-4 lg:max-w-5xl lg:px-8 lg:py-8">{children}</main>
       <NavTienda slug={tienda.slug} tienda={tienda.nombre} tiendaId={tienda.id} />
+      <SinInternet tiendaId={tienda.id} />
     </div>
   )
 }

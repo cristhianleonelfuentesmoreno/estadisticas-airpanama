@@ -13,6 +13,7 @@ import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import Cifra from '@/components/ui/Cifra'
 import FotoProducto from '@/components/tienda/FotoProducto'
 import PrecioGanancia from '@/components/tienda/PrecioGanancia'
+import { agregarPendiente, esSinInternet, guardarPendientes, leerPendientes, type VentaPendiente } from '@/lib/tienda/pendientes'
 
 type Linea = { producto: Producto; cantidad: number; precioManual: string }
 
@@ -212,13 +213,31 @@ export default function CajaClient({
   function cobrar() {
     if (!lineas.length || faltaPrecio) return
     startCobro(async () => {
-      const r = await registrarVenta(tiendaId, metodo, lineas.map(l => ({
+      const datos = lineas.map(l => ({
         producto_id: l.producto.id, cantidad: l.cantidad,
         precio_unitario: l.producto.precio_venta === null ? precioDe(l) : null,
-      })))
-      if (!r.ok) {
-        toast.error(r.error)
-        return
+      }))
+      // Cada venta lleva su número: si se corta el internet a mitad, al reintentar no se cobra dos veces
+      const pendiente: VentaPendiente = { id: crypto.randomUUID(), tiendaId, metodo, lineas: datos, total, hecha_en: new Date().toISOString() }
+      let sinInternet = typeof navigator !== 'undefined' && navigator.onLine === false
+      if (!sinInternet) {
+        try {
+          const r = await registrarVenta(tiendaId, metodo, datos, { id_cliente: pendiente.id })
+          if (!r.ok) {
+            toast.error(r.error)
+            return
+          }
+        } catch (e) {
+          if (!esSinInternet(e)) {
+            toast.error('No se pudo registrar la venta')
+            return
+          }
+          sinInternet = true
+        }
+      }
+      if (sinInternet) {
+        guardarPendientes(agregarPendiente(leerPendientes(), pendiente))
+        toast.success('Sin internet: la venta quedó guardada en este celular. Se sube sola cuando vuelva la señal.', { duration: 5000 })
       }
       setCelebrar({ total, vuelto: vuelto !== null && vuelto > 0 ? vuelto : null })
       setTimeout(() => setCelebrar(null), 1800)
@@ -234,7 +253,7 @@ export default function CajaClient({
       avisados.current.clear()
       setLineas([])
       setRecibido('')
-      router.refresh()
+      if (!sinInternet) router.refresh()
     })
   }
 

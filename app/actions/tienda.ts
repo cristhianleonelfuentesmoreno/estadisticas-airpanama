@@ -211,8 +211,11 @@ export async function actualizarProducto(
 
 const METODOS: MetodoPago[] = ['efectivo', 'yappy', 'tarjeta']
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// opciones: el número que le puso el celular (para no cobrarla dos veces) y, si se hizo sin internet, cuándo
 export async function registrarVenta(
-  tiendaId: string, metodo: MetodoPago, lineas: LineaVenta[],
+  tiendaId: string, metodo: MetodoPago, lineas: LineaVenta[], opciones: { id_cliente?: string; hecha_en?: string } = {},
 ): Promise<Resultado<{ id: string }>> {
   const tienda = await tiendaDelUsuario(tiendaId)
   if (!METODOS.includes(metodo)) return { ok: false, error: 'Método de pago inválido' }
@@ -222,9 +225,15 @@ export async function registrarVenta(
   if (!limpias.length) return { ok: false, error: 'La venta no tiene productos' }
 
   const supabase = await createClient()
+  const idCliente = typeof opciones.id_cliente === 'string' && UUID.test(opciones.id_cliente) ? opciones.id_cliente : null
+  const hechaEn = typeof opciones.hecha_en === 'string' && !Number.isNaN(Date.parse(opciones.hecha_en)) ? new Date(opciones.hecha_en).toISOString() : null
   const { data, error } = await supabase.rpc('registrar_venta', {
     p_tienda: tienda.id, p_metodo_pago: metodo, p_lineas: limpias,
+    ...(idCliente ? { p_id_cliente: idCliente } : {}),
+    ...(hechaEn ? { p_hecha_en: hechaEn } : {}),
   })
+  // Dos envíos de la misma venta al mismo tiempo: el segundo choca con el primero, que ya quedó guardado
+  if (error?.code === '23505' && idCliente) return { ok: true, data: { id: idCliente } }
   if (error) return { ok: false, error: error.message.includes('no tiene precio') ? error.message : 'No se pudo registrar la venta' }
   anotarUso(supabase, tienda.id, 'venta', { metodo, lineas: limpias.length })
   revalidatePath(`/t/${tienda.slug}`, 'layout')

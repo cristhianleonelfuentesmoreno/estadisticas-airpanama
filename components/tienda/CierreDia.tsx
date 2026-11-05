@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useSyncExternalStore, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, MessageCircle, PartyPopper, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { cerrarCaja } from '@/app/actions/tienda'
+import { deTexto, suscribirPendientes, textoPendientes } from '@/lib/tienda/pendientes'
 import { anotarUso } from '@/app/actions/uso'
 import { dinero, redondear2, textoCierre } from '@/lib/tienda/formato'
 import type { CierreDia as Cierre, ResumenDia } from '@/lib/tienda/tipos'
@@ -36,6 +37,8 @@ export default function CierreDia({
   const [contado, setContado] = useState('')
   const [nota, setNota] = useState('')
   const [guardando, startGuardar] = useTransition()
+  // Ventas hechas sin internet que todavía no llegaron: el cierre saldría corto
+  const sinSubir = deTexto(useSyncExternalStore(suscribirPendientes, textoPendientes, () => '')).filter(v => v.tiendaId === tiendaId).length
 
   const esperado = redondear2(resumen.base_caja + resumen.efectivo)
   const contadoNum = Number(contado)
@@ -60,6 +63,13 @@ export default function CierreDia({
       <Link href={`/t/${slug}/caja`} className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
         <ArrowLeft className="h-4 w-4" /> Volver a la caja
       </Link>
+
+      {sinSubir > 0 && (
+        <p className="flex items-start gap-2 rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-900 ring-1 ring-amber-200">
+          <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+          Hay {sinSubir} {sinSubir === 1 ? 'venta hecha sin internet que todavía no se subió' : 'ventas hechas sin internet que todavía no se subieron'}. Espera a que vuelva la señal antes de cerrar, o el cierre saldrá corto.
+        </p>
+      )}
 
       {!contando && cierre ? (
         <section className="flex flex-col items-center gap-3 rounded-3xl bg-white p-6 text-center shadow-sm">
