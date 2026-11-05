@@ -5,7 +5,7 @@ import { requireApprovedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMisTiendas } from '@/lib/tienda/servidor'
-import { hoyPanama, venceQueda } from '@/lib/tienda/formato'
+import { hoyPanama, precioParaGanar, venceQueda } from '@/lib/tienda/formato'
 import { emparejar, type Coincidencia } from '@/lib/tienda/emparejar'
 import { FacturaIaError, leerFactura, type FacturaLeida, type LineaLeida } from '@/lib/tienda/factura-ia'
 import type {
@@ -225,20 +225,28 @@ export async function registrarEntrada(
   })
   if (error) return { ok: false, error: 'No se pudo registrar la factura' }
 
-  // La fecha de vencimiento de la factura pasa al producto: queda la que vence primero
+  // Después de guardar la factura, en cada producto que llegó:
+  // - la fecha de vencimiento pasa al producto (queda la que vence primero);
+  // - si no tenía precio, se le pone con su % de ganancia y el costo nuevo.
   const vencen = new Map<string, string>()
   for (const l of lineas) {
     const fecha = fechaValida(l.vence_el)
     if (fecha && typeof l.producto_id === 'string') vencen.set(l.producto_id, venceQueda(vencen.get(l.producto_id) ?? null, fecha, hoyPanama()))
   }
-  if (vencen.size) {
-    const { data: actuales } = await supabase
-      .from('productos').select('id, vence_el').eq('negocio_id', tienda.negocio_id).in('id', [...vencen.keys()])
-    await Promise.all((actuales ?? []).map(p => supabase
-      .from('productos')
-      .update({ vence_el: venceQueda(p.vence_el as string | null, vencen.get(p.id as string)!, hoyPanama()) })
-      .eq('id', p.id).eq('negocio_id', tienda.negocio_id)))
-  }
+  const { data: llegaron } = await supabase
+    .from('productos')
+    .select('id, vence_el, precio_venta, costo, porcentaje_ganancia')
+    .eq('negocio_id', tienda.negocio_id)
+    .in('id', [...new Set(limpias.map(l => l.producto_id))])
+  await Promise.all((llegaron ?? []).flatMap(p => {
+    const cambios: { vence_el?: string; precio_venta?: number } = {}
+    const fecha = vencen.get(p.id as string)
+    if (fecha) cambios.vence_el = venceQueda(p.vence_el as string | null, fecha, hoyPanama())
+    const costo = Number(p.costo)
+    if (p.precio_venta === null && p.costo !== null && costo > 0) cambios.precio_venta = precioParaGanar(costo, Number(p.porcentaje_ganancia))
+    if (!Object.keys(cambios).length) return []
+    return [supabase.from('productos').update(cambios).eq('id', p.id).eq('negocio_id', tienda.negocio_id)]
+  }))
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: { id: data as string } }
 }
