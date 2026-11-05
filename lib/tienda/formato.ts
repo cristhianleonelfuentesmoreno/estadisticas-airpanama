@@ -96,3 +96,19 @@ export function precioParaGanar(costo: number, porcentaje: number): number {
   const exacto = costo / (1 - porcentaje / 100)
   return redondear2(Math.ceil(redondear2(exacto) * 20 - 1e-9) / 20)
 }
+
+// ---------- Facturas: costo del paquete y total de la línea van amarrados ----------
+
+// Total de la línea a partir de paquetes × costo del paquete ('' si falta algo)
+export function totalDe(paquetes: string, costoPaquete: string): string {
+  const p = Number(paquetes)
+  const c = Number(costoPaquete)
+  return paquetes.trim() !== '' && costoPaquete.trim() !== '' && p > 0 && c >= 0 ? redondear2(p * c).toFixed(2) : ''
+}
+
+// Costo de cada paquete a partir del total de la línea ('' si falta algo)
+export function costoDe(paquetes: string, totalLinea: string): string {
+  const p = Number(paquetes)
+  const t = Number(totalLinea)
+  return paquetes.trim() !== '' && totalLinea.trim() !== '' && p > 0 && t >= 0 ? String(Number((t / p).toFixed(4))) : ''
+}

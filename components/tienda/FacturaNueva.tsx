@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { HelpCircle, PackagePlus, ScanBarcode, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto, crearProducto, registrarEntrada, type LineaFacturaFoto } from '@/app/actions/tienda'
-import { dinero, margen, normalizarCodigo, redondear2 } from '@/lib/tienda/formato'
+import { costoDe, dinero, margen, normalizarCodigo, redondear2, totalDe } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
@@ -19,13 +19,17 @@ type Linea = {
   paquetes: string
   porPaquete: string
   costoPaquete: string
+  // Lo que dice la factura en esa línea; si se escribe, el costo del paquete sale de aquí
+  totalLinea: string
   deFactura?: LineaFacturaFoto
 }
 
 function lineaDesdeFactura(producto: Producto, f: LineaFacturaFoto): Linea {
+  const paquetes = String(f.paquetes)
+  const costoPaquete = String(f.costo_por_paquete)
   return {
     producto, deFactura: f,
-    paquetes: String(f.paquetes), porPaquete: String(f.unidades_por_paquete), costoPaquete: String(f.costo_por_paquete),
+    paquetes, porPaquete: String(f.unidades_por_paquete), costoPaquete, totalLinea: totalDe(paquetes, costoPaquete),
   }
 }
 
@@ -57,6 +61,8 @@ export default function FacturaNueva({
   const [productos, setProductos] = useState(iniciales)
   const [proveedor, setProveedor] = useState('')
   const [numero, setNumero] = useState('')
+  // Total que dice el papel: sirve para ver si ya se escribió todo bien
+  const [totalFactura, setTotalFactura] = useState('')
   const [lineas, setLineas] = useState<Linea[]>([])
   const [escaneando, setEscaneando] = useState(false)
   const [desconocido, setDesconocido] = useState<string | null>(null)
@@ -135,7 +141,10 @@ export default function FacturaNueva({
     setBusqueda('')
     setLineas(ls => ls.some(l => l.producto.id === p.id)
       ? ls
-      : [{ producto: p, paquetes: '1', porPaquete: '1', costoPaquete: p.costo !== null ? String(Number(p.costo.toFixed(4))) : '' }, ...ls])
+      : [(() => {
+        const costoPaquete = p.costo !== null ? String(Number(p.costo.toFixed(4))) : ''
+        return { producto: p, paquetes: '1', porPaquete: '1', costoPaquete, totalLinea: totalDe('1', costoPaquete) }
+      })(), ...ls])
   }, [])
 
   const alEscanear = useCallback((codigo: string) => {
@@ -148,11 +157,25 @@ export default function FacturaNueva({
     } else setDesconocido(c)
   }, [productos, agregar])
 
-  function cambiar(i: number, campo: 'paquetes' | 'porPaquete' | 'costoPaquete', valor: string) {
-    setLineas(ls => ls.map((l, j) => (j === i ? { ...l, [campo]: valor } : l)))
+  // El costo del paquete y el total de la línea van amarrados: se escribe el que trae la factura
+  function cambiar(i: number, campo: 'paquetes' | 'porPaquete' | 'costoPaquete' | 'totalLinea', valor: string) {
+    setLineas(ls => ls.map((l, j) => {
+      if (j !== i) return l
+      const n = { ...l, [campo]: valor }
+      if (campo === 'costoPaquete') n.totalLinea = totalDe(n.paquetes, valor)
+      if (campo === 'totalLinea') n.costoPaquete = costoDe(n.paquetes, valor)
+      // Si cambian los paquetes, manda el total cuando vino del papel; si no, el costo del paquete
+      if (campo === 'paquetes') {
+        if (l.totalLinea.trim() !== '' && l.costoPaquete === costoDe(l.paquetes, l.totalLinea)) n.costoPaquete = costoDe(valor, l.totalLinea)
+        else n.totalLinea = totalDe(valor, l.costoPaquete)
+      }
+      return n
+    }))
   }
 
   const total = redondear2(lineas.reduce((s, l) => s + calcular(l).total, 0))
+  const totalPapel = totalFactura.trim() === '' ? null : Number(totalFactura)
+  const faltaPorCuadrar = totalPapel !== null && Number.isFinite(totalPapel) ? redondear2(totalPapel - total) : null
   const incompletas = lineas.filter(l => !calcular(l).valido).length
 
   function guardar() {
@@ -188,10 +211,16 @@ export default function FacturaNueva({
           <input list="proveedores" value={proveedor} onChange={e => setProveedor(e.target.value)} placeholder="Ej. Feduro, Dicarina, AJE" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
           <datalist id="proveedores">{proveedores.map(p => <option key={p} value={p} />)}</datalist>
         </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
-          N.º de factura (opcional)
-          <input value={numero} onChange={e => setNumero(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
-        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+            N.º de factura (opcional)
+            <input value={numero} onChange={e => setNumero(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+            Total de la factura
+            <input value={totalFactura} onChange={e => setTotalFactura(e.target.value)} inputMode="decimal" placeholder="Para revisar que cuadre" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
+          </label>
+        </div>
       </section>
 
       <button onClick={() => setEscaneando(true)} className="flex items-center justify-center gap-3 rounded-3xl bg-emerald-600 py-4 text-lg font-bold text-white shadow-lg">
@@ -266,10 +295,11 @@ export default function FacturaNueva({
                 <button onClick={() => noEsEste(i)} className="font-semibold underline">No es este producto</button>
               </p>
             )}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Num etiqueta="Paquetes" valor={l.paquetes} onChange={v => cambiar(i, 'paquetes', v)} />
               <Num etiqueta="Unid. c/u" valor={l.porPaquete} onChange={v => cambiar(i, 'porPaquete', v)} />
               <Num etiqueta="Costo paquete" valor={l.costoPaquete} onChange={v => cambiar(i, 'costoPaquete', v)} />
+              <Num etiqueta="Total de la línea" valor={l.totalLinea} onChange={v => cambiar(i, 'totalLinea', v)} />
             </div>
             {c.valido ? (
               <p className="text-sm text-slate-600">
@@ -279,7 +309,7 @@ export default function FacturaNueva({
                 )}
               </p>
             ) : (
-              <p className="text-sm text-amber-700">Pon cuántos paquetes llegaron y lo que costó cada paquete.</p>
+              <p className="text-sm text-amber-700">Pon cuántos paquetes llegaron y lo que costó cada paquete, o el total de la línea.</p>
             )}
           </section>
         )
@@ -290,6 +320,11 @@ export default function FacturaNueva({
           <div>
             <p className="text-xs text-slate-300">{lineas.length} productos</p>
             <p className="text-2xl font-black">{dinero(total)}</p>
+            {faltaPorCuadrar !== null && (
+              <p className={`text-xs font-semibold ${faltaPorCuadrar === 0 ? 'text-lime-300' : 'text-amber-300'}`}>
+                {faltaPorCuadrar === 0 ? '✓ Cuadra con la factura' : faltaPorCuadrar > 0 ? `Faltan ${dinero(faltaPorCuadrar)} para el total` : `Te pasaste ${dinero(-faltaPorCuadrar)} del total`}
+              </p>
+            )}
           </div>
           <button onClick={guardar} disabled={guardando} className="rounded-2xl bg-emerald-500 px-5 py-3 text-base font-bold disabled:opacity-50">
             {guardando ? 'Guardando…' : 'Guardar factura'}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cambioPorcentual, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
+import { cambioPorcentual, costoDe, totalDe, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
 
 test("redondea la plata a centavos sin errores de coma flotante", () => {
   assert.equal(redondear2(0.1 + 0.2), 0.3);
@@ -78,4 +78,13 @@ test("precio para ganar un porcentaje, redondeado a 5 centavos hacia arriba", ()
   assert.equal(precioParaGanar(0.7, 25), 0.95);
   assert.equal(precioParaGanar(0.81, 20), 1.05); // Big Cola 1L
   assert.equal((margen(precioParaGanar(0.7, 25), 0.7) ?? 0) >= 25, true);
+});
+
+test("factura: total de la línea y costo del paquete", () => {
+  assert.equal(totalDe("2", "9.70"), "19.40");
+  assert.equal(costoDe("3", "10"), "3.3333");
+  assert.equal(costoDe("2", "19.40"), "9.7");
+  assert.equal(totalDe("", "9.70"), "");
+  assert.equal(costoDe("0", "10"), "");
+  assert.equal(costoDe("2", ""), "");
 });
