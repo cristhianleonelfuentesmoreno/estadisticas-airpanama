@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation'
 import { AlertTriangle, CircleDollarSign, ClipboardList, FileSpreadsheet, MessageCircle, Package, PackagePlus, Pause, Play, ScanBarcode, Search, Wallet, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, precioParaGanar, textoPedido } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, porcentajeValido, precioParaGanar, textoPedido } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
 import { CATEGORIAS } from '@/lib/tienda/categorias'
+import PrecioGanancia from '@/components/tienda/PrecioGanancia'
 
 export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-costo' | 'sin-precio' | 'sin-codigo' | 'en-pausa'
 
@@ -211,6 +212,8 @@ function FichaProducto({
   const [codigo, setCodigo] = useState(producto.codigo_barras ?? '')
   const [minimo, setMinimo] = useState(producto.stock_minimo?.toString() ?? '')
   const [categoria, setCategoria] = useState(producto.categoria ?? '')
+  // Con precio y costo se muestra lo que de verdad gana hoy; si no, lo que quiere ganar
+  const [porcentaje, setPorcentaje] = useState(String(margen(producto.precio_venta, producto.costo) ?? producto.porcentaje_ganancia))
   const [escaneando, setEscaneando] = useState(false)
   const [guardando, startGuardar] = useTransition()
   const precioNum = precio.trim() === '' ? null : Number(precio)
@@ -218,6 +221,20 @@ function FichaProducto({
   const costoValido = costoNum !== null && Number.isFinite(costoNum) && costoNum >= 0 ? costoNum : null
   const ganancia = margen(precioNum, costoValido)
   const ganas = gananciaPorUnidad(precioNum, costoValido)
+
+  // Si cambia el costo, el precio se queda y se ve el % nuevo; sin precio, lo calcula con el %
+  function cambiarCosto(v: string) {
+    setCosto(v)
+    const c = Number(v)
+    if (v.trim() === '' || !Number.isFinite(c) || c <= 0) return
+    if (precioNum !== null && Number.isFinite(precioNum)) {
+      const pct = margen(precioNum, c)
+      if (pct !== null && pct >= 0 && pct < 100) setPorcentaje(String(pct))
+    } else {
+      const pct = porcentajeValido(porcentaje)
+      if (pct !== null) setPrecio(precioParaGanar(c, pct).toFixed(2))
+    }
+  }
 
   function guardar(e: React.FormEvent) {
     e.preventDefault()
@@ -234,14 +251,15 @@ function FichaProducto({
       toast.error('El aviso de "quedan pocos" no es válido')
       return
     }
+    const pct = porcentajeValido(porcentaje) ?? producto.porcentaje_ganancia
     startGuardar(async () => {
-      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum, categoria: categoria || null })
+      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum, categoria: categoria || null, porcentaje_ganancia: pct })
       if (!r.ok) {
         toast.error(r.error)
         return
       }
       toast.success('Guardado')
-      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, costo: costoValido, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum, categoria: categoria || null })
+      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, costo: costoValido, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum, categoria: categoria || null, porcentaje_ganancia: pct })
     })
   }
 
@@ -293,7 +311,7 @@ function FichaProducto({
 
         <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
           Me cuesta (por {producto.vende_por === 'libra' ? 'libra' : 'unidad'})
-          <input value={costo} onChange={e => setCosto(e.target.value)} inputMode="decimal" placeholder="Lo que pagaste al proveedor por cada una" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
+          <input value={costo} onChange={e => cambiarCosto(e.target.value)} inputMode="decimal" placeholder="Lo que pagaste al proveedor por cada una" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
           <span className="text-xs text-slate-400">También se actualiza solo cuando registras una factura de este producto.</span>
         </label>
 
@@ -301,20 +319,15 @@ function FichaProducto({
           Nombre
           <input value={nombre} onChange={e => setNombre(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
         </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
-          {producto.vende_por === 'libra' ? 'Precio por libra' : 'Precio de venta'}
-          <input value={precio} onChange={e => setPrecio(e.target.value)} inputMode="decimal" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
-        </label>
-        {costoValido !== null && costoValido > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-slate-500">Poner precio para ganar:</span>
-            {[20, 30, 40].map(pct => (
-              <button key={pct} type="button" onClick={() => setPrecio(precioParaGanar(costoValido, pct).toFixed(2))} className="rounded-full bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800">
-                {pct}% · {dinero(precioParaGanar(costoValido, pct))}
-              </button>
-            ))}
-          </div>
-        )}
+        <PrecioGanancia
+          costo={costoValido}
+          vendePor={producto.vende_por}
+          precioAntes={producto.precio_venta}
+          precio={precio}
+          porcentaje={porcentaje}
+          onPrecio={setPrecio}
+          onPorcentaje={setPorcentaje}
+        />
         <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
           Categoría
           <select value={categoria} onChange={e => setCategoria(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base">

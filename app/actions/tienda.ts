@@ -123,6 +123,7 @@ export type CambiosProducto = {
   categoria?: string | null
   // false = en pausa
   activo?: boolean
+  porcentaje_ganancia?: number
 }
 
 export async function actualizarProducto(
@@ -140,6 +141,11 @@ export async function actualizarProducto(
   if (cambios.stock_minimo !== undefined) fila.stock_minimo = numeroValido(cambios.stock_minimo)
   if (cambios.categoria !== undefined) fila.categoria = texto(cambios.categoria, 60)
   if (cambios.activo !== undefined) fila.activo = cambios.activo === true
+  if (cambios.porcentaje_ganancia !== undefined) {
+    const pct = Number(cambios.porcentaje_ganancia)
+    if (!Number.isFinite(pct) || pct < 0 || pct >= 100) return { ok: false, error: 'El porcentaje de ganancia va de 0 a 99' }
+    fila.porcentaje_ganancia = Math.round(pct * 100) / 100
+  }
   if (cambios.codigo_barras !== undefined) {
     const codigo = texto(cambios.codigo_barras, 32)
     if (codigo && !CODIGO.test(codigo)) return { ok: false, error: 'El código de barras no es válido' }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { HelpCircle, PackagePlus, ScanBarcode, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto, crearProducto, registrarEntrada, type LineaFacturaFoto } from '@/app/actions/tienda'
-import { dinero, margen, normalizarCodigo, redondear2 } from '@/lib/tienda/formato'
+import { dinero, GANANCIA_POR_DEFECTO, margen, normalizarCodigo, redondear2 } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
@@ -116,7 +116,7 @@ export default function FacturaNueva({
       }
       const nuevo: Producto = {
         id: r.data.id, nombre, marca: null, presentacion: null, categoria: 'Otros', codigo_barras: f.codigo_barras,
-        vende_por: 'unidad', precio_venta: null, costo: null, itbms: 0, imagen_url: null, stock_minimo: null, activo: true, stock: 0, contado: false,
+        vende_por: 'unidad', precio_venta: null, costo: null, itbms: 0, imagen_url: null, stock_minimo: null, activo: true, porcentaje_ganancia: GANANCIA_POR_DEFECTO, stock: 0, contado: false,
       }
       setProductos(ps => [...ps, nuevo])
       setPendientes(ps => ps.filter((_, j) => j !== i))

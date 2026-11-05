@@ -28,6 +28,8 @@ export type Producto = {
   stock_minimo: number | null
   // En pausa: ya no se vende; no sale en la caja ni en los pedidos, pero se guarda su historia
   activo: boolean
+  // Cuánto busca ganar, en % del precio de venta (30 si nadie lo cambió)
+  porcentaje_ganancia: number
   stock: number
   // false si nunca se contó ni entró nada: su stock 0 no significa que se acabó
   contado: boolean

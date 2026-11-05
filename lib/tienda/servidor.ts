@@ -33,7 +33,8 @@ export async function getTiendaParaOperar(slug: string): Promise<Tienda | null> 
   return tienda
 }
 
-type FilaProducto = Omit<Producto, 'stock' | 'precio_venta' | 'costo' | 'itbms' | 'stock_minimo'> & {
+type FilaProducto = Omit<Producto, 'stock' | 'precio_venta' | 'costo' | 'itbms' | 'stock_minimo' | 'porcentaje_ganancia'> & {
+  porcentaje_ganancia: number | string
   precio_venta: number | string | null
   costo: number | string | null
   stock_minimo: number | string | null
@@ -49,7 +50,7 @@ export async function getProductos(tienda: Tienda, { conPausados = false } = {})
   const supabase = await createClient()
   let consulta = supabase
     .from('productos')
-    .select('id, nombre, marca, presentacion, categoria, codigo_barras, vende_por, precio_venta, costo, itbms, imagen_url, stock_minimo, activo')
+    .select('id, nombre, marca, presentacion, categoria, codigo_barras, vende_por, precio_venta, costo, itbms, imagen_url, stock_minimo, activo, porcentaje_ganancia')
     .eq('negocio_id', tienda.negocio_id)
   if (!conPausados) consulta = consulta.eq('activo', true)
   const [{ data: productos }, { data: stock }] = await Promise.all([
@@ -63,6 +64,7 @@ export async function getProductos(tienda: Tienda, { conPausados = false } = {})
     costo: aNumero(p.costo),
     stock_minimo: aNumero(p.stock_minimo),
     itbms: Number(p.itbms),
+    porcentaje_ganancia: Number(p.porcentaje_ganancia),
     stock: porProducto.get(p.id) ?? 0,
     contado: porProducto.has(p.id),
   }))
