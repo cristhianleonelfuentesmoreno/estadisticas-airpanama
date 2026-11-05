@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, CircleDollarSign, ClipboardList, FileSpreadsheet, MessageCircle, Package, PackagePlus, Pause, Play, ScanBarcode, Search, Wallet, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Barcode, CalendarClock, ChevronDown, CircleDollarSign, ClipboardList, FileSpreadsheet, Hash, MessageCircle, Package, PackagePlus, Pause, Play, ScanBarcode, Search, SlidersHorizontal, Tag, Wallet, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
 import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, hoyPanama, porAgotarse, porcentajeValido, precioParaGanar, textoPedido, textoVence, vencePronto } from '@/lib/tienda/formato'
@@ -15,6 +15,18 @@ import PrecioGanancia from '@/components/tienda/PrecioGanancia'
 import CampoVence from '@/components/tienda/CampoVence'
 
 export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-costo' | 'sin-precio' | 'sin-codigo' | 'vence-pronto' | 'en-pausa'
+
+// Los filtros salen en una hoja con botones grandes; cada uno dice cuántos productos tiene
+const FILTROS: { id: Filtro; nombre: string; Icono: LucideIcon }[] = [
+  { id: 'todos', nombre: 'Todos', Icono: Package },
+  { id: 'por-agotarse', nombre: 'Para pedir', Icono: ClipboardList },
+  { id: 'vence-pronto', nombre: 'Vence pronto', Icono: CalendarClock },
+  { id: 'sin-contar', nombre: 'Sin contar', Icono: Hash },
+  { id: 'sin-costo', nombre: 'Sin costo', Icono: CircleDollarSign },
+  { id: 'sin-precio', nombre: 'Sin precio', Icono: Tag },
+  { id: 'sin-codigo', nombre: 'Sin código', Icono: Barcode },
+  { id: 'en-pausa', nombre: 'En pausa', Icono: Pause },
+]
 
 export default function InventarioClient({
   tiendaId, tiendaNombre, slug, productos: iniciales, filtroInicial = 'todos',
@@ -29,6 +41,8 @@ export default function InventarioClient({
   const [productos, setProductos] = useState(iniciales)
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<Filtro>(filtroInicial)
+  const [categoria, setCategoria] = useState('')
+  const [eligiendo, setEligiendo] = useState(false)
   const [escaneando, setEscaneando] = useState(false)
   // Código escaneado que no está; '' = producto nuevo sin código
   const [desconocido, setDesconocido] = useState<string | null>(null)
@@ -37,9 +51,26 @@ export default function InventarioClient({
 
   // Los que están en pausa no cuentan para nada: solo salen en su filtro
   const activos = useMemo(() => productos.filter(p => p.activo), [productos])
-  const enPausa = productos.length - activos.length
   const hoy = hoyPanama()
-  const porVencer = activos.filter(p => vencePronto(p.vence_el, hoy)).length
+
+  const cumple = useCallback((p: Producto, f: Filtro) => {
+    if (f === 'en-pausa') return !p.activo
+    if (!p.activo) return false
+    if (f === 'por-agotarse') return porAgotarse(p)
+    if (f === 'vence-pronto') return vencePronto(p.vence_el, hoy)
+    if (f === 'sin-contar') return !p.contado
+    if (f === 'sin-precio') return p.precio_venta === null
+    if (f === 'sin-codigo') return !p.codigo_barras
+    if (f === 'sin-costo') return p.costo === null
+    return true
+  }, [hoy])
+
+  const cuantos = useMemo(() => new Map(FILTROS.map(f => [f.id, productos.filter(p => cumple(p, f.id)).length])), [productos, cumple])
+  const categorias = useMemo(() => {
+    const n = new Map<string, number>()
+    for (const p of activos) n.set(p.categoria ?? 'Sin categoría', (n.get(p.categoria ?? 'Sin categoría') ?? 0) + 1)
+    return [...n.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es'))
+  }, [activos])
 
   const resumen = useMemo(() => ({
     total: activos.length,
@@ -50,16 +81,12 @@ export default function InventarioClient({
 
   const lista = useMemo(() => {
     const f = busqueda.trim().toLowerCase()
-    return (filtro === 'en-pausa' ? productos.filter(p => !p.activo) : activos).filter(p => {
-      if (filtro === 'por-agotarse' && !porAgotarse(p)) return false
-      if (filtro === 'vence-pronto' && !vencePronto(p.vence_el, hoy)) return false
-      if (filtro === 'sin-contar' && p.contado) return false
-      if (filtro === 'sin-precio' && p.precio_venta !== null) return false
-      if (filtro === 'sin-codigo' && p.codigo_barras) return false
-      if (filtro === 'sin-costo' && p.costo !== null) return false
+    return productos.filter(p => {
+      if (!cumple(p, filtro)) return false
+      if (categoria && (p.categoria ?? 'Sin categoría') !== categoria) return false
       return !f || p.nombre.toLowerCase().includes(f) || (p.categoria ?? '').toLowerCase().includes(f) || p.codigo_barras === f
     })
-  }, [productos, activos, busqueda, filtro, hoy])
+  }, [productos, busqueda, filtro, categoria, cumple])
 
   const alEscanear = useCallback((codigo: string) => {
     setEscaneando(false)
@@ -99,17 +126,22 @@ export default function InventarioClient({
         </button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {([['todos', 'Todos'], ['por-agotarse', 'Para pedir'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código'], ['vence-pronto', `Vence pronto (${porVencer})`], ['en-pausa', `En pausa (${enPausa})`]] as const)
-          .filter(([f]) => (f !== 'en-pausa' || enPausa > 0 || filtro === 'en-pausa') && (f !== 'vence-pronto' || porVencer > 0 || filtro === 'vence-pronto'))
-          .map(([f, nombre]) => (
-          <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${filtro === f ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25' : 'bg-white text-slate-600 shadow-sm hover:bg-emerald-50'}`}>
-            {nombre}
+      <div className="flex gap-2">
+        <button onClick={() => setEligiendo(true)} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
+          <SlidersHorizontal className="h-5 w-5 shrink-0 text-emerald-700" />
+          <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">
+            {FILTROS.find(f => f.id === filtro)?.nombre}{categoria ? ` · ${categoria}` : ''} <span className="font-normal text-slate-500">({lista.length})</span>
+          </span>
+          <ChevronDown className="h-5 w-5 shrink-0 text-slate-400" />
+        </button>
+        {(filtro !== 'todos' || categoria) && (
+          <button onClick={() => { setFiltro('todos'); setCategoria('') }} aria-label="Quitar filtro" className="rounded-2xl bg-slate-100 px-4 text-slate-600">
+            <X className="h-5 w-5" />
           </button>
-        ))}
+        )}
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
         <button onClick={() => setDesconocido('')} className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700">
           <PackagePlus className="h-5 w-5" /> Producto sin código
         </button>
@@ -153,6 +185,52 @@ export default function InventarioClient({
         ))}
         {!lista.length && <li className="bg-white px-4 py-10 text-center text-slate-500 lg:col-span-2">No hay productos con ese filtro.</li>}
       </ul>
+
+      {eligiendo && (
+        <div onClick={() => setEligiendo(false)} className="hoja fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
+          <div onClick={e => e.stopPropagation()} className="flex max-h-[88dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-3xl">
+            <div className="flex items-center justify-between">
+              <p className="text-lg font-bold">¿Qué quieres ver?</p>
+              <button onClick={() => setEligiendo(false)} aria-label="Cerrar" className="rounded-full bg-slate-100 p-2"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {FILTROS.map(({ id, nombre, Icono }) => {
+                const n = cuantos.get(id) ?? 0
+                return (
+                  <button
+                    key={id}
+                    onClick={() => { setFiltro(id); setEligiendo(false) }}
+                    className={`flex items-center gap-3 rounded-2xl px-3 py-3.5 text-left ${filtro === id ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25' : 'bg-slate-50 text-slate-800 hover:bg-emerald-50'}`}
+                  >
+                    <Icono className={`h-5 w-5 shrink-0 ${filtro === id ? 'text-lime-300' : 'text-emerald-700'}`} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold">{nombre}</span>
+                      <span className={`block text-xs ${filtro === id ? 'text-emerald-100' : 'text-slate-500'}`}>{n} {n === 1 ? 'producto' : 'productos'}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            {categorias.length > 1 && (
+              <>
+                <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Por categoría</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[['', activos.length] as const, ...categorias].map(([c, n]) => (
+                    <button
+                      key={c || 'todas'}
+                      onClick={() => { setCategoria(c); setEligiendo(false) }}
+                      className={`flex items-center justify-between gap-2 rounded-2xl px-3 py-3 text-left text-sm ${categoria === c ? 'bg-emerald-700 font-semibold text-white' : 'bg-slate-50 text-slate-700 hover:bg-emerald-50'}`}
+                    >
+                      <span className="truncate">{c || 'Todas'}</span>
+                      <span className={`shrink-0 text-xs ${categoria === c ? 'text-emerald-100' : 'text-slate-400'}`}>{n}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {escaneando && <Escaner titulo="Escanea para buscar" onCodigo={alEscanear} onCerrar={() => setEscaneando(false)} />}
 
