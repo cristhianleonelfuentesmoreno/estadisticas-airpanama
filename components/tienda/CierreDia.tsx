@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, MessageCircle, PartyPopper, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { cerrarCaja } from '@/app/actions/tienda'
+import { anotarUso } from '@/app/actions/uso'
 import { dinero, redondear2, textoCierre } from '@/lib/tienda/formato'
 import type { CierreDia as Cierre, ResumenDia } from '@/lib/tienda/tipos'
 import Cifra from '@/components/ui/Cifra'
@@ -87,6 +88,7 @@ export default function CierreDia({
             }))}`}
             target="_blank"
             rel="noreferrer"
+            onClick={() => void anotarUso(tiendaId, 'whatsapp_cierre')}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] py-3.5 text-base font-bold text-white shadow"
           >
             <MessageCircle className="h-5 w-5" /> Mandar el resumen por WhatsApp

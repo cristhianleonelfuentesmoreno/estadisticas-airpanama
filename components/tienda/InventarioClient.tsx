@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AlertTriangle, Barcode, CalendarClock, ChevronDown, CircleDollarSign, ClipboardList, FileSpreadsheet, Hash, MessageCircle, Package, PackagePlus, Pause, Play, ScanBarcode, Search, SlidersHorizontal, Tag, Wallet, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
+import { anotarUso } from '@/app/actions/uso'
 import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, hoyPanama, porAgotarse, porcentajeValido, precioParaGanar, textoPedido, textoVence, vencePronto, agruparPorProveedor } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
@@ -160,6 +161,7 @@ export default function InventarioClient({
               href={`https://wa.me/?text=${encodeURIComponent(textoPedido(ps, tiendaNombre, proveedor ?? undefined))}`}
               target="_blank"
               rel="noreferrer"
+              onClick={() => void anotarUso(tiendaId, 'whatsapp_pedido', { productos: ps.length, con_proveedor: proveedor !== null })}
               className="flex items-center gap-3 rounded-2xl bg-[#25D366] px-4 py-3 text-white shadow"
             >
               <MessageCircle className="h-5 w-5 shrink-0" />
@@ -210,7 +212,7 @@ export default function InventarioClient({
                 return (
                   <button
                     key={id}
-                    onClick={() => { setFiltro(id); setEligiendo(false) }}
+                    onClick={() => { setFiltro(id); setEligiendo(false); void anotarUso(tiendaId, 'filtro', { filtro: id }) }}
                     className={`flex items-center gap-3 rounded-2xl px-3 py-3.5 text-left ${filtro === id ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25' : 'bg-slate-50 text-slate-800 hover:bg-emerald-50'}`}
                   >
                     <Icono className={`h-5 w-5 shrink-0 ${filtro === id ? 'text-lime-300' : 'text-emerald-700'}`} />
@@ -229,7 +231,7 @@ export default function InventarioClient({
                   {[['', activos.length] as const, ...categorias].map(([c, n]) => (
                     <button
                       key={c || 'todas'}
-                      onClick={() => { setCategoria(c); setEligiendo(false) }}
+                      onClick={() => { setCategoria(c); setEligiendo(false); void anotarUso(tiendaId, 'filtro', { categoria: c }) }}
                       className={`flex items-center justify-between gap-2 rounded-2xl px-3 py-3 text-left text-sm ${categoria === c ? 'bg-emerald-700 font-semibold text-white' : 'bg-slate-50 text-slate-700 hover:bg-emerald-50'}`}
                     >
                       <span className="truncate">{c || 'Todas'}</span>
@@ -248,6 +250,7 @@ export default function InventarioClient({
       {desconocido !== null && (
         <ProductoDesconocido
           tiendaId={tiendaId}
+          desde="inventario"
           codigo={desconocido || null}
           productos={productos}
           onCerrar={() => setDesconocido(null)}
@@ -350,7 +353,7 @@ function FichaProducto({
     }
     const pct = porcentajeValido(porcentaje) ?? producto.porcentaje_ganancia
     startGuardar(async () => {
-      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum, categoria: categoria || null, porcentaje_ganancia: pct, vence_el: vence || null })
+      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum, categoria: categoria || null, porcentaje_ganancia: pct, vence_el: vence || null }, 'inventario')
       if (!r.ok) {
         toast.error(r.error)
         return
@@ -363,7 +366,7 @@ function FichaProducto({
   // Pausar no borra nada: el producto deja de salir en la caja y en los pedidos hasta que se vuelva a activar
   function cambiarPausa() {
     startGuardar(async () => {
-      const r = await actualizarProducto(tiendaId, producto.id, { activo: !producto.activo })
+      const r = await actualizarProducto(tiendaId, producto.id, { activo: !producto.activo }, 'inventario')
       if (!r.ok) {
         toast.error(r.error)
         return

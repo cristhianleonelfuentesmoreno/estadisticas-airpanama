@@ -3,6 +3,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect } from 'react'
+import { anotarUso } from '@/app/actions/uso'
 import { BarChart3, Boxes, FileText, ShoppingCart } from 'lucide-react'
 
 const SECCIONES = [
@@ -13,8 +15,12 @@ const SECCIONES = [
 ] as const
 
 // En el celular: barra abajo, al alcance del pulgar. En la computadora: menú a la izquierda.
-export default function NavTienda({ slug, tienda }: { slug: string; tienda: string }) {
+export default function NavTienda({ slug, tienda, tiendaId }: { slug: string; tienda: string; tiendaId: string }) {
   const ruta = usePathname()
+  // Qué pantallas se abren y cuántas veces
+  useEffect(() => {
+    void anotarUso(tiendaId, 'pantalla', { ruta: ruta.replace(`/t/${slug}`, '') || '/' })
+  }, [ruta, slug, tiendaId])
   const secciones = SECCIONES.map(s => ({ ...s, href: `/t/${slug}/${s.ruta}`, activa: ruta.startsWith(`/t/${slug}/${s.ruta}`) }))
 
   return (

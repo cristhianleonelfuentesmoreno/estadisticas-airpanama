@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Banknote, Check, ChevronRight, CreditCard, ListChecks, Lock, Minus, PackagePlus, Pencil, Plus, ScanBarcode, Scale, Search, ShoppingBasket, Smartphone, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto, registrarVenta } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, diasParaVencer, gananciaPorUnidad, hoyPanama, margen, normalizarCodigo, porAgotarse, porcentajeValido, redondear2 } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, diasParaVencer, gananciaPorUnidad, hoyPanama, margen, normalizarCodigo, porAgotarse, porcentajeValido, precioParaGanar, redondear2 } from '@/lib/tienda/formato'
 import type { MetodoPago, Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
@@ -55,6 +55,7 @@ export default function CajaClient({
   const [editando, setEditando] = useState<Producto | null>(null)
   const [precioNuevo, setPrecioNuevo] = useState('')
   const [pctNuevo, setPctNuevo] = useState('')
+  const [costoNuevo, setCostoNuevo] = useState('')
   const [guardandoPrecio, startGuardarPrecio] = useTransition()
   // Todas las verduras, frutas y carnes que se pesan, en una ventana para elegir o cambiarles el precio
   const [verLibras, setVerLibras] = useState(false)
@@ -142,7 +143,7 @@ export default function CajaClient({
     if (!cambioPrecio) return
     setProductos(ps => ps.map(x => (x.id === p.id ? p : x)))
     setLineas(ls => ls.map(l => (l.producto.id === p.id ? { ...l, producto: p } : l)))
-    void actualizarProducto(tiendaId, p.id, { precio_venta: p.precio_venta }).then(r => {
+    void actualizarProducto(tiendaId, p.id, { precio_venta: p.precio_venta }, 'caja_pesa').then(r => {
       if (r.ok) toast.success(`${p.nombre}: ahora a ${dinero(p.precio_venta)} la libra`)
       else toast.error(r.error)
     })
@@ -155,7 +156,26 @@ export default function CajaClient({
   function abrirPrecio(p: Producto) {
     setPrecioNuevo(p.precio_venta?.toFixed(2) ?? '')
     setPctNuevo(String(margen(p.precio_venta, p.costo) ?? p.porcentaje_ganancia))
+    setCostoNuevo(p.costo !== null ? String(Number(p.costo.toFixed(4))) : '')
     setEditando(p)
+  }
+
+  const costoNum = costoNuevo.trim() === '' ? null : Number(costoNuevo)
+  const costoValido = costoNum !== null && Number.isFinite(costoNum) && costoNum >= 0 ? costoNum : null
+
+  // Igual que en Inventario: si cambia el costo, el precio se queda y se ve el % nuevo
+  function cambiarCosto(v: string) {
+    setCostoNuevo(v)
+    const c = Number(v)
+    if (v.trim() === '' || !Number.isFinite(c) || c <= 0) return
+    const precio = precioNuevo.trim() === '' ? null : Number(precioNuevo)
+    if (precio !== null && Number.isFinite(precio)) {
+      const pct = margen(precio, c)
+      if (pct !== null && pct >= 0 && pct < 100) setPctNuevo(String(pct))
+    } else {
+      const pct = porcentajeValido(pctNuevo)
+      if (pct !== null) setPrecioNuevo(precioParaGanar(c, pct).toFixed(2))
+    }
   }
 
   function guardarPrecio(e: React.FormEvent) {
@@ -166,15 +186,20 @@ export default function CajaClient({
       toast.error('El precio no es válido')
       return
     }
+    if (costoNum !== null && costoValido === null) {
+      toast.error('El costo no es válido')
+      return
+    }
     const p = editando
     const pct = porcentajeValido(pctNuevo) ?? p.porcentaje_ganancia
+    const costoCambio = costoValido !== p.costo
     startGuardarPrecio(async () => {
-      const r = await actualizarProducto(tiendaId, p.id, { precio_venta: precio, porcentaje_ganancia: pct })
+      const r = await actualizarProducto(tiendaId, p.id, { precio_venta: precio, porcentaje_ganancia: pct, ...(costoCambio ? { costo: costoValido } : {}) }, 'caja')
       if (!r.ok) {
         toast.error(r.error)
         return
       }
-      const nuevo = { ...p, precio_venta: precio, porcentaje_ganancia: pct }
+      const nuevo = { ...p, precio_venta: precio, porcentaje_ganancia: pct, costo: costoValido }
       setProductos(ps => ps.map(x => (x.id === p.id ? nuevo : x)))
       setLineas(ls => ls.map(l => (l.producto.id === p.id ? { ...l, producto: nuevo } : l)))
       setPesando(x => (x?.id === p.id ? nuevo : x))
@@ -443,6 +468,7 @@ export default function CajaClient({
       {desconocido !== null && (
         <ProductoDesconocido
           tiendaId={tiendaId}
+          desde="caja"
           codigo={desconocido || null}
           nombreInicial={desconocido ? '' : nombreNuevo}
           vendePorInicial={!desconocido && nuevoPorLibra ? 'libra' : 'unidad'}
@@ -458,17 +484,20 @@ export default function CajaClient({
       )}
 
       {editando && (() => {
-        const precio = precioNuevo.trim() === '' ? null : Number(precioNuevo)
-        const ganas = gananciaPorUnidad(precio !== null && Number.isFinite(precio) ? precio : null, editando.costo)
+        const unidad = editando.vende_por === 'libra' ? 'libra' : 'unidad'
         return (
           <div className="hoja fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center">
             <form onSubmit={guardarPrecio} className="flex w-full max-w-sm flex-col gap-4 rounded-t-3xl bg-white p-5 sm:rounded-3xl">
               <div>
                 <p className="text-lg font-bold">{editando.nombre}</p>
-                <p className="text-sm text-slate-500">Te cuesta {dinero(editando.costo)}{editando.vende_por === 'libra' ? ' la libra' : ''}. El cambio queda guardado para las próximas ventas.</p>
+                <p className="text-sm text-slate-500">Lo que cambies queda guardado para las próximas ventas.</p>
               </div>
+              <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
+                Te cuesta (por {unidad})
+                <input value={costoNuevo} onChange={e => cambiarCosto(e.target.value)} inputMode="decimal" placeholder="Lo que pagaste al proveedor" className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />
+              </label>
               <PrecioGanancia
-                costo={editando.costo}
+                costo={costoValido}
                 vendePor={editando.vende_por}
                 precioAntes={editando.precio_venta}
                 precio={precioNuevo}
@@ -476,14 +505,9 @@ export default function CajaClient({
                 onPrecio={setPrecioNuevo}
                 onPorcentaje={setPctNuevo}
               />
-              {ganas !== null && (
-                <p className={`text-center text-lg font-black ${ganas <= 0 ? 'text-red-600' : 'text-emerald-700'}`}>
-                  {ganas <= 0 ? `Pierdes ${dinero(-ganas)}` : `Ganas ${dinero(ganas)}`} por {editando.vende_por === 'libra' ? 'libra' : 'unidad'}
-                </p>
-              )}
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setEditando(null)} className="rounded-2xl bg-slate-100 py-3 font-semibold">Cancelar</button>
-                <button disabled={guardandoPrecio} className="rounded-2xl bg-emerald-600 py-3 font-bold text-white disabled:opacity-50">{guardandoPrecio ? 'Guardando…' : 'Guardar precio'}</button>
+                <button disabled={guardandoPrecio} className="rounded-2xl bg-emerald-600 py-3 font-bold text-white disabled:opacity-50">{guardandoPrecio ? 'Guardando…' : 'Guardar'}</button>
               </div>
             </form>
           </div>
