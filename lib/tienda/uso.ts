@@ -4,7 +4,7 @@ import { after } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const EVENTOS_USO = [
-  'pantalla', 'venta', 'venta_anulada', 'producto_creado', 'producto_editado', 'factura', 'factura_foto',
+  'pantalla', 'venta', 'venta_anulada', 'producto_creado', 'producto_editado', 'factura', 'factura_foto', 'factura_editada',
   'ajuste', 'cierre', 'whatsapp_pedido', 'whatsapp_cierre', 'sugerencia_precio', 'filtro',
 ] as const
 export type EventoUso = (typeof EVENTOS_USO)[number]
