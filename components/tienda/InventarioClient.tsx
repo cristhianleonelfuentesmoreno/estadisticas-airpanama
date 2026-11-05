@@ -152,7 +152,10 @@ export default function InventarioClient({
         <a href={`/t/${slug}/inventario/excel`} download className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
           <FileSpreadsheet className="h-5 w-5" /> Descargar todo en Excel
         </a>
-        <Link href={`/t/${slug}/inventario/importar`} className="col-span-2 flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300 sm:col-span-1">
+        <Link href={`/t/${slug}/inventario/contar`} className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
+          <ClipboardList className="h-5 w-5" /> Contar rápido
+        </Link>
+        <Link href={`/t/${slug}/inventario/importar`} className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:ring-emerald-300">
           <Upload className="h-5 w-5" /> Subir desde Excel
         </Link>
       </div>
