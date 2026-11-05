@@ -41,6 +41,10 @@ export default function CajaClient({
   // Código escaneado que no está; '' = producto nuevo sin código (lo que se buscó y no salió)
   const [desconocido, setDesconocido] = useState<string | null>(null)
   const [nombreNuevo, setNombreNuevo] = useState('')
+  // El nuevo que se crea desde "Por libra" ya sale como "se vende por libra"
+  const [nuevoPorLibra, setNuevoPorLibra] = useState(false)
+  // Precio por libra en la ventana de pesar: si se cambia, queda guardado al agregar
+  const [precioLb, setPrecioLb] = useState('')
   const [pesando, setPesando] = useState<Producto | null>(null)
   const [peso, setPeso] = useState('')
   const [busqueda, setBusqueda] = useState('')
@@ -98,6 +102,7 @@ export default function CajaClient({
     setBusqueda('')
     if (p.vende_por === 'libra') {
       setPeso('')
+      setPrecioLb(p.precio_venta?.toFixed(2) ?? '')
       setPesando(p)
     } else {
       agregar(p)
@@ -125,8 +130,22 @@ export default function CajaClient({
     e.preventDefault()
     const lb = Number(peso)
     if (!pesando || !Number.isFinite(lb) || lb <= 0) return
-    agregar(pesando, Number(lb.toFixed(3)))
+    const precio = Number(precioLb)
+    const cambioPrecio = precioLb.trim() !== '' && Number.isFinite(precio) && precio >= 0 && precio !== pesando.precio_venta
+    if (precioLb.trim() !== '' && !(Number.isFinite(precio) && precio >= 0)) {
+      toast.error('El precio por libra no es válido')
+      return
+    }
+    const p = cambioPrecio ? { ...pesando, precio_venta: redondear2(precio) } : pesando
+    agregar(p, Number(lb.toFixed(3)))
     setPesando(null)
+    if (!cambioPrecio) return
+    setProductos(ps => ps.map(x => (x.id === p.id ? p : x)))
+    setLineas(ls => ls.map(l => (l.producto.id === p.id ? { ...l, producto: p } : l)))
+    void actualizarProducto(tiendaId, p.id, { precio_venta: p.precio_venta }).then(r => {
+      if (r.ok) toast.success(`${p.nombre}: ahora a ${dinero(p.precio_venta)} la libra`)
+      else toast.error(r.error)
+    })
   }
 
   const total = redondear2(lineas.reduce((s, l) => s + redondear2((precioDe(l) ?? 0) * l.cantidad), 0))
@@ -159,6 +178,7 @@ export default function CajaClient({
       setProductos(ps => ps.map(x => (x.id === p.id ? nuevo : x)))
       setLineas(ls => ls.map(l => (l.producto.id === p.id ? { ...l, producto: nuevo } : l)))
       setPesando(x => (x?.id === p.id ? nuevo : x))
+      if (pesando?.id === p.id) setPrecioLb(precio.toFixed(2))
       setEditando(null)
       toast.success(`${p.nombre}: ahora a ${dinero(precio)}`)
     })
@@ -259,7 +279,7 @@ export default function CajaClient({
         )}
         {busqueda.trim().length >= 2 && resultados.length === 0 && (
           <button
-            onClick={() => { setNombreNuevo(busqueda.trim()); setBusqueda(''); setDesconocido('') }}
+            onClick={() => { setNombreNuevo(busqueda.trim()); setNuevoPorLibra(false); setBusqueda(''); setDesconocido('') }}
             className="absolute inset-x-0 top-full z-20 mt-1 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-xl hover:bg-emerald-50"
           >
             <PackagePlus className="h-5 w-5 shrink-0 text-emerald-600" />
@@ -436,11 +456,13 @@ export default function CajaClient({
           tiendaId={tiendaId}
           codigo={desconocido || null}
           nombreInicial={desconocido ? '' : nombreNuevo}
+          vendePorInicial={!desconocido && nuevoPorLibra ? 'libra' : 'unidad'}
           productos={productos}
-          onCerrar={() => setDesconocido(null)}
+          onCerrar={() => { setDesconocido(null); setNuevoPorLibra(false) }}
           onListo={p => {
             setProductos(ps => [...ps.filter(x => x.id !== p.id), p])
             setDesconocido(null)
+            setNuevoPorLibra(false)
             elegir(p)
           }}
         />
@@ -493,6 +515,12 @@ export default function CajaClient({
               <Search className="h-5 w-5 text-slate-400" />
               <input value={filtroLibra} onChange={e => setFiltroLibra(e.target.value)} placeholder="Buscar (tomate, pollo…)" className="w-full bg-transparent py-3 text-base focus:outline-none" />
             </div>
+            <button
+              onClick={() => { setNombreNuevo(filtroLibra.trim()); setNuevoPorLibra(true); setVerLibras(false); setDesconocido('') }}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-bold text-white shadow-sm hover:bg-emerald-700"
+            >
+              <PackagePlus className="h-5 w-5" /> {filtroLibra.trim() ? `Agregar «${filtroLibra.trim()}»` : 'Agregar uno nuevo'}
+            </button>
             <ul className="-mx-1 min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
               {librasFiltradas.map(p => {
                 const ganas = gananciaPorUnidad(p.precio_venta, p.costo)
@@ -526,12 +554,7 @@ export default function CajaClient({
           <form onSubmit={confirmarPeso} className="flex w-full max-w-sm flex-col gap-4 rounded-t-3xl bg-white p-5 sm:rounded-3xl">
             <div>
               <p className="text-lg font-bold">{pesando.nombre}</p>
-              <p className="text-sm text-slate-500">
-                {dinero(pesando.precio_venta)} la libra. Escribe lo que marca la pesa.{' '}
-                <button type="button" onClick={() => abrirPrecio(pesando)} className="inline-flex items-center gap-1 font-semibold text-emerald-700 underline underline-offset-2">
-                  <Pencil className="h-3.5 w-3.5" /> Cambiar precio
-                </button>
-              </p>
+              <p className="text-sm text-slate-500">Escribe lo que marca la pesa.</p>
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -544,8 +567,24 @@ export default function CajaClient({
               />
               <span className="text-xl font-semibold text-slate-500">lb</span>
             </div>
-            {Number(peso) > 0 && pesando.precio_venta !== null && (
-              <p className="text-center text-2xl font-black text-emerald-700">{dinero(Number(peso) * pesando.precio_venta)}</p>
+            <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2">
+              <span className="text-sm font-medium text-slate-600">Precio por libra $</span>
+              <input
+                value={precioLb}
+                onChange={e => setPrecioLb(e.target.value)}
+                inputMode="decimal"
+                placeholder="0.00"
+                className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-lg font-bold"
+              />
+              <button type="button" onClick={() => abrirPrecio(pesando)} aria-label="Precio y porcentaje" className="ml-auto rounded-xl p-2 text-emerald-700 hover:bg-emerald-100">
+                <Pencil className="h-4 w-4" />
+              </button>
+            </div>
+            {pesando.precio_venta !== null && precioLb.trim() !== '' && Number(precioLb) !== pesando.precio_venta && Number.isFinite(Number(precioLb)) && (
+              <p className="-mt-2 text-xs font-semibold text-emerald-700">Antes {dinero(pesando.precio_venta)}: se guarda el precio nuevo al agregar.</p>
+            )}
+            {Number(peso) > 0 && precioLb.trim() !== '' && Number(precioLb) >= 0 && (
+              <p className="text-center text-2xl font-black text-emerald-700">{dinero(Number(peso) * Number(precioLb))}</p>
             )}
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setPesando(null)} className="rounded-2xl bg-slate-100 py-3 font-semibold">Cancelar</button>

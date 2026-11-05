@@ -16,6 +16,7 @@ export default function ProductoDesconocido({
   tiendaId,
   codigo,
   nombreInicial = '',
+  vendePorInicial = 'unidad',
   productos,
   onListo,
   onCerrar,
@@ -23,6 +24,7 @@ export default function ProductoDesconocido({
   tiendaId: string
   codigo: string | null
   nombreInicial?: string
+  vendePorInicial?: VendePor
   productos: Producto[]
   onListo: (producto: Producto) => void
   onCerrar: () => void
@@ -34,7 +36,7 @@ export default function ProductoDesconocido({
   const [marca, setMarca] = useState('')
   const [presentacion, setPresentacion] = useState('')
   const [categoria, setCategoria] = useState(codigo === null ? 'Verduras y frutas' : 'Abarrotes')
-  const [vendePor, setVendePor] = useState<VendePor>('unidad')
+  const [vendePor, setVendePor] = useState<VendePor>(vendePorInicial)
   const [precio, setPrecio] = useState('')
   const [filtro, setFiltro] = useState('')
   const [guardando, startGuardar] = useTransition()
