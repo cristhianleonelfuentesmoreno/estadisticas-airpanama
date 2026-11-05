@@ -30,6 +30,8 @@ export type Producto = {
   activo: boolean
   // Cuánto busca ganar, en % del precio de venta (30 si nadie lo cambió)
   porcentaje_ganancia: number
+  // Cuándo vence (AAAA-MM-DD), si alguien lo escribió
+  vence_el: string | null
   stock: number
   // false si nunca se contó ni entró nada: su stock 0 no significa que se acabó
   contado: boolean
@@ -55,6 +57,7 @@ export type LineaEntrada = {
   producto_id: string
   cantidad: number
   costo_unitario: number
+  vence_el?: string | null
 }
 
 export type Resultado<T = null> = { ok: true; data: T } | { ok: false; error: string }

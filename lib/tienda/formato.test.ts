@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cambioPorcentual, costoDe, porcentajeValido, totalDe, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
+import { cambioPorcentual, costoDe, diasParaVencer, sumarMeses, textoVence, vencePronto, venceQueda, porcentajeValido, totalDe, cantidad, dinero, gananciaPorUnidad, inicioDeHoyPanama, margen, precioParaGanar, MINIMO_POR_DEFECTO, minimoDe, normalizarCodigo, porAgotarse, rangoDe, redondear2, textoPedido } from "@/lib/tienda/formato";
 
 test("redondea la plata a centavos sin errores de coma flotante", () => {
   assert.equal(redondear2(0.1 + 0.2), 0.3);
@@ -97,4 +97,25 @@ test("factura: total de la línea y costo del paquete", () => {
   assert.equal(totalDe("", "9.70"), "");
   assert.equal(costoDe("0", "10"), "");
   assert.equal(costoDe("2", ""), "");
+});
+
+test("caducidad: días, avisos y botones rápidos", () => {
+  assert.equal(diasParaVencer("2026-11-10", "2026-11-05"), 5);
+  assert.equal(diasParaVencer("2026-11-01", "2026-11-05"), -4);
+  assert.equal(vencePronto("2026-11-20", "2026-11-05"), true);
+  assert.equal(vencePronto("2026-12-20", "2026-11-05"), false);
+  assert.equal(vencePronto(null, "2026-11-05"), false);
+  assert.equal(textoVence("2026-11-05", "2026-11-05"), "Vence hoy");
+  assert.equal(textoVence("2026-11-04", "2026-11-05"), "Venció ayer");
+  assert.equal(textoVence("2026-11-08", "2026-11-05"), "Vence en 3 días");
+  assert.equal(sumarMeses("2026-11-05", 3), "2027-02-05");
+  assert.equal(sumarMeses("2027-01-31", 1), "2027-02-28");
+  assert.equal(sumarMeses("2026-11-05", 12), "2027-11-05");
+});
+
+test("caducidad: con mercancía nueva queda la fecha que vence primero", () => {
+  assert.equal(venceQueda(null, "2027-01-01", "2026-11-05"), "2027-01-01");
+  assert.equal(venceQueda("2026-12-01", "2027-01-01", "2026-11-05"), "2026-12-01");
+  assert.equal(venceQueda("2027-02-01", "2027-01-01", "2026-11-05"), "2027-01-01");
+  assert.equal(venceQueda("2026-10-01", "2027-01-01", "2026-11-05"), "2027-01-01");
 });

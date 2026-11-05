@@ -5,15 +5,16 @@ import { useRouter } from 'next/navigation'
 import { AlertTriangle, CircleDollarSign, ClipboardList, FileSpreadsheet, MessageCircle, Package, PackagePlus, Pause, Play, ScanBarcode, Search, Wallet, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { actualizarProducto } from '@/app/actions/tienda'
-import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, porAgotarse, porcentajeValido, precioParaGanar, textoPedido } from '@/lib/tienda/formato'
+import { cantidad as fmtCantidad, dinero, gananciaPorUnidad, margen, MINIMO_POR_DEFECTO, normalizarCodigo, hoyPanama, porAgotarse, porcentajeValido, precioParaGanar, textoPedido, textoVence, vencePronto } from '@/lib/tienda/formato'
 import type { Producto } from '@/lib/tienda/tipos'
 import Escaner, { precargarEscaner } from '@/components/tienda/Escaner'
 import ProductoDesconocido from '@/components/tienda/ProductoDesconocido'
 import FotoProducto from '@/components/tienda/FotoProducto'
 import { CATEGORIAS } from '@/lib/tienda/categorias'
 import PrecioGanancia from '@/components/tienda/PrecioGanancia'
+import CampoVence from '@/components/tienda/CampoVence'
 
-export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-costo' | 'sin-precio' | 'sin-codigo' | 'en-pausa'
+export type Filtro = 'todos' | 'por-agotarse' | 'sin-contar' | 'sin-costo' | 'sin-precio' | 'sin-codigo' | 'vence-pronto' | 'en-pausa'
 
 export default function InventarioClient({
   tiendaId, tiendaNombre, slug, productos: iniciales, filtroInicial = 'todos',
@@ -37,6 +38,8 @@ export default function InventarioClient({
   // Los que están en pausa no cuentan para nada: solo salen en su filtro
   const activos = useMemo(() => productos.filter(p => p.activo), [productos])
   const enPausa = productos.length - activos.length
+  const hoy = hoyPanama()
+  const porVencer = activos.filter(p => vencePronto(p.vence_el, hoy)).length
 
   const resumen = useMemo(() => ({
     total: activos.length,
@@ -49,13 +52,14 @@ export default function InventarioClient({
     const f = busqueda.trim().toLowerCase()
     return (filtro === 'en-pausa' ? productos.filter(p => !p.activo) : activos).filter(p => {
       if (filtro === 'por-agotarse' && !porAgotarse(p)) return false
+      if (filtro === 'vence-pronto' && !vencePronto(p.vence_el, hoy)) return false
       if (filtro === 'sin-contar' && p.contado) return false
       if (filtro === 'sin-precio' && p.precio_venta !== null) return false
       if (filtro === 'sin-codigo' && p.codigo_barras) return false
       if (filtro === 'sin-costo' && p.costo !== null) return false
       return !f || p.nombre.toLowerCase().includes(f) || (p.categoria ?? '').toLowerCase().includes(f) || p.codigo_barras === f
     })
-  }, [productos, activos, busqueda, filtro])
+  }, [productos, activos, busqueda, filtro, hoy])
 
   const alEscanear = useCallback((codigo: string) => {
     setEscaneando(false)
@@ -96,8 +100,8 @@ export default function InventarioClient({
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {([['todos', 'Todos'], ['por-agotarse', 'Para pedir'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código'], ['en-pausa', `En pausa (${enPausa})`]] as const)
-          .filter(([f]) => f !== 'en-pausa' || enPausa > 0 || filtro === 'en-pausa')
+        {([['todos', 'Todos'], ['por-agotarse', 'Para pedir'], ['sin-contar', 'Sin contar'], ['sin-costo', 'Sin costo'], ['sin-precio', 'Sin precio'], ['sin-codigo', 'Sin código'], ['vence-pronto', `Vence pronto (${porVencer})`], ['en-pausa', `En pausa (${enPausa})`]] as const)
+          .filter(([f]) => (f !== 'en-pausa' || enPausa > 0 || filtro === 'en-pausa') && (f !== 'vence-pronto' || porVencer > 0 || filtro === 'vence-pronto'))
           .map(([f, nombre]) => (
           <button key={f} onClick={() => setFiltro(f)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${filtro === f ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25' : 'bg-white text-slate-600 shadow-sm hover:bg-emerald-50'}`}>
             {nombre}
@@ -133,6 +137,9 @@ export default function InventarioClient({
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-slate-800">{p.nombre}</p>
                 <p className="truncate text-xs text-slate-500">{p.activo ? '' : 'En pausa · '}{p.categoria ?? 'Sin categoría'}{p.codigo_barras ? ` · ${p.codigo_barras}` : ''}</p>
+                {p.vence_el && vencePronto(p.vence_el, hoy) && (
+                  <p className="mt-0.5 w-fit rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">{textoVence(p.vence_el, hoy)}</p>
+                )}
               </div>
               <div className="text-right">
                 <p className={`ml-auto w-fit rounded-full px-2 py-0.5 text-sm font-bold ${!p.contado ? 'bg-slate-100 text-slate-400' : p.stock <= 0 ? 'bg-red-50 text-red-600' : porAgotarse(p) ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-800'}`}>{p.contado ? fmtCantidad(p.stock, p.vende_por) : 'sin contar'}</p>
@@ -212,6 +219,7 @@ function FichaProducto({
   const [codigo, setCodigo] = useState(producto.codigo_barras ?? '')
   const [minimo, setMinimo] = useState(producto.stock_minimo?.toString() ?? '')
   const [categoria, setCategoria] = useState(producto.categoria ?? '')
+  const [vence, setVence] = useState(producto.vence_el ?? '')
   // Con precio y costo se muestra lo que de verdad gana hoy; si no, lo que quiere ganar
   const [porcentaje, setPorcentaje] = useState(String(margen(producto.precio_venta, producto.costo) ?? producto.porcentaje_ganancia))
   const [escaneando, setEscaneando] = useState(false)
@@ -253,13 +261,13 @@ function FichaProducto({
     }
     const pct = porcentajeValido(porcentaje) ?? producto.porcentaje_ganancia
     startGuardar(async () => {
-      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum, categoria: categoria || null, porcentaje_ganancia: pct })
+      const r = await actualizarProducto(tiendaId, producto.id, { nombre, precio_venta: precioNum, costo: costoValido, codigo_barras: codigo || null, stock_minimo: minimoNum, categoria: categoria || null, porcentaje_ganancia: pct, vence_el: vence || null })
       if (!r.ok) {
         toast.error(r.error)
         return
       }
       toast.success('Guardado')
-      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, costo: costoValido, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum, categoria: categoria || null, porcentaje_ganancia: pct })
+      onGuardado({ ...producto, nombre: nombre.trim(), precio_venta: precioNum, costo: costoValido, codigo_barras: codigo.trim() || null, stock_minimo: minimoNum, categoria: categoria || null, porcentaje_ganancia: pct, vence_el: vence || null })
     })
   }
 
@@ -336,6 +344,7 @@ function FichaProducto({
             {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
           </select>
         </label>
+        <CampoVence valor={vence} onChange={setVence} />
         <label className="flex flex-col gap-1 text-sm font-medium text-slate-600">
           Avísame cuando queden
           <input value={minimo} onChange={e => setMinimo(e.target.value)} inputMode="decimal" placeholder={`${MINIMO_POR_DEFECTO} (si lo dejas vacío)`} className="rounded-xl border border-slate-200 px-3 py-2.5 text-base" />

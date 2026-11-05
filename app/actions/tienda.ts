@@ -5,6 +5,7 @@ import { requireApprovedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMisTiendas } from '@/lib/tienda/servidor'
+import { hoyPanama, venceQueda } from '@/lib/tienda/formato'
 import { emparejar, type Coincidencia } from '@/lib/tienda/emparejar'
 import { FacturaIaError, leerFactura, type FacturaLeida, type LineaLeida } from '@/lib/tienda/factura-ia'
 import type {
@@ -25,6 +26,13 @@ function texto(v: unknown, max = 120): string | null {
   if (typeof v !== 'string') return null
   const t = v.trim().slice(0, max)
   return t.length ? t : null
+}
+
+// AAAA-MM-DD de una fecha que existe
+function fechaValida(v: unknown): string | null {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null
+  const d = new Date(`${v}T12:00:00Z`)
+  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v ? null : v
 }
 
 function numeroValido(v: unknown): number | null {
@@ -124,6 +132,7 @@ export type CambiosProducto = {
   // false = en pausa
   activo?: boolean
   porcentaje_ganancia?: number
+  vence_el?: string | null
 }
 
 export async function actualizarProducto(
@@ -141,6 +150,11 @@ export async function actualizarProducto(
   if (cambios.stock_minimo !== undefined) fila.stock_minimo = numeroValido(cambios.stock_minimo)
   if (cambios.categoria !== undefined) fila.categoria = texto(cambios.categoria, 60)
   if (cambios.activo !== undefined) fila.activo = cambios.activo === true
+  if (cambios.vence_el !== undefined) {
+    const fecha = fechaValida(cambios.vence_el)
+    if (cambios.vence_el && !fecha) return { ok: false, error: 'La fecha de vencimiento no es válida' }
+    fila.vence_el = fecha
+  }
   if (cambios.porcentaje_ganancia !== undefined) {
     const pct = Number(cambios.porcentaje_ganancia)
     if (!Number.isFinite(pct) || pct < 0 || pct >= 100) return { ok: false, error: 'El porcentaje de ganancia va de 0 a 99' }
@@ -210,6 +224,21 @@ export async function registrarEntrada(
     p_tienda: tienda.id, p_proveedor: prov, p_numero_factura: texto(numeroFactura, 60) ?? '', p_lineas: limpias,
   })
   if (error) return { ok: false, error: 'No se pudo registrar la factura' }
+
+  // La fecha de vencimiento de la factura pasa al producto: queda la que vence primero
+  const vencen = new Map<string, string>()
+  for (const l of lineas) {
+    const fecha = fechaValida(l.vence_el)
+    if (fecha && typeof l.producto_id === 'string') vencen.set(l.producto_id, venceQueda(vencen.get(l.producto_id) ?? null, fecha, hoyPanama()))
+  }
+  if (vencen.size) {
+    const { data: actuales } = await supabase
+      .from('productos').select('id, vence_el').eq('negocio_id', tienda.negocio_id).in('id', [...vencen.keys()])
+    await Promise.all((actuales ?? []).map(p => supabase
+      .from('productos')
+      .update({ vence_el: venceQueda(p.vence_el as string | null, vencen.get(p.id as string)!, hoyPanama()) })
+      .eq('id', p.id).eq('negocio_id', tienda.negocio_id)))
+  }
   revalidatePath(`/t/${tienda.slug}`, 'layout')
   return { ok: true, data: { id: data as string } }
 }
